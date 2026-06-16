@@ -76,7 +76,7 @@ const experience = [
       * { box-sizing: border-box; }
       body {
         margin: 0;
-        min-height: 100vh;
+        min-height: 100svh;
         background: var(--bg);
         color: var(--ink);
         font-family: var(--serif);
@@ -88,7 +88,7 @@ const experience = [
 
       /* full-screen layout: content at top, footer pinned to bottom */
       main {
-        min-height: 100vh;
+        min-height: 100svh;
         padding: 40px;
         display: flex;
         flex-direction: column;
@@ -177,7 +177,7 @@ const experience = [
         .work { width: 100%; }
       }
       @media (max-width: 640px) {
-        main { padding: 56px 20px 28px; gap: 40px; }
+        main { padding: 88px 20px calc(28px + env(safe-area-inset-bottom)); gap: 40px; }
         .top { gap: 28px; }
         .headline { font-size: 20px; letter-spacing: -1.6px; line-height: 1.2; }
         .work { flex: none; gap: 14px; font-size: 13px; }
