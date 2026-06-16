@@ -1,0 +1,188 @@
+---
+// Eric Wang Design — portfolio landing (matches Figma "Landing 2", node 6:109)
+const experience = [
+  { company: "Google", year: "2026+", desc: "Map's Cartography & Driving Experiences" },
+  { company: "Tesla", year: "2025", desc: "Designing AI enterprise platforms at Tesla to streamline complex multi-persona operations, driving efficiency across and global operations." },
+  { company: "Google", year: "2025", desc: "Shaping the next generation of Maps through AI integration and imagery, reimagining how people navigate and understand the world." },
+  { company: "Wayfair", year: "2025", desc: "Redesigning supply-chain tools to streamline workflows for internal users and elevate customer satisfaction with user-centered service experiences." },
+  { company: "Accenture", year: "2024", desc: "Future-proofing a luxury automobile brand by envisioning and defining digital HMI and mobile solutions, bridging heritage with modern innovation." },
+  { company: "Ditto.ai", year: "2023", desc: "Creating an AI-driven social platform that bridges the gap between digital and physical worlds, helping people spark real-life conversations." },
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Eric Wang Design</title>
+    <meta name="description" content="Design Portfolio of Eric (Xufei) Wang" />
+    <meta property="og:title" content="Eric Wang Design" />
+    <meta property="og:description" content="Design Portfolio of Eric (Xufei) Wang" />
+    <meta property="og:image" content="/og-image.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:description" content="Design Portfolio of Eric (Xufei) Wang" />
+    <link rel="icon" type="image/png" href="/favicon-darkbg.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Spectral:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <main>
+      <!-- top: headline + experience -->
+      <div class="top">
+        <h1 class="headline">
+          Eric is a designer at Google Map, based in San Francisco.
+        </h1>
+
+        <section class="work">
+          {
+            experience.map((row) => (
+              <div class="row">
+                <div class="meta">
+                  <span class="company">{row.company}</span>
+                  <span class="year">{row.year}</span>
+                </div>
+                <p class="desc">{row.desc}</p>
+              </div>
+            ))
+          }
+        </section>
+      </div>
+
+      <!-- bottom: footer -->
+      <footer>
+        <div class="links">
+          <a href="https://x.com/home" target="_blank" rel="noreferrer">X</a>
+          <a href="https://www.linkedin.com/in/ericwangdesign/" target="_blank" rel="noreferrer">Linkedin</a>
+        </div>
+        <p class="tag">built with curiosity about the world and its people.</p>
+      </footer>
+    </main>
+
+    <style is:global>
+      :root {
+        --bg: #0d0d0d;
+        --ink: #ffffff;
+        --serif: "Spectral", Georgia, "Times New Roman", serif;
+        --sans: "General Sans", "Inter", system-ui, sans-serif;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--serif);
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+        word-break: break-word;
+      }
+
+      /* full-screen layout: content at top, footer pinned to bottom */
+      main {
+        min-height: 100vh;
+        padding: 40px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 80px;
+      }
+
+      /* ---------- top row ---------- */
+      .top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 80px;
+      }
+
+      .headline {
+        margin: 0;
+        flex-shrink: 0;
+        width: 483px;
+        max-width: 100%;
+        font-family: var(--serif);
+        font-weight: 300;
+        font-size: 40px;
+        letter-spacing: -3.2px;
+        line-height: 1.2;
+      }
+
+      /* ---------- experience ---------- */
+      .work {
+        flex-shrink: 0;
+        width: 640px;
+        max-width: 100%;
+        padding: 8px 0;
+        display: flex;
+        flex-direction: column;
+        gap: 32px;
+        font-family: var(--sans);
+        font-size: 14px;
+        letter-spacing: -0.24px;
+      }
+      .row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+      .company { width: 80px; font-weight: 500; }
+      .year { width: 80px; font-weight: 400; opacity: 0.6; }
+      .desc { width: 400px; max-width: 100%; margin: 0; font-weight: 400; }
+
+      /* ---------- footer ---------- */
+      footer {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        font-family: var(--serif);
+        font-weight: 300;
+        font-size: 12px;
+        line-height: 1.5;
+        letter-spacing: -0.6px;
+      }
+      .links {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-shrink: 0;
+      }
+      .links a {
+        color: var(--ink);
+        text-decoration: none;
+      }
+      .links a:hover { opacity: 0.6; }
+      footer .tag { margin: 0; }
+
+      /* ---------- responsive ---------- */
+      @media (max-width: 1100px) {
+        .top { flex-direction: column; gap: 56px; }
+        .headline { width: 100%; font-size: clamp(32px, 6vw, 40px); letter-spacing: -2px; }
+        .work { width: 100%; }
+      }
+      @media (max-width: 640px) {
+        main { padding: 24px; }
+        .row { flex-direction: column; gap: 6px; }
+        .desc { width: 100%; }
+        footer { flex-direction: column; gap: 24px; }
+      }
+    </style>
+  </body>
+</html>
