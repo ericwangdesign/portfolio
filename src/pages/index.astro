@@ -1,5 +1,5 @@
 ---
-// Eric Wang Design — portfolio landing (matches Figma "Landing 2", node 6:109)
+// Eric Wang Design — portfolio landing
 const experience = [
   { company: "Google", year: "2025+", desc: "Across Google Maps: AskMap's generative cartography, monetization, 3D abstract and satellite maps, and driving experiences." },
   { company: "Tesla", year: "2025", desc: "Internal AI for finding what the company already knows, and finance dashboards for seeing where the money goes." },
@@ -118,8 +118,8 @@ const experience = [
 
       /* ---------- experience ---------- */
       .work {
-        flex-shrink: 0;
-        width: 760px;
+        flex: 0 1 760px;
+        min-width: 0;
         max-width: 100%;
         padding: 8px 0;
         display: flex;
