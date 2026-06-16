@@ -1,0 +1,700 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#f2f3f5">
+<title>Memory Droplets — Milestone 1: Physics</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #f2f3f5; }
+  canvas { display: block; width: 100vw; height: 100vh; touch-action: none; cursor: crosshair; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+'use strict';
+
+// ============================================================
+// Memory Droplets — Milestone 1
+// Pure liquid physics: drag, merge-with-intent, neck-and-pinch
+// separation, per-droplet viscosity (water ... honey).
+// Metaball SDF rendering in a fragment shader.
+// ============================================================
+
+const MAX_BALLS = 24;   // shader uniform budget (each droplet = 1-2 balls)
+const MAX_DROPS = 12;
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { antialias: false, alpha: false, depth: false, stencil: false });
+if (!gl) { document.body.innerHTML = '<p style="color:#888;font:14px sans-serif;padding:2em">WebGL not available.</p>'; throw new Error('no webgl'); }
+
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+
+// ---------------------------- shaders ----------------------------
+
+const VERT = `
+attribute vec2 aPos;
+void main() { gl_Position = vec4(aPos, 0.0, 1.0); }
+`;
+
+const FRAG = `
+precision highp float;
+uniform vec2  uRes;
+uniform float uTime;
+uniform float uDpr;
+uniform float uSquash;   // camera tilt: vertical foreshortening of the table
+uniform int   uCount;
+uniform vec4  uBalls[${MAX_BALLS}]; // x, y, radius (device px), viscosity 0..1
+uniform vec4  uWob[${MAX_BALLS}];   // wobble amplitude, wobble phase, shape amplitude, shape phase
+
+float hash21(vec2 p) {
+  return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+// polynomial smooth-min: blends SDFs so touching droplets visually fuse
+float smin(float a, float b, float k) {
+  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+  return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+float field(vec2 p) {
+  float d = 1e6;
+  for (int i = 0; i < ${MAX_BALLS}; i++) {
+    if (i >= uCount) break;
+    vec4 B = uBalls[i];
+    vec2 q = p - B.xy;
+    float di = length(q) - B.z;
+    // the expensive wobble/shape detail only matters near the surface;
+    // far away the plain circle is indistinguishable
+    if (abs(di) < 30.0 * uDpr) {
+      float ang = atan(q.y, q.x);
+      vec4 W = uWob[i];
+      float r = B.z * (1.0 + 0.055 * W.x * sin(3.0 * ang + W.y)
+                           + 0.035 * W.x * sin(5.0 * ang - 1.7 * W.y)
+                           + W.z * (0.6 * sin(2.0 * ang + W.w)
+                                  + 0.4 * sin(3.0 * ang - 1.3 * W.w)));
+      di = length(q) - r;
+    }
+    // viscous droplets blend gooier (thicker necks when fusing/separating)
+    float k = clamp(B.z * mix(0.30, 0.62, B.w), 8.0 * uDpr, 34.0 * uDpr);
+    d = smin(d, di, k);
+  }
+  return d;
+}
+
+// plain-circle field, no shape detail: good enough for the soft shadow
+float fieldFast(vec2 p) {
+  float d = 1e6;
+  for (int i = 0; i < ${MAX_BALLS}; i++) {
+    if (i >= uCount) break;
+    vec4 B = uBalls[i];
+    float di = length(p - B.xy) - B.z;
+    float k = clamp(B.z * mix(0.30, 0.62, B.w), 8.0 * uDpr, 34.0 * uDpr);
+    d = smin(d, di, k);
+  }
+  return d;
+}
+
+// like field(), but also reports the radius of the nearest droplet so
+// shading can scale with droplet size (small beads get thin rims)
+vec2 fieldR(vec2 p) {
+  float d = 1e6, best = 1e6, rn = 30.0;
+  for (int i = 0; i < ${MAX_BALLS}; i++) {
+    if (i >= uCount) break;
+    vec4 B = uBalls[i];
+    vec2 q = p - B.xy;
+    float di = length(q) - B.z;
+    if (abs(di) < 30.0 * uDpr) {
+      float ang = atan(q.y, q.x);
+      vec4 W = uWob[i];
+      float r = B.z * (1.0 + 0.055 * W.x * sin(3.0 * ang + W.y)
+                           + 0.035 * W.x * sin(5.0 * ang - 1.7 * W.y)
+                           + W.z * (0.6 * sin(2.0 * ang + W.w)
+                                  + 0.4 * sin(3.0 * ang - 1.3 * W.w)));
+      di = length(q) - r;
+    }
+    float k = clamp(B.z * mix(0.30, 0.62, B.w), 8.0 * uDpr, 34.0 * uDpr);
+    d = smin(d, di, k);
+    if (di < best) { best = di; rn = B.z; }
+  }
+  return vec2(d, rn);
+}
+
+// top-down view: the white marble top is one flat color — only the
+// faintest cool corner falloff (the water lenses need *something* to
+// bend) and a fine even grain
+vec3 bgcol(vec2 sp) {
+  vec2 q = sp / uRes;
+  vec3 c = vec3(0.952, 0.955, 0.962);
+  float r = distance(q * vec2(uRes.x / uRes.y, 1.0), vec2(0.5 * uRes.x / uRes.y, 0.52));
+  c -= vec3(0.040, 0.036, 0.026) * smoothstep(0.30, 1.05, r);
+  c += (hash21(sp) - 0.5) * 0.006;
+  return c;
+}
+
+// sample the background from table-space coordinates
+vec3 bgS(vec2 p) { return bgcol(vec2(p.x, p.y * uSquash)); }
+
+void main() {
+  // undo the camera tilt: shade in table space, where droplets are round.
+  // everything rendered then lands foreshortened on screen — footprints
+  // become ellipses, near/far rims thin out, shadows flatten, for free
+  vec2 p = vec2(gl_FragCoord.x, gl_FragCoord.y / uSquash);
+  vec2 fr = fieldR(p);
+  float d = fr.x;
+  float nr = fr.y / uDpr;          // nearest droplet radius, css px
+
+  // light direction across the surface (upper-left)
+  vec2 ldir = normalize(vec2(-0.55, 0.75));
+
+  // whisper of a contact shadow, falling AWAY from the light (lower-right);
+  // sampled toward the light so the consistency reads even if the eye
+  // never names it
+  float dsh = fieldFast(p + vec2(-9.0, 12.0) * uDpr);
+  vec3 col = bgS(p) * mix(vec3(0.950, 0.955, 0.966), vec3(1.0), smoothstep(-4.0 * uDpr, 12.0 * uDpr, dsh));
+
+  float aa = 1.5 * uDpr;
+  float mask = smoothstep(aa, -aa, d);
+
+  // only pixels inside or hugging a droplet need the (expensive) gradient
+  if (d < 8.0 * uDpr) {
+  // forward differences: half the taps of central differences, and the
+  // tiny bias is invisible at this scale
+  float e = 1.6 * uDpr;
+  float dx = field(p + vec2(e, 0.0)) - d;
+  float dy = field(p + vec2(0.0, e)) - d;
+  vec2 g = vec2(dx, dy) / e;
+  vec2 gdir = normalize(g + 1e-5);
+  float facing = dot(gdir, ldir);   // +1: this edge faces the light
+
+  // bright caustic line hugging the outside of the shadow-side edge —
+  // water announces itself with focused light more than with shade
+  float caust = smoothstep(4.5 * uDpr, 0.5 * uDpr, d) * step(0.0, d);
+  col += vec3(1.0, 0.99, 0.96) * caust * smoothstep(0.2, -0.7, facing) * 0.14;
+
+  if (mask > 0.003) {
+    float depth = max(-d, 0.0) / uDpr;             // css-px depth inside the blob
+    float hh = min(sqrt(depth), 7.5);              // dome height — capped like real surface tension
+    vec2 slope = g * (2.6 / (1.0 + depth * 0.28)); // steep rim easing into a flat crown
+    vec3 n = normalize(vec3(slope, 1.0));
+
+    // the droplet is a clear lens: the interior IS the background, bent.
+    // under the tilted camera the view through the dome also displaces the
+    // surface toward the far side, proportional to the water's height —
+    // this is what makes the blob stand UP off the table
+    float ring = 1.0 + 0.16 * sin(min(depth, 42.0) * 0.5);
+    // the far-shift height cue only exists under a tilted camera;
+    // at squash 1.0 (top-down) it vanishes on its own
+    vec3 refr = bgS(p - n.xy * (40.0 + hh * 6.0) * ring * uDpr
+                      - vec2(0.0, hh * 11.0 * (1.0 - uSquash) * uDpr));
+
+    // almost no tint — transparency comes from NOT painting the water.
+    // the rim band scales with the droplet: small beads keep clear centers
+    float bandW = clamp(nr * 0.24, 3.0, 19.0);
+    float band = 1.0 - smoothstep(bandW * 0.25, bandW, depth);
+    vec3 glass = refr * mix(vec3(1.0, 1.0, 1.004), vec3(0.962, 0.978, 1.025), band);
+    glass *= 1.0 + 0.018 * smoothstep(1.5, 6.5, hh); // the lens gathers light, barely
+
+    // the narrow rim refracts the environment: white toward the light,
+    // a smooth steel-to-ink blue arc away from it
+    // a crescent, not a ring: the dark refraction lives only on the
+    // shadow side — the sides of the droplet stay clear
+    float dirT = smoothstep(0.15, -0.75, facing);  // 0 = lit side, 1 = shadow side
+    vec3 deep  = vec3(0.24, 0.30, 0.48);           // softened ink at the very rim
+    vec3 steel = vec3(0.56, 0.63, 0.79);           // pale blue further in
+    vec3 envDark = mix(steel, deep, smoothstep(0.30, 0.95, band));
+    // only the crescent touches the glass; everywhere else stays untinted
+    glass = mix(glass, envDark, band * 0.60 * pow(dirT, 1.2));
+    // soft light-entry brightening where the lit edge faces the light
+    glass += vec3(1.0) * band * smoothstep(0.25, 0.9, facing) * 0.15;
+
+    // focused light concentrates just inside the dark crescent — the
+    // signature sparkle of backlit water
+    float innerC = smoothstep(bandW, bandW * 0.55, depth) * smoothstep(bandW * 0.18, bandW * 0.45, depth);
+    glass += vec3(1.0, 0.995, 0.97) * innerC * pow(dirT, 1.5) * 0.22;
+
+    // dark meniscus line all the way around the silhouette — a pencil
+    // stroke, not an outline
+    float rimLine = smoothstep(2.6 * uDpr, 0.6 * uDpr, abs(d + 1.4 * uDpr));
+    glass = mix(glass, vec3(0.165, 0.205, 0.330), rimLine * 0.26);
+
+    // thin silver edge, almost entirely on the lit side
+    float litRim = smoothstep(2.2 * uDpr, 0.6 * uDpr, abs(d + 1.2 * uDpr));
+    glass += vec3(1.0) * litRim * (0.08 + 0.62 * smoothstep(0.05, 0.85, facing));
+
+    // glints: tiny and crisp — large soft highlights read as plastic
+    vec3 L = normalize(vec3(-0.50, 0.68, 0.54));
+    vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
+    float ndh = max(dot(n, H), 0.0);
+    glass += pow(ndh, 900.0) * 0.75;
+    glass += pow(ndh, 9.0) * 0.015;              // whisper of sheen, no milk
+    vec3 L2 = normalize(vec3(0.42, -0.55, 0.72));
+    glass += pow(max(dot(n, normalize(L2 + vec3(0.0, 0.0, 1.0))), 0.0), 500.0) * 0.28;
+
+    col = mix(col, glass, mask);
+  }
+  }
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function compile(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT));
+gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FRAG));
+gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+gl.useProgram(prog);
+
+const quad = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, 'aPos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const U = {
+  res:   gl.getUniformLocation(prog, 'uRes'),
+  time:  gl.getUniformLocation(prog, 'uTime'),
+  dpr:   gl.getUniformLocation(prog, 'uDpr'),
+  squash: gl.getUniformLocation(prog, 'uSquash'),
+  count: gl.getUniformLocation(prog, 'uCount'),
+  balls: gl.getUniformLocation(prog, 'uBalls[0]'),
+  wob:   gl.getUniformLocation(prog, 'uWob[0]'),
+};
+const ballData = new Float32Array(MAX_BALLS * 4);
+const wobData = new Float32Array(MAX_BALLS * 4);
+
+// ---------------------------- sim state ----------------------------
+
+// camera tilt: 1.0 = straight top-down (current), lower = tilted camera
+// (0.55 ≈ 60°; the machinery still works if we ever go back to 3D)
+const SQUASH = 1.0;
+let W = 0, H = 0, HS = 0, DPR = 1;
+function resize() {
+  W = window.innerWidth; H = window.innerHeight;
+  HS = H / SQUASH;       // table-space height
+  // the render is all soft gradients — it survives a modest internal
+  // resolution invisibly, and fill-rate is everything for weak GPUs
+  let dpr = Math.min(window.devicePixelRatio || 1, 1.6);
+  while (W * dpr * H * dpr > 1.15e6) dpr *= 0.9;
+  DPR = dpr;
+  canvas.width = Math.round(W * dpr);
+  canvas.height = Math.round(H * dpr);
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+let nextId = 1;
+function makeDroplet(x, y, r, v) {
+  // relative irregularity holds at small sizes — a perfectly round bead
+  // reads as a UI dot, not water
+  const base = (0.025 + Math.random() * 0.05) * clamp(r / 45, 0.95, 1.7);
+  return {
+    id: nextId++,
+    x, y, vx: 0, vy: 0,       // head (the part that follows your finger)
+    tx: x, ty: y, tvx: 0, tvy: 0, // tail (the lagging bulk — stretches into the neck)
+    ax: 0, ay: 0,
+    r, v: clamp(v, 0, 1),     // v: 0 = water, 1 = honey
+    wob: 0.5, ph: Math.random() * 6.283,
+    // organic shape: morphs while the liquid moves, freezes wherever it is
+    // when it comes to rest — a dragged blob keeps its new form
+    shapeBase: base, shape: base, shapePh: Math.random() * 6.283,
+    noMergeId: -1, noMergeT: 0, // freshly-split pairs refuse to re-merge briefly
+  };
+}
+
+const droplets = [];
+(function seed() {
+  // scale the cast to the screen so small viewports can still fit everyone
+  // without overlapping (overlapping seeds chain-merge into one big blob)
+  const fit = clamp(Math.min(W, HS) / 760, 0.45, 1);
+  const radii = [108, 88, 76, 62, 50, 40, 32, 25, 18, 12].map(r => Math.round(r * fit));
+  const viscs = [0.10, 0.04, 0.14, 0.26, 0.40, 0.52, 0.64, 0.78, 0.90, 0.97];
+  // shuffle viscosities so size doesn't correlate with thickness
+  for (let i = viscs.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [viscs[i], viscs[j]] = [viscs[j], viscs[i]];
+  }
+  for (let i = 0; i < radii.length; i++) {
+    const r = radii[i];
+    let x = 0, y = 0, ok = false;
+    for (let t = 0; t < 600 && !ok; t++) {
+      x = lerp(r + 24, W - r - 24, Math.random());
+      y = lerp(r + 24, HS - r - 24, Math.random());
+      // if placement keeps failing, accept tighter packing — but never
+      // actual overlap, which would chain-merge the whole cast at spawn
+      const gap = t < 300 ? 26 : 8;
+      ok = droplets.every(d => Math.hypot(d.x - x, d.y - y) > d.r + r + gap);
+    }
+    // a droplet that truly cannot fit is left out — fewer droplets beats
+    // spawning them merged
+    if (ok) droplets.push(makeDroplet(x, y, r, viscs[i]));
+  }
+})();
+
+// ---------------------------- pointer ----------------------------
+
+// Mobile-first: touch a droplet to grab and drag it. Touching empty surface
+// makes the finger a stick that nudges droplets. Hover does nothing — there
+// is no hover on a phone, and the desktop cursor should behave identically.
+const P = { x: 0, y: 0, px: 0, py: 0, vx: 0, vy: 0, active: false, grab: null };
+let down = { t: 0, x: 0, y: 0, id: null };     // for tap / double-tap detection
+let lastTap = { t: -1e9, id: null };
+function setPos(e) {
+  // screen touch -> table space (undo the camera tilt)
+  P.x = e.clientX; P.y = e.clientY / SQUASH;
+}
+canvas.addEventListener('pointerdown', e => {
+  setPos(e); P.px = P.x; P.py = P.y; P.vx = P.vy = 0;
+  P.active = true;
+  let best = null, bd = 1e9;
+  for (const d of droplets) {
+    const dist = Math.hypot(d.x - P.x, d.y - P.y) - d.r;
+    if (dist < 22 && dist < bd) { bd = dist; best = d; }
+  }
+  P.grab = best ? best.id : null;
+  down = { t: performance.now(), x: P.x, y: P.y, id: P.grab };
+  canvas.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+canvas.addEventListener('pointermove', setPos);
+function release() {
+  // a short, still press on a droplet is a tap; two taps in a row split it
+  if (down.id !== null &&
+      performance.now() - down.t < 300 &&
+      Math.hypot(P.x - down.x, P.y - down.y) < 14) {
+    if (lastTap.id === down.id && performance.now() - lastTap.t < 450) {
+      const d = droplets.find(x => x.id === down.id);
+      if (d) tapSplit(d);
+      lastTap = { t: -1e9, id: null };
+    } else {
+      lastTap = { t: performance.now(), id: down.id };
+    }
+  }
+  down.id = null;
+  P.active = false; P.grab = null;
+}
+canvas.addEventListener('pointerup', release);
+canvas.addEventListener('pointercancel', release);
+
+// ---------------------------- physics ----------------------------
+
+function breakLen(d) { return d.r * (1.3 + 1.9 * d.v) + 36; }
+
+// committed coalescences in progress: once two droplets are pushed past the
+// tension barrier they bond, then slowly flow into one another (the metaball
+// bridge does the visuals) before finally becoming one body
+const bonds = [];
+function bondIndex(a, b) {
+  return bonds.findIndex(bd => (bd.a === a.id && bd.b === b.id) || (bd.a === b.id && bd.b === a.id));
+}
+
+function mergePair(a, b) {
+  const ma = a.r * a.r, mb = b.r * b.r, tot = ma + mb;
+  a.x = (a.x * ma + b.x * mb) / tot;
+  a.y = (a.y * ma + b.y * mb) / tot;
+  a.vx = (a.vx * ma + b.vx * mb) / tot;
+  a.vy = (a.vy * ma + b.vy * mb) / tot;
+  a.v = (a.v * ma + b.v * mb) / tot;
+  a.r = Math.min(Math.sqrt(tot), 120);
+  a.tx = a.x; a.ty = a.y; a.tvx = a.vx; a.tvy = a.vy;
+  // no wobble boost, no phase reshuffle here: by this point the small body
+  // has fully drained, so completion must be invisible — any twitch at
+  // finalize reads as fake (real droplets just... are one, at this moment).
+  // only the resting amplitude rescales for the new size; the live shape
+  // glides toward it, so nothing jumps.
+  a.shapeBase = (0.025 + Math.random() * 0.05) * clamp(a.r / 45, 0.95, 1.7);
+  if (P.grab === b.id) P.grab = a.id;
+  // drop any coalescences these two were part of
+  for (let i = bonds.length - 1; i >= 0; i--) {
+    const bd = bonds[i];
+    if (bd.a === a.id || bd.b === a.id || bd.a === b.id || bd.b === b.id) bonds.splice(i, 1);
+  }
+  droplets.splice(droplets.indexOf(b), 1);
+}
+
+function splitDroplet(a, stretch) {
+  const dirx = (a.x - a.tx) / stretch, diry = (a.y - a.ty) / stretch;
+  const f = 0.36;                              // fraction of area that pinches off
+  const childR = a.r * Math.sqrt(f);
+  a.r = a.r * Math.sqrt(1 - f);
+  const c = makeDroplet(a.tx, a.ty, childR, clamp(a.v + (Math.random() - 0.5) * 0.06, 0, 1));
+  const snap = lerp(110, 42, a.v);             // water snaps back hard, honey relaxes
+  c.vx = a.tvx * 0.6 - dirx * snap;
+  c.vy = a.tvy * 0.6 - diry * snap;
+  a.vx += dirx * snap * 0.45;
+  a.vy += diry * snap * 0.45;
+  a.tx = a.x - dirx * a.r * 0.2; a.ty = a.y - diry * a.r * 0.2;
+  a.tvx = a.vx; a.tvy = a.vy;
+  a.wob = 1.0; c.wob = 1.15;
+  a.noMergeId = c.id; a.noMergeT = 0.9;
+  c.noMergeId = a.id; c.noMergeT = 0.9;
+  droplets.push(c);
+}
+
+// double-tap a droplet: it shivers and divides into two
+function tapSplit(a) {
+  if (a.r < 18 || droplets.length >= MAX_DROPS) { a.wob = 1.0; return; }
+  const ang = Math.random() * Math.PI * 2;
+  const dx = Math.cos(ang), dy = Math.sin(ang);
+  const f = 0.42 + Math.random() * 0.16;       // roughly in half
+  const childR = a.r * Math.sqrt(f);
+  a.r *= Math.sqrt(1 - f);
+  const off = (a.r + childR) * 0.55;
+  const c = makeDroplet(a.x + dx * off, a.y + dy * off, childR,
+                        clamp(a.v + (Math.random() - 0.5) * 0.06, 0, 1));
+  a.x -= dx * off * 0.45; a.y -= dy * off * 0.45;
+  const snap = lerp(140, 50, a.v);
+  c.vx = a.vx + dx * snap; c.vy = a.vy + dy * snap;
+  a.vx -= dx * snap * 0.7; a.vy -= dy * snap * 0.7;
+  a.tx = a.x; a.ty = a.y; a.tvx = a.vx; a.tvy = a.vy;
+  a.wob = 1.1; c.wob = 1.1;
+  a.noMergeId = c.id; a.noMergeT = 0.9;
+  c.noMergeId = a.id; c.noMergeT = 0.9;
+  droplets.push(c);
+}
+
+function step(dt) {
+  // per-droplet forces
+  for (const a of droplets) {
+    let ax = 0, ay = 0;
+    if (P.grab === a.id) {
+      // grab spring — thick droplets lag and trail, thin ones track tight
+      const k = lerp(210, 60, a.v), c = lerp(10, 15, a.v);
+      ax += (P.x - a.x) * k - a.vx * c;
+      ay += (P.y - a.y) * k - a.vy * c;
+    } else {
+      const c = lerp(2.2, 4.8, a.v);             // surface drag
+      ax -= a.vx * c; ay -= a.vy * c;
+    }
+    // soft screen-edge wall: pushes back gently and bleeds off speed while
+    // inside the margin, so droplets ease out instead of bouncing
+    const m = a.r * 0.45 + 6;
+    if (a.x < m) ax += (m - a.x) * 70 - a.vx * 6;
+    if (a.x > W - m) ax -= (a.x - (W - m)) * 70 + a.vx * 6;
+    if (a.y < m) ay += (m - a.y) * 70 - a.vy * 6;
+    if (a.y > HS - m) ay -= (a.y - (HS - m)) * 70 + a.vy * 6;
+    a.ax = ax; a.ay = ay;
+  }
+
+  // pair forces: tension barrier -> snap zone -> merge
+  const merges = [];
+  for (let i = 0; i < droplets.length; i++) {
+    for (let j = i + 1; j < droplets.length; j++) {
+      const a = droplets[i], b = droplets[j];
+      let dx = b.x - a.x, dy = b.y - a.y;
+      let dist = Math.hypot(dx, dy);
+      if (dist < 0.001) { dist = 0.001; dx = 0.001; }
+      const nx = dx / dist, ny = dy / dist;
+      const sumR = a.r + b.r, gap = dist - sumR;
+      const ma = a.r * a.r, mb = b.r * b.r, tot = ma + mb;
+      let wa = mb / tot, wb = ma / tot;         // lighter droplet moves more
+      // the finger always wins: a grabbed droplet is never braked or shoved
+      // by its neighbors — they yield to it instead
+      if (P.grab === a.id) { wa = 0; wb = 1; }
+      else if (P.grab === b.id) { wa = 1; wb = 0; }
+      const blocked = (a.noMergeId === b.id && a.noMergeT > 0) ||
+                      (b.noMergeId === a.id && b.noMergeT > 0);
+
+      // an active coalescence overrides everything else for this pair
+      const bi = bondIndex(a, b);
+      if (bi >= 0) {
+        const big = a.r >= b.r ? a : b, small = a.r >= b.r ? b : a;
+        if (small.r < 8) {
+          // the smaller body has fully drained away: becoming one is a
+          // sub-pixel event, nothing for the eye to catch
+          merges.push([a, b]);
+          bonds.splice(bi, 1);
+        } else if (dist > (a.r + b.r) * 1.05) {
+          // pulled apart mid-coalescence — the bridge pinches, bond breaks
+          bonds.splice(bi, 1);
+        } else {
+          const vavg = (a.v + b.v) / 2;
+          // capillary flow: the small droplet drains into the big one,
+          // faster the more engulfed it already is — no popping swap
+          const engulf = clamp(1 - dist / (a.r + b.r), 0, 1);
+          const flow = lerp(1.7, 0.55, vavg) * (0.35 + 1.6 * engulf) * dt;
+          const dArea = small.r * small.r * Math.min(flow, 0.9);
+          small.r = Math.sqrt(Math.max(small.r * small.r - dArea, 1));
+          big.r = Math.min(Math.sqrt(big.r * big.r + dArea), 120);
+          // gentle pull, syrupy relative damping
+          const pull = lerp(360, 110, vavg);
+          a.ax += nx * pull * wa; a.ay += ny * pull * wa;
+          b.ax -= nx * pull * wb; b.ay -= ny * pull * wb;
+          const rvx = b.vx - a.vx, rvy = b.vy - a.vy;
+          const dampC = lerp(3.5, 6.5, vavg);
+          a.ax += rvx * dampC * wa; a.ay += rvy * dampC * wa;
+          b.ax -= rvx * dampC * wb; b.ay -= rvy * dampC * wb;
+        }
+        continue;
+      }
+
+      if (gap > 0 && gap < 14) {
+        // surface tension holds them apart until pushed with intent
+        const f = (1 - gap / 14) * 520 * (blocked ? 1.8 : 1);
+        a.ax -= nx * f * wa; a.ay -= ny * f * wa;
+        b.ax += nx * f * wb; b.ay += ny * f * wb;
+      } else if (gap <= 0) {
+        const overlap = -gap, minR = Math.min(a.r, b.r);
+        if (blocked) {
+          const f = 900;
+          a.ax -= nx * f * wa; a.ay -= ny * f * wa;
+          b.ax += nx * f * wb; b.ay += ny * f * wb;
+        } else if (overlap > minR * 0.32) {
+          // pushed past the barrier with intent: commit to coalescing —
+          // the ripple happens HERE, at first contact, never at completion
+          bonds.push({ a: a.id, b: b.id });
+          a.wob = Math.min(1.0, a.wob + 0.30);
+          b.wob = Math.min(1.0, b.wob + 0.30);
+        } else {
+          const f = 620;
+          a.ax -= nx * f * wa; a.ay -= ny * f * wa;
+          b.ax += nx * f * wb; b.ay += ny * f * wb;
+        }
+      }
+    }
+  }
+  for (const [a, b] of merges) {
+    if (droplets.includes(a) && droplets.includes(b)) mergePair(a, b);
+  }
+
+  // chopstick: only while actively touching empty surface
+  if (P.active && P.grab === null) {
+    for (const a of droplets) {
+      const dx = a.x - P.x, dy = a.y - P.y;
+      const dist = Math.max(Math.hypot(dx, dy), 0.001);
+      const rr = a.r + 14;
+      if (dist < rr) {
+        const pen = rr - dist, nx = dx / dist, ny = dy / dist;
+        a.x += nx * pen; a.y += ny * pen;
+        const vn = a.vx * nx + a.vy * ny;
+        if (vn < 0) { a.vx -= nx * vn; a.vy -= ny * vn; }
+        a.vx += P.vx * 0.18; a.vy += P.vy * 0.18;
+        a.wob = Math.min(1.1, a.wob + pen * 0.007);
+      }
+    }
+  }
+
+  // integrate heads, then tails, wobble, splits
+  for (const a of droplets) {
+    a.vx = clamp(a.vx + a.ax * dt, -1800, 1800);
+    a.vy = clamp(a.vy + a.ay * dt, -1800, 1800);
+    a.x += a.vx * dt;
+    a.y += a.vy * dt;
+
+    // tail chases head; viscosity sets how reluctantly
+    const kt = lerp(520, 95, a.v), ct = lerp(17, 13, a.v);
+    a.tvx += ((a.x - a.tx) * kt - a.tvx * ct) * dt;
+    a.tvy += ((a.y - a.ty) * kt - a.tvy * ct) * dt;
+    a.tx += a.tvx * dt;
+    a.ty += a.tvy * dt;
+
+    // wobble: excited by events, damped by viscosity, and at rest it is
+    // genuinely at rest — real droplets do not breathe on their own
+    const decay = lerp(2.2, 4.2, a.v);
+    a.wob += (0 - a.wob) * Math.min(1, decay * dt);
+    a.wob = Math.min(1.1, a.wob + Math.hypot(a.ax, a.ay) * dt * 0.00045);
+    if (a.wob > 0.015) a.ph += dt * lerp(10, 3.4, a.v);
+
+    // the silhouette morphs only while the liquid is actually moving;
+    // when motion stops it freezes in its NEW shape (no memory of the old)
+    const stretchNow = Math.hypot(a.x - a.tx, a.y - a.ty);
+    const speed = Math.hypot(a.vx, a.vy);
+    // below the deadband the liquid counts as fully at rest: zero out the
+    // crawl so the frozen shape is truly frozen
+    const agitation = (speed < 6 && stretchNow < 2)
+      ? 0 : clamp(speed / 260 + stretchNow / breakLen(a), 0, 1);
+    a.shapePh += dt * agitation * lerp(2.6, 0.9, a.v);
+    const targetAmp = a.shapeBase * (1 + agitation * 0.9);
+    a.shape += (targetAmp - a.shape) * Math.min(1, dt * 2.5);
+
+    if (a.noMergeT > 0) a.noMergeT -= dt;
+
+    // neck stretched past its limit -> pinch off
+    const stretch = Math.hypot(a.x - a.tx, a.y - a.ty);
+    if (stretch > breakLen(a) && a.r >= 26 && droplets.length < MAX_DROPS) {
+      splitDroplet(a, stretch);
+    }
+  }
+}
+
+// ---------------------------- render ----------------------------
+
+function render(time) {
+  let n = 0;
+  for (const a of droplets) {
+    if (n >= MAX_BALLS) break;
+    const stretch = Math.hypot(a.x - a.tx, a.y - a.ty);
+    const s = Math.min(1, stretch / breakLen(a));
+    // head ball
+    ballData[n * 4 + 0] = a.x * DPR;
+    ballData[n * 4 + 1] = (HS - a.y) * DPR;
+    ballData[n * 4 + 2] = a.r * (1 - 0.18 * s) * DPR;
+    ballData[n * 4 + 3] = a.v;
+    wobData[n * 4 + 0] = a.wob;
+    wobData[n * 4 + 1] = a.ph;
+    wobData[n * 4 + 2] = a.shape;
+    wobData[n * 4 + 3] = a.shapePh;
+    n++;
+    // tail ball — only when visibly stretched; smin between the two makes the neck
+    if (stretch > 6 && n < MAX_BALLS) {
+      ballData[n * 4 + 0] = a.tx * DPR;
+      ballData[n * 4 + 1] = (HS - a.ty) * DPR;
+      ballData[n * 4 + 2] = a.r * (0.78 - 0.42 * s) * DPR;
+      ballData[n * 4 + 3] = a.v;
+      wobData[n * 4 + 0] = a.wob;
+      wobData[n * 4 + 1] = a.ph + 2.1;
+      wobData[n * 4 + 2] = a.shape * 0.6;
+      wobData[n * 4 + 3] = a.shapePh + 1.3;
+      n++;
+    }
+  }
+  gl.uniform2f(U.res, canvas.width, canvas.height);
+  gl.uniform1f(U.time, time);
+  gl.uniform1f(U.dpr, DPR);
+  gl.uniform1f(U.squash, SQUASH);
+  gl.uniform1i(U.count, n);
+  gl.uniform4fv(U.balls, ballData);
+  gl.uniform4fv(U.wob, wobData);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+// ---------------------------- main loop ----------------------------
+
+let last = performance.now();
+function frame(now) {
+  let dt = Math.min((now - last) / 1000, 0.033);
+  last = now;
+
+  // smoothed pointer velocity (used for chopstick momentum transfer)
+  if (dt > 0) {
+    const ivx = (P.x - P.px) / dt, ivy = (P.y - P.py) / dt;
+    P.vx = lerp(P.vx, ivx, 0.5);
+    P.vy = lerp(P.vy, ivy, 0.5);
+  }
+  P.px = P.x; P.py = P.y;
+
+  step(dt / 2);
+  step(dt / 2);
+  render(now / 1000);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// debug handle (invisible; used for automated testing only)
+window.__sim = { droplets, P, step, render, gl, bonds, tapSplit };
+</script>
+</body>
+</html>
