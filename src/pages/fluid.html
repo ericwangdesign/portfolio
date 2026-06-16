@@ -34,11 +34,17 @@
   /* mobile: the sim is the whole screen */
   #device {
     position: relative;
-    width: 100vw; height: 100vh;
+    width: 100vw; height: 100dvh;        /* dvh tracks the visible area in embedded browsers */
     overflow: hidden;
     background: #f2f3f5;
   }
   canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+
+  /* mobile / in-app browsers: pin the canvas to the visible top-left so a
+     shorter viewport never centres (and offsets) it */
+  @media (max-width: 699px) {
+    #stage { align-items: flex-start; justify-content: flex-start; }
+  }
 
   /* desktop nav links — hidden on mobile */
   #links { display: none; }
@@ -449,9 +455,28 @@ function buildTextTexture() {
 // (0.55 ≈ 60°; the machinery still works if we ever go back to 3D)
 const SQUASH = 1.0;
 let W = 0, H = 0, HS = 0, DPR = 1;
+// the viewport metrics that drive sizing — watched each frame so a change the
+// embedded browser makes without firing an event still re-syncs the canvas
+let vpW = 0, vpH = 0;
+function viewportSize() {
+  const vv = window.visualViewport;
+  if (mobileMode() && vv) return [Math.round(vv.width), Math.round(vv.height)];
+  return [window.innerWidth, window.innerHeight];
+}
 function resize() {
-  // size from the canvas element itself: full viewport on mobile, the phone
-  // frame on desktop — both just work from its measured box
+  // On mobile / embedded browsers, pin the canvas to the *visible* viewport
+  // (visualViewport excludes browser chrome and tweet sheets). Desktop keeps
+  // its CSS-driven phone frame, so clear any inline size there.
+  const device = canvas.parentElement;
+  if (mobileMode()) {
+    const vv = window.visualViewport;
+    device.style.width = Math.round(vv ? vv.width : window.innerWidth) + 'px';
+    device.style.height = Math.round(vv ? vv.height : window.innerHeight) + 'px';
+  } else {
+    device.style.width = '';
+    device.style.height = '';
+  }
+  // size from the measured box — sim space, buffer and pointer all agree
   const rect = canvas.getBoundingClientRect();
   W = Math.max(1, Math.round(rect.width));
   H = Math.max(1, Math.round(rect.height));
@@ -464,10 +489,17 @@ function resize() {
   canvas.width = Math.round(W * dpr);
   canvas.height = Math.round(H * dpr);
   gl.viewport(0, 0, canvas.width, canvas.height);
+  [vpW, vpH] = viewportSize();
   buildTextTexture();
 }
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', resize);
+// embedded browsers (X, Instagram, …) change the visible area via the
+// visual viewport, which window 'resize' often misses
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', resize);
+  window.visualViewport.addEventListener('scroll', resize);
+}
 resize();
 // re-bake once the web font lands, so the link isn't drawn in the fallback serif
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(buildTextTexture);
@@ -893,6 +925,11 @@ let last = performance.now();
 function frame(now) {
   let dt = Math.min((now - last) / 1000, 0.033);
   last = now;
+
+  // self-correct: if the visible viewport changed without firing an event
+  // (common in embedded browsers), re-sync so touch points stay aligned
+  const [cw, ch] = viewportSize();
+  if (cw !== vpW || ch !== vpH) resize();
 
   // smoothed pointer velocity (used for chopstick momentum transfer)
   if (dt > 0) {
