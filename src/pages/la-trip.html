@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LA Trip</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,1,0&display=block" rel="stylesheet">
+<style>
+:root{
+  --blue:#0071e3;
+  --ink:#1d1d1f;
+  --muted:#6e6e73;
+  --faint:#86868b;
+  --canvas:#ffffff;
+  --parchment:#f5f5f7;
+  --hairline:#e8e8ed;
+  --warm:#b0651f;
+  --food:#f2854b;   /* food & drink */
+  --shop:#2f80ed;   /* shopping */
+  --do:#9b51e0;     /* things to do */
+  --r-sm:8px; --r-md:12px; --r-lg:18px; --pill:9999px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  font-family:"SF Pro Text",system-ui,-apple-system,BlinkMacSystemFont,sans-serif;
+  color:var(--ink);
+  font-size:15px;
+  line-height:1.5;
+  letter-spacing:-0.01em;
+  background:var(--parchment);
+  display:flex;flex-direction:column;overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+.display{font-family:"SF Pro Display",system-ui,-apple-system,sans-serif;}
+a{color:var(--blue);text-decoration:none;}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+.msr{
+  font-family:"Material Symbols Rounded";font-weight:normal;font-style:normal;
+  line-height:1;letter-spacing:normal;text-transform:none;white-space:nowrap;
+  -webkit-font-smoothing:antialiased;
+  font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;
+}
+::-webkit-scrollbar{width:9px;height:9px;}
+::-webkit-scrollbar-thumb{background:#d3d3d8;border-radius:var(--pill);border:3px solid var(--canvas);}
+::-webkit-scrollbar-track{background:transparent;}
+
+/* ── Header ── */
+header{
+  height:52px;flex-shrink:0;
+  background:rgba(255,255,255,0.8);
+  backdrop-filter:saturate(180%) blur(20px);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid var(--hairline);
+  display:flex;align-items:center;gap:12px;padding:0 22px;z-index:20;
+}
+header .wm{font-size:15px;font-weight:600;letter-spacing:-0.02em;}
+header .loc{font-size:15px;font-weight:600;letter-spacing:-0.02em;}
+header .dates{font-size:14px;color:var(--faint);}
+header .sp{flex:1;}
+header .reset{font-size:14px;color:var(--blue);}
+.dot-sep{width:3px;height:3px;border-radius:50%;background:#c7c7cc;}
+
+/* ── Layout ── */
+#main{flex:1;display:flex;overflow:hidden;}
+
+/* ── Library (left) ── */
+#lib{
+  width:340px;flex-shrink:0;background:var(--canvas);
+  border-right:1px solid var(--hairline);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.lib-top{padding:22px 22px 14px;}
+.lib-top h1{font-size:26px;font-weight:600;letter-spacing:-0.03em;line-height:1.1;}
+.lib-top .sub{font-size:14px;color:var(--faint);margin-top:3px;}
+.search{
+  margin-top:16px;display:flex;align-items:center;gap:8px;
+  height:38px;padding:0 14px;border-radius:var(--pill);
+  background:var(--parchment);
+}
+.search .msr{font-size:18px;color:var(--faint);font-variation-settings:'FILL' 0,'wght' 500;}
+.search input{flex:1;border:none;background:none;outline:none;font-family:inherit;font-size:15px;color:var(--ink);letter-spacing:-0.01em;}
+.search input::placeholder{color:var(--faint);}
+
+.chips{display:flex;flex-wrap:wrap;gap:7px;padding:0 22px 14px;}
+.chips.days{padding-top:2px;padding-bottom:14px;}
+.chip{
+  font-size:13px;letter-spacing:-0.01em;color:var(--muted);
+  padding:5px 13px;border-radius:var(--pill);background:var(--parchment);
+  transition:background .15s,color .15s;
+}
+.chip:hover{background:#ececf0;}
+.chip.on{background:var(--ink);color:#fff;}
+
+.lib-list{flex:1;overflow-y:auto;padding:8px 14px 40px;}
+.group-label{font-size:13px;font-weight:600;color:var(--faint);letter-spacing:-0.01em;padding:16px 8px 8px;}
+.day-banner{padding:16px 8px 10px;}
+.day-banner .dn{font-size:19px;font-weight:600;letter-spacing:-0.02em;}
+.day-banner .dd{font-size:14px;color:var(--faint);}
+.day-banner .ds{font-size:13px;color:var(--faint);margin-top:4px;line-height:1.45;}
+
+.card{
+  padding:11px 12px;border-radius:var(--r-md);cursor:pointer;
+  transition:background .12s;
+}
+.card:hover{background:var(--parchment);}
+.card.sel{background:var(--parchment);}
+.card .cname{font-size:15px;font-weight:600;letter-spacing:-0.015em;line-height:1.3;display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+.card .cmeta{font-size:13px;color:var(--faint);margin-top:3px;display:flex;flex-wrap:wrap;gap:7px;align-items:center;}
+.note-warm{color:var(--warm);}
+.daytag{font-size:11.5px;font-weight:600;color:var(--muted);background:#ececf0;padding:1px 8px;border-radius:var(--pill);}
+.rec-sub{font-size:12.5px;color:var(--faint);padding:0 8px 6px;line-height:1.4;}
+.rec-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;display:inline-block;}
+.rec-why{font-size:12.5px;color:var(--faint);margin-top:4px;line-height:1.4;}
+.pin.rec{box-shadow:0 1px 3px rgba(0,0,0,0.16);}
+
+/* timeline */
+.tl{padding:4px 4px 10px;}
+.tl-item{display:flex;gap:12px;cursor:grab;border-radius:var(--r-md);padding:6px 8px;transition:background .12s;}
+.tl-item:hover{background:var(--parchment);}
+.tl-item.sel{background:var(--parchment);}
+.tl-item.dragging{opacity:.4;}
+.tl-rail{display:flex;flex-direction:column;align-items:center;width:12px;flex-shrink:0;padding-top:5px;}
+.tl-node{width:11px;height:11px;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 3px var(--canvas);}
+.tl-item:hover .tl-node,.tl-item.sel .tl-node{box-shadow:0 0 0 3px var(--parchment);}
+.tl-line{flex:1;width:2px;background:var(--hairline);margin-top:4px;min-height:16px;}
+.tl-body{flex:1;min-width:0;padding-bottom:12px;}
+.tl-time{border:none;background:none;outline:none;font-family:inherit;font-size:13px;font-weight:600;color:var(--ink);letter-spacing:-0.01em;padding:0;width:100%;}
+.tl-time::placeholder{color:var(--faint);font-weight:400;}
+.tl-name{font-size:15px;font-weight:600;letter-spacing:-0.015em;line-height:1.3;margin-top:2px;}
+.tl-meta{font-size:13px;color:var(--faint);margin-top:2px;}
+.tl-x{align-self:flex-start;color:#c7c7cc;padding-top:4px;display:flex;}
+.tl-x .msr{font-size:18px;font-variation-settings:'FILL' 0,'wght' 500;}
+.tl-x:hover{color:#c0392b;}
+.tl-hint{font-size:12px;color:var(--faint);text-align:center;padding:6px 0 40px;}
+
+/* ── Map (center) ── */
+#map{flex:1;background:#e9ecef;}
+.leaflet-popup-content-wrapper{border-radius:var(--r-md)!important;box-shadow:0 8px 30px rgba(0,0,0,0.14)!important;border:1px solid var(--hairline)!important;}
+.leaflet-popup-content{margin:10px 14px!important;font-family:"SF Pro Text",system-ui,sans-serif;line-height:1.3;}
+.leaflet-popup-tip{box-shadow:none!important;}
+.pp-name{font-size:15px;font-weight:600;letter-spacing:-0.015em;line-height:1.3;}
+.pp-sub{font-size:13px;color:var(--faint);margin-top:3px;line-height:1.25;}
+.pp-act{font-size:13px;color:var(--blue);margin-top:8px;display:inline-block;}
+.leaflet-control-zoom{border:none!important;box-shadow:0 1px 4px rgba(0,0,0,0.12)!important;}
+.leaflet-control-zoom a{border-radius:var(--r-sm)!important;color:var(--muted)!important;width:32px!important;height:32px!important;line-height:32px!important;}
+
+/* Material pin */
+.pin{
+  border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;
+  border:2px solid #fff;
+  box-shadow:0 1px 4px rgba(0,0,0,0.28);
+  transition:transform .12s;
+}
+.pin .msr{font-size:20px;}
+.pin.sel{box-shadow:0 4px 10px rgba(0,0,0,0.32);}
+.pin.sel .msr{font-size:25px;}
+.pin.hotel{background:#ff5a96;}
+
+/* ── Detail (right) ── */
+#detail{
+  width:380px;flex-shrink:0;background:var(--canvas);
+  border-left:1px solid var(--hairline);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.det-empty{margin:auto;text-align:center;color:var(--faint);font-size:15px;padding:0 40px;line-height:1.5;}
+.det-empty .msr{font-size:34px;display:block;margin:0 auto 12px;color:#c7c7cc;font-variation-settings:'FILL' 0,'wght' 400;}
+.det-scroll{flex:1;overflow-y:auto;display:none;flex-direction:column;}
+.det-scroll.show{display:flex;}
+
+/* head — generous top inset, Apple-weight title */
+.det-head{padding:24px 20px 0;}
+.det-cat{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:9px;}
+.det-name{font-size:28px;font-weight:700;letter-spacing:-0.03em;line-height:1.1;}
+.det-addr{font-size:15px;color:var(--muted);margin-top:6px;}
+
+/* quiet text links (directions / maps / website) */
+.det-links{display:flex;flex-wrap:wrap;gap:18px;margin-top:20px;}
+.det-links a{font-size:15px;display:inline-flex;align-items:center;gap:5px;}
+.det-links a .msr{font-size:17px;font-variation-settings:'FILL' 0,'wght' 500;}
+
+/* full-bleed hairline between sections */
+.det-div{height:1px;background:var(--hairline);}
+
+/* section block + bold header w/ trailing link */
+.det-sec{padding:22px 20px;}
+.sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:14px;}
+.sec-head h2{font-size:20px;font-weight:700;letter-spacing:-0.02em;color:var(--ink);}
+.sec-head a{font-size:15px;}
+
+/* 3-up stat strip (Cost / Drive / Timing) */
+.det-stats{display:flex;padding:18px 20px;}
+.stat{flex:1;min-width:0;text-align:center;padding:0 4px;}
+.stat+.stat{border-left:1px solid var(--hairline);}
+.stat .k{font-size:12px;font-weight:600;color:var(--faint);letter-spacing:-0.005em;}
+.stat .val{font-size:16px;font-weight:600;letter-spacing:-0.015em;margin-top:4px;line-height:1.25;}
+.stat .val.warm{color:var(--warm);}
+
+/* labelled detail rows */
+.det-rows{display:flex;flex-direction:column;}
+.drow{display:flex;gap:14px;font-size:15px;padding:11px 0;border-top:1px solid var(--hairline);}
+.drow:first-child{border-top:none;padding-top:0;}
+.drow .l{width:92px;flex-shrink:0;color:var(--faint);}
+.drow .v{flex:1;color:var(--ink);line-height:1.4;}
+.drow .v.warm{color:var(--warm);}
+
+.det-desc{font-size:15px;line-height:1.6;color:var(--muted);}
+.callout{
+  background:var(--parchment);border-radius:var(--r-md);
+  padding:13px 15px;font-size:14px;line-height:1.5;color:var(--muted);margin-top:14px;
+}
+.callout b{color:var(--ink);font-weight:600;}
+
+.dayrow{display:flex;gap:8px;}
+.daybtn{
+  flex:1;height:40px;border-radius:var(--pill);background:var(--parchment);
+  font-size:15px;font-weight:500;color:var(--muted);transition:background .15s,color .15s;
+}
+.daybtn:hover{background:#ececf0;}
+.daybtn.on{background:var(--blue);color:#fff;}
+
+@media (max-width:1180px){#lib{width:300px;}#detail{width:330px;}}
+@media (max-width:980px){#detail{position:fixed;right:0;top:52px;bottom:0;z-index:30;transform:translateX(100%);transition:transform .28s;box-shadow:-12px 0 40px rgba(0,0,0,0.1);}#detail.open{transform:translateX(0);}}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="wm">LA Trip</span>
+  <span class="dot-sep"></span>
+  <span class="loc display">Los Angeles</span>
+  <span class="dates">Jun 18–21</span>
+  <span class="sp"></span>
+  <span class="dates" style="font-size:13px;">Updated Jun 17, 2026 · 11:56 PM</span>
+  <span class="dot-sep"></span>
+  <button class="reset" id="reset">Reset plan</button>
+</header>
+
+<div id="main">
+  <aside id="lib">
+    <div class="lib-top">
+      <h1 class="display">Places</h1>
+      <div class="sub">Browse, then add each to a day.</div>
+      <div class="search">
+        <span class="msr">search</span>
+        <input id="search" type="text" placeholder="Search">
+      </div>
+    </div>
+    <div class="chips days" id="dayChips">
+      <button class="chip on" data-day="all">All days</button>
+      <button class="chip" data-day="thu">Thu</button>
+      <button class="chip" data-day="fri">Fri</button>
+      <button class="chip" data-day="sat">Sat</button>
+      <button class="chip" data-day="sun">Sun</button>
+    </div>
+    <div class="lib-list" id="libList"></div>
+  </aside>
+
+  <div id="map"></div>
+
+  <aside id="detail">
+    <div class="det-empty" id="detEmpty">
+      <span class="msr">left_click</span>
+      Select a place to see details and add it to a day.
+    </div>
+    <div class="det-scroll" id="detScroll"></div>
+  </aside>
+</div>
+
+<script>
+const HOTEL={lat:34.0096,lng:-118.3976,name:'8684 Washington Blvd, Culver City'};
+
+const BUCKET={food:{label:'Food & drink',color:'#f2854b'},shop:{label:'Shopping',color:'#2f80ed'},do:{label:'Things to do',color:'#9b51e0'}};
+const BUCKET_ORDER=['food','shop','do'];
+// bucket + Material icon per place
+const META={
+  1:['do','museum'], 2:['do','auto_awesome'], 3:['do','museum'], 4:['do','palette'],
+  5:['do','museum'], 6:['do','museum'], 7:['food','restaurant'], 8:['food','restaurant'],
+  9:['food','local_bar'], 10:['do','palette'], 11:['shop','shopping_bag'], 12:['shop','shopping_bag'],
+  13:['shop','storefront'], 14:['do','brush'], 15:['do','brush'], 16:['shop','shopping_bag'],
+  17:['shop','album'], 18:['food','restaurant'], 19:['food','bakery_dining'], 20:['food','restaurant'],
+  21:['do','theaters'],
+  22:['food','restaurant'], 23:['do','menu_book'], 24:['do','account_balance'], 25:['do','account_balance'],
+  26:['shop','menu_book'], 27:['do','palette'], 28:['shop','checkroom'], 29:['do','local_florist'],
+  30:['do','account_balance'], 31:['do','park'], 32:['shop','menu_book'], 33:['do','landscape'],
+  34:['do','museum'], 35:['do','museum'], 36:['shop','checkroom'], 37:['shop','checkroom'],
+  38:['shop','diamond'], 39:['shop','storefront'],
+};
+
+const DAYS=[
+  {key:'thu',name:'Thursday',date:'Jun 18',sub:'Drive in · arrive ~9 PM · food near the hotel.'},
+  {key:'fri',name:'Friday',date:'Jun 19',sub:'Eastside shop: Silver Lake → Highland Park → 洞庭鲜 dinner 7 PM → DTLA drinks 10 PM.'},
+  {key:'sat',name:'Saturday',date:'Jun 20',sub:'OC & Lau brunch ~11 → Arts District → DATALAND 6:30 PM (opening day).'},
+  {key:'sun',name:'Sunday',date:'Jun 21',sub:'Hospital of Emotions AM → drive home ~1 PM.'},
+];
+const dayByKey=k=>DAYS.find(d=>d.key===k);
+
+const places=[
+  {id:1,cat:'art',name:'Hospital of Emotions',addr:'2131 W 3rd St, Los Angeles',lat:34.0607,lng:-118.2853,cost:'$58',drive:'32 min',hours:'Daily 10am–8:10pm (timed entry every 10 min)',deadline:'Closes July 31 ⚠',urgent:true,desc:'70 artists have taken over 80+ rooms of a real decommissioned hospital. Each room is a standalone immersive installation around one emotion. You "check in" with intake paperwork, collect stamps room by room, and "discharge" at the end. ~2 hrs.',tip:'Sells out — pre-book at hospitalofemotions.com before you go.',link:'https://www.hospitalofemotions.com/'},
+  {id:2,cat:'art',name:'DATALAND',addr:'100 S Grand Ave, Downtown (The Grand LA)',lat:34.0545,lng:-118.2480,cost:'Tickets required',drive:'33 min',hours:'Tue–Fri 11am–10pm · Sat–Sun 10am–10pm',deadline:'Machine Dreams: Rainforest · through Jan 2027',isNew:true,desc:"World's first AI art museum, co-founded by Refik Anadol. 25,000 sqft immersive generative environments. You can operate installations to create your own AI art. Just opened June 20, 2026.",tip:'The Broad + MOCA are literally next door — bundle all three in one afternoon.',link:'https://dataland.art/'},
+  {id:3,cat:'art',name:'Yoko Ono: Music of the Mind',addr:'The Broad, 221 S Grand Ave',lat:34.0556,lng:-118.2499,cost:'$21 · Free Thu 5–8pm',drive:'33 min',hours:'Tue/Wed/Fri 11–5 · Thu 11–8 · Sat–Sun 10–6',deadline:'Through Oct 11, 2026',desc:'Her first SoCal solo retrospective, organized with Tate Modern. You hammer nails into a canvas, hang wish cards on olive trees outside, climb a ladder to read "YES" on the ceiling. Genuinely interactive — not just looking at art.',tip:'Free Thursdays 5–8pm. Walkable from DATALAND.',link:'https://www.thebroad.org/art/special-exhibitions/yoko-ono-music-mind'},
+  {id:4,cat:'art',name:'Hauser & Wirth LA',addr:'901 E 3rd St, Arts District',lat:34.0413,lng:-118.2354,cost:'Free',drive:'32 min',hours:'Tue–Sun 11am–6pm',deadline:'Keith Tyson: The Generative Universe · through Aug 16',isFree:true,desc:'World-class gallery in the Arts District, not a museum — but as good as one. Currently: Keith Tyson\'s "The Generative Universe," 3 decades of work exploring the universe as a single generative system. Rooftop garden has Downtown views.',tip:'Anchor of an Arts District walk. ROW DTLA is 10 min on foot.',link:'https://www.hauserwirth.com/'},
+  {id:5,cat:'art',name:'Hammer Museum',addr:'10899 Wilshire Blvd, Westwood',lat:34.0591,lng:-118.4437,cost:'Free',drive:'22 min',hours:'Tue–Sun 11am–6pm (Thu until 8pm)',deadline:'Shows through Aug 2026',isFree:true,desc:'UCLA-affiliated, perpetually underrated. Two strong shows: "Several Eternities in a Day" (22 artists from the Americas, living materials: clay, cacao, achiote, cochineal) through Aug 23 + Arthur Jafa\'s experimental film "The White Album" through Aug 30.',tip:'Closest major museum to your hotel and genuinely good. Easy half-day.',link:'https://hammer.ucla.edu/'},
+  {id:6,cat:'art',name:'MOCA Grand Avenue',addr:'250 S Grand Ave, Downtown',lat:34.0554,lng:-118.2493,cost:'$18',drive:'33 min',hours:'Mon/Thu 11–5 · Fri 11–8 · Sat–Sun 11–6 (closed Tue/Wed)',deadline:'Afterlives · through Sept 20',desc:'Museum of Contemporary Art, Downtown. "Afterlives" shows MOCA\'s collection from the 1940s–70s. Literally next door to The Broad and one block from DATALAND — bundle these three.',tip:'The Grand Ave cluster: MOCA + Broad + DATALAND all within 3 min walk.',link:'https://www.moca.org/'},
+  {id:7,cat:'fixed',name:'洞庭鲜 (Dong Ting Xian)',addr:'727 E Valley Blvd, San Gabriel',lat:34.0688,lng:-118.0963,cost:'$$',drive:'42 min',hours:'Mon–Sat 11am–9:30pm · Sun 11am–9pm',day:'Friday dinner',desc:'Hunan-style (not Cantonese) — water-boiled fish, dry-fried dishes, spicy fermented flavors. Night market atmosphere deep in the SGV. This is the real Chinese food hub of SoCal.',tip:'Best as an early dinner (7–8pm) before heading to DTLA for 10pm drinks.',note:'SGV is 42 min from the hotel and opposite direction from DTLA. Consider direction when routing your Friday.'},
+  {id:8,cat:'fixed',name:'OC & Lau Restaurant',addr:'10130 Garden Grove Blvd, Garden Grove, OC',lat:33.7774,lng:-117.9330,cost:'$$',drive:'38 min south',hours:'Mon/Wed–Thu 10am–10pm · Fri–Sat 10am–11pm · Sun 10am–10pm',day:'Saturday brunch',isOC:true,desc:'Vietnamese seafood spot famous for 18 types of escargot. No-frills, very local Vietnamese-American crowd. No reservations — show up early.',tip:'Book/arrive early (~11am) so the southern detour doesn\'t eat the afternoon. Closed Tuesdays.',note:'This is in Orange County — 38 min south of your hotel. Saturday means brunch in OC, then ~40 min back north to the Arts District + DATALAND for the rest of the day.'},
+  {id:9,cat:'fixed',name:"DTLA Drinks (Friend's place)",addr:'Downtown Los Angeles',lat:34.0522,lng:-118.2437,cost:'—',drive:'30 min',hours:'After 10pm, Friday',day:'Friday night',desc:"Fixed: drinks at friend's apartment in DTLA after 10pm Friday. Great area to explore during the day too — Arts District and Grand Ave both within walking distance.",tip:"You'll already be in the neighborhood — consider DATALAND, Hauser & Wirth, or Smorgasburg earlier that day."},
+  {id:10,cat:'explore',name:'Culver City Arts District',addr:'Washington Blvd & La Cienega, Culver City',lat:34.0100,lng:-118.3860,cost:'Free',drive:'Walking distance',hours:'Galleries: Tue–Sat ~11am–6pm',desc:"You're literally staying here. USA Today top-10 arts district. Galleries: Jeffrey Deitch, Blum, ThinkSpace, BLK/MRKT, WWA Gallery, Bergamot Station. Washington + La Cienega corridor.",tip:'Your backyard. Easy to explore before/after dinner or during any free hour.'},
+  {id:11,cat:'explore',name:'Abbot Kinney Blvd',addr:'Abbot Kinney Blvd, Venice',lat:33.9921,lng:-118.4698,cost:'Free',drive:'10 min',hours:'Shops ~11am onward',desc:'Walkable, hip street closest to your hotel. Circular Library (Korean indie boutique), Fellow Coffee (beautifully designed pour-overs), Goodies (quality home goods). Walk to Venice Beach at the end.',tip:'Best morning option — 10 min from hotel, then head east from here.'},
+  {id:12,cat:'explore',name:'Silver Lake',addr:'Sunset Blvd, Silver Lake',lat:34.0873,lng:-118.2713,cost:'Free',drive:'28 min',hours:'Shops ~11am–7pm',desc:'Best neighborhood for actual shopping. Mohawk General Store (Acne, APC, indie designers), Rare Reserve (the best archive vintage in LA — real deadstock, 2002 Gucci rarities), Clare V., Tartine bakery.',tip:'Rare Reserve is the real reason to come. Archive-level vintage not found anywhere else in the city.'},
+  {id:13,cat:'explore',name:'Highland Park / York Blvd',addr:'York Blvd, Highland Park',lat:34.1078,lng:-118.2009,cost:'Free',drive:'38 min',hours:'Shops ~11am · Sunday farmers market AM',desc:'Most DIY and local of LA\'s artsy neighborhoods. Arts & Crafts architecture from 1895. Artist studios open weekends. Chicano culture, vinyl stores, indie boutiques. Sunday farmers market.',tip:'Pairs with Silver Lake on Friday — ~15 min east, then continue to 洞庭鲜 for dinner.'},
+  {id:14,cat:'explore',name:'Frogtown (Elysian Valley)',addr:'Elysian Valley, along the LA River',lat:34.0920,lng:-118.2436,cost:'Free',drive:'32 min',hours:'Studios open weekends',desc:'Artist studios in repurposed M2 manufacturing buildings along the LA River. The river walkway is an open-air street art gallery — constantly changing murals. Almost no tourists come here. The most raw, authentic art neighborhood in LA.',tip:'Pair with Silver Lake or Atwater Village — all within 10 min of each other.'},
+  {id:15,cat:'explore',name:'Arts District DTLA',addr:'E 3rd St, Arts District, Downtown',lat:34.0413,lng:-118.2370,cost:'Free',drive:'32 min',hours:'All day',desc:'Converted warehouse district. Hauser & Wirth anchor + rotating murals (Retna, Shepard Fairey, DEFER). ROW DTLA is here: Bodega (cult streetwear, no sign on the door — find it), Friday Gallery (multicultural contemporary artists), Smorgasburg on Sundays.',tip:'Start at Hauser & Wirth, walk to ROW DTLA (~10 min), then to Grand Ave cluster (~15 min more).'},
+  {id:16,cat:'explore',name:'Melrose Ave / West Hollywood',addr:'Melrose Ave, West Hollywood',lat:34.0838,lng:-118.3607,cost:'Free',drive:'22 min',hours:'Shops ~11am',desc:'Vintage boutiques, streetwear, indie brands strung along Melrose. Sunset Strip is more bars + history + late-night. Neither is as dense as Silver Lake but worth a pass-through if you\'re heading east.',tip:'Better as a daytime stop on the way somewhere else rather than a destination.'},
+  {id:17,cat:'explore',name:'Atwater Village',addr:'Glendale Blvd, Atwater Village',lat:34.0967,lng:-118.2583,cost:'Free',drive:'33 min',hours:'Shops ~11am · Sunday market AM',desc:'Small dense strip between Silver Lake and Glendale. Jacknife Records & Tapes (excellent used vinyl), The Social Type (curated gifts), small Sunday market. Underrated and very local.',tip:'Combine with Frogtown — they\'re next to each other and both easy to underestimate.'},
+  {id:18,cat:'food',name:'Smorgasburg @ ROW DTLA',addr:'777 S Alameda St, Arts District',lat:34.0361,lng:-118.2304,cost:'Free entry',drive:'33 min',hours:'Sundays only · 10am–4pm',desc:'LA\'s biggest outdoor food market, every Sunday. 30+ rotating vendors, craft food, always interesting. Summer 2026: Ice Cream Alley launching July 6. Adjacent to Arts District and Hauser & Wirth.',tip:'Sunday only — natural pair with an Arts District walk or Grand Ave gallery cluster.',link:'https://la.smorgasburg.com/'},
+  {id:19,cat:'food',name:'Tartine Bakery',addr:'Sunset Blvd, Silver Lake',lat:34.0876,lng:-118.2706,cost:'$',drive:'28 min',hours:'Opens ~8am',desc:'The SF sourdough legend\'s LA outpost. Great coffee, excellent pastries and bread. Walk-in. Natural start to a Silver Lake morning.',tip:'Arrive early — bread sells out.'},
+  {id:20,cat:'food',name:'Great White',addr:'Larchmont Blvd, Larchmont Village',lat:34.0731,lng:-118.3244,cost:'$$',drive:'20 min',hours:'Weekends 9am–3pm',desc:'The Sunday brunch spot locals actually go to. Australian-inflected, good coffee, great eggs. Always a wait — go early or expect 30 min. Larchmont Village has a Sunday farmers market next door.',tip:'If you want a classic LA Sunday morning, this + the Larchmont farmers market is it.'},
+  {id:21,cat:'event',name:'Cinespia @ Hollywood Forever',addr:'6000 Santa Monica Blvd, Hollywood',lat:34.0903,lng:-118.3181,cost:'$25–35',drive:'25 min',hours:'Saturday evenings, July only',deadline:'Jul 11 Pulp Fiction · Jul 18 Rosemary\'s Baby · Jul 25 Edward Scissorhands',desc:'Movies screened on the lawn of a working celebrity cemetery. Bring blankets, food, and booze (allowed). DJ set before the film. 25th anniversary season. No tourists — just Angelenos who\'ve been doing this since childhood.',tip:'Only if your Saturday is in July. This is one of the most genuinely local LA experiences possible.',link:'https://cinespia.org/'},
+  // ── Added Jun 18 — extra options (Sunday / DTLA · Arts District · eastside · iconic stores) ──
+  {id:22,cat:'food',name:'Grand Central Market',addr:'317 S Broadway, Downtown',lat:34.0506,lng:-118.2487,cost:'$',drive:'28 min',hours:'Daily 8am–9pm',desc:'Historic 1917 food hall — 30+ stalls from tacos and Thai to egg sandwiches and great coffee. The easy, no-reservations brunch move near the Grand Ave museums.',tip:'Strong Sunday brunch near Hospital of Emotions — 5 min from The Broad / DATALAND.'},
+  {id:23,cat:'explore',name:'The Last Bookstore',addr:'453 S Spring St, Downtown',lat:34.0479,lng:-118.2491,cost:'Free',drive:'28 min',hours:'Daily 11am–11pm (Mon–Tue till 8)',isFree:true,desc:"California's largest used & new bookstore in a former bank — the upstairs book-tunnel and labyrinth are the photogenic LA classic. Records too.",tip:'3 blocks from Grand Central Market — pair them on Sunday.'},
+  {id:24,cat:'explore',name:'Bradbury Building',addr:'304 S Broadway, Downtown',lat:34.0505,lng:-118.2479,cost:'Free',drive:'28 min',hours:'Lobby daily ~9am–5pm',isFree:true,desc:'1893 landmark with a sunlit wrought-iron atrium (Blade Runner, 500 Days of Summer). Lobby + first landing are open to the public — a 5-minute architectural jaw-drop.',tip:'Directly across from Grand Central Market. Quick stop, no ticket.'},
+  {id:25,cat:'explore',name:'Walt Disney Concert Hall',addr:'111 S Grand Ave, Downtown',lat:34.0553,lng:-118.2498,cost:'Free',drive:'30 min',hours:'Exterior anytime · free audio tours most days',isFree:true,desc:"Frank Gehry's billowing stainless-steel landmark — and the rooftop garden is a little-known free public space. Literally next door to DATALAND and The Broad.",tip:"Walk the exterior + rooftop garden while you're on Grand Ave for DATALAND."},
+  {id:26,cat:'explore',name:'Hennessy + Ingalls',addr:'300 S Santa Fe Ave, Arts District',lat:34.0388,lng:-118.2330,cost:'Free',drive:'30 min',hours:'Daily 11am–7pm',isFree:true,desc:'The largest art & architecture bookstore on the West Coast — design, type, photography, architecture monographs. Designer catnip.',tip:'Slots right into your Saturday Arts District block.'},
+  {id:27,cat:'art',name:'ICA LA',addr:'1717 E 7th St, Arts District',lat:34.0344,lng:-118.2316,cost:'Free',drive:'30 min',hours:'Wed–Sun 11am–6pm',isFree:true,desc:'Institute of Contemporary Art — free, experimental, fast-moving shows of underrepresented artists. A quick, high-signal Arts District hit.',tip:'Free. Easy add to the Saturday Arts District walk.'},
+  {id:28,cat:'explore',name:'Dover Street Market LA',addr:'606–608 Imperial St, Arts District',lat:34.0377,lng:-118.2313,cost:'Free',drive:'30 min',hours:'Mon–Sat 11am–6pm · Sun 12–6pm',isFree:true,desc:"Rei Kawakubo's multi-level concept store — Comme des Garçons, high fashion, streetwear and conceptual design, only in NY & LA stateside. As much gallery as shop.",tip:'The marquee Arts District shopping stop — closes 6pm, so go before DATALAND.'},
+  {id:29,cat:'explore',name:'The Huntington',addr:'1151 Oxford Rd, San Marino',lat:34.1290,lng:-118.1145,cost:'$29',drive:'40 min',hours:'Wed–Mon 10am–5pm (closed Tue)',desc:'120 acres of world-class botanical gardens (Japanese, Chinese, desert) plus art and a rare-books library on a former estate. A genuine aesthetic highlight.',tip:'Right next to San Gabriel — do this Friday afternoon, then roll to 洞庭鲜 for dinner. Reserve ahead.'},
+  {id:30,cat:'explore',name:'Hollyhock House',addr:'4800 Hollywood Blvd, Los Feliz',lat:34.1003,lng:-118.2946,cost:'$7',drive:'28 min',hours:'Thu–Sun 11am–4pm (self-guided)',desc:"Frank Lloyd Wright's first LA house and the city's only UNESCO World Heritage site, on a hilltop park with downtown views.",tip:'On the Silver Lake / Los Feliz side — pairs with a Friday eastside loop.'},
+  {id:31,cat:'explore',name:'Echo Park Lake',addr:'751 Echo Park Ave, Echo Park',lat:34.0724,lng:-118.2606,cost:'Free',drive:'25 min',hours:'Daily, dawn–dusk',isFree:true,desc:'Lotus-filled lake with swan pedal-boats and a clean downtown-skyline reflection. Easy golden-hour walk near Silver Lake.',tip:'10 min from Silver Lake — a calm break between shopping stops.'},
+  {id:32,cat:'explore',name:'Skylight Books',addr:'1818 N Vermont Ave, Los Feliz',lat:34.1016,lng:-118.2918,cost:'Free',drive:'28 min',hours:'Daily ~10am–9pm',isFree:true,desc:'Beloved Los Feliz indie bookstore with a tree growing through the middle — strong art, design and LA sections.',tip:'Near Hollyhock House — combine on the eastside.'},
+  {id:33,cat:'explore',name:'Griffith Observatory',addr:'2800 E Observatory Rd, Los Feliz',lat:34.1184,lng:-118.3004,cost:'Free',drive:'30 min',hours:'Tue–Fri 12–10pm · Sat–Sun 10am–10pm (closed Mon)',isFree:true,desc:'The definitive free LA panorama — Hollywood Sign, downtown, and the basin lighting up at dusk. Art Deco building, free admission.',tip:'Best at golden hour. Great Thursday-arrival move or a Friday-sunset detour.'},
+  {id:34,cat:'art',name:'LACMA — David Geffen Galleries',addr:'5905 Wilshire Blvd, Mid-City',lat:34.0639,lng:-118.3592,cost:'$28',drive:'18 min',hours:'Wknds 10am–7pm · closed Wed',isNew:true,desc:"Peter Zumthor's brand-new concrete building (opened April 2026) — the LA architecture story of the year. Urban Light installation out front.",tip:'Closest of the big museums to your hotel. Architecture pilgrimage.'},
+  {id:35,cat:'art',name:'The Getty Center',addr:'1200 Getty Center Dr, Brentwood',lat:34.0780,lng:-118.4741,cost:'Free',drive:'18 min',hours:'Tue–Sun 10am–5:30pm (closed Mon)',isFree:true,desc:"Richard Meier's travertine hilltop campus + Robert Irwin's Central Garden + ocean and basin views. Free, but a half-day commitment (tram up).",tip:'Parking $25; museum free. Closest icon to Culver City — ~18 min.'},
+  {id:36,cat:'explore',name:'Jaded London',addr:'8483 Melrose Ave, West Hollywood',lat:34.0838,lng:-118.3756,cost:'Free',drive:'18 min',hours:'Mon–Sat 11am–7pm · Sun 12–6pm',isFree:true,desc:"The UK streetwear label's first West Coast store (opened Mar 2026) — bold denim, going-out pieces, statement basics.",tip:"Friend's rec. On Melrose — pair with STAUD + Maxfield, or catch it Sunday on the way out (open till 6)."},
+  {id:37,cat:'explore',name:'STAUD (Melrose flagship)',addr:'8816 Melrose Ave, West Hollywood',lat:34.0838,lng:-118.3793,cost:'Free',drive:'18 min',hours:'Daily ~11am–6pm',isFree:true,desc:"LA-born designer Sarah Staudinger's airy two-story flagship — clean, architectural womenswear in a gallery-like space.",tip:'Anchor of a quick Melrose designer-flagship run with Maxfield + Jaded London.'},
+  {id:38,cat:'explore',name:'Maxfield',addr:'8825 Melrose Ave, West Hollywood',lat:34.0837,lng:-118.3797,cost:'Free',drive:'18 min',hours:'Mon–Sat 11am–6pm',isFree:true,desc:"LA's legendary luxury concept store since 1969 — rarefied designer racks, art and objects in a brutalist box. As much museum as boutique.",tip:'Across from STAUD. The most "only-in-LA" luxury browse.'},
+  {id:39,cat:'food',name:'Erewhon Market (Venice)',addr:'585 Venice Blvd, Venice',lat:33.9952,lng:-118.4598,cost:'$',drive:'10 min',hours:'Daily 7am–10pm',desc:'The famously over-the-top LA luxury grocery — $20 celebrity smoothies, immaculate prepared foods, a full tonic bar. A genuine only-in-LA experience.',tip:'Closest location to your hotel (~10 min). Grab a smoothie on the way to Abbot Kinney.'},
+];
+// recommended day + reason (not in the official plan — surfaced as secondary suggestions)
+const REC={
+  39:{d:'thu',why:'Late-night smoothie run near the hotel'},
+  36:{d:'fri',why:"Friend's rec — on Melrose, en route east"},
+  37:{d:'fri',why:'Melrose designer trio'},
+  38:{d:'fri',why:'Melrose designer trio'},
+  34:{d:'fri',why:"Zumthor's new building — Mid-City, on the way east"},
+  35:{d:'fri',why:'Westside icon — pick this OR the Huntington, not both'},
+  29:{d:'fri',why:'Gardens right by your San Gabriel dinner'},
+  30:{d:'fri',why:'Frank Lloyd Wright landmark, Los Feliz'},
+  31:{d:'fri',why:'Calm golden-hour break by Silver Lake'},
+  32:{d:'fri',why:'Indie bookstore, Los Feliz'},
+  33:{d:'fri',why:'Golden-hour city panorama'},
+  25:{d:'sat',why:'Gehry icon — right next to DATALAND'},
+  26:{d:'sat',why:'Art & architecture books, Arts District'},
+  27:{d:'sat',why:'Free gallery, Arts District'},
+  28:{d:'sat',why:'The marquee Arts District shop'},
+  22:{d:'sun',why:'Easy brunch near Hospital of Emotions'},
+  23:{d:'sun',why:'Book-tunnel, 3 blocks from the market'},
+  24:{d:'sun',why:'5-min architecture stop by the market'},
+};
+places.forEach(p=>{const m=META[p.id];p.bucket=m[0];p.icon=m[1];const r=REC[p.id];p.recDay=r?r.d:null;p.recWhy=r?r.why:'';});
+const byId=id=>places.find(p=>p.id===id);
+
+/* ── State + persistence ── */
+const STORE='la-trip-plan-v4';
+const seed=()=>({
+  thu:[],
+  fri:[{id:12,time:'11:00 AM'},{id:13,time:'2:30 PM'},{id:7,time:'7:00 PM'},{id:9,time:'10:00 PM'}],
+  sat:[{id:8,time:'11:00 AM'},{id:15,time:'1:30 PM'},{id:2,time:'6:30 PM'}],
+  sun:[{id:1,time:'10:00 AM'}],
+});
+let plan;try{plan=JSON.parse(localStorage.getItem(STORE))||seed();}catch(e){plan=seed();}
+function save(){localStorage.setItem(STORE,JSON.stringify(plan));}
+let activeBucket='all',activeDay='all',query='',selectedId=null;
+
+function inDay(day,id){return plan[day].some(x=>x.id===id);}
+function daysFor(id){return DAYS.filter(d=>inDay(d.key,id)).map(d=>d.key);}
+
+/* ── Library ── */
+function quietBadges(p){
+  const b=[];
+  if(p.urgent)b.push('<span class="note-warm">Closes Jul 31</span>');
+  if(p.isNew)b.push('<span>New</span>');
+  if(p.isFree)b.push('<span>Free</span>');
+  return b;
+}
+function cardHTML(p){
+  const dtags=daysFor(p.id).map(k=>`<span class="daytag">${dayByKey(k).name.slice(0,3)}</span>`).join('');
+  const meta=[`<span>${p.drive}</span>`];
+  if(p.cost&&p.cost!=='—'&&p.cost!=='Free')meta.push(`<span>${p.cost}</span>`);
+  quietBadges(p).forEach(x=>meta.push(x));
+  return `<div class="card${selectedId===p.id?' sel':''}" data-id="${p.id}">
+    <div class="cname">${p.name}${dtags}</div>
+    <div class="cmeta">${meta.join('<span class="dot-sep"></span>')}</div>
+  </div>`;
+}
+function recCardHTML(p){
+  const c=BUCKET[p.bucket].color;
+  const meta=[`<span>${p.drive}</span>`];
+  if(p.cost&&p.cost!=='—'&&p.cost!=='Free')meta.push(`<span>${p.cost}</span>`);
+  return `<div class="card rec${selectedId===p.id?' sel':''}" data-id="${p.id}">
+    <div class="cname"><span class="rec-dot" style="background:linear-gradient(rgba(255,255,255,0.82),rgba(255,255,255,0.82)),${c};border:1.5px solid ${c}"></span>${p.name}</div>
+    <div class="cmeta">${meta.join('<span class="dot-sep"></span>')}</div>
+    ${p.recWhy?`<div class="rec-why">${p.recWhy}</div>`:''}
+  </div>`;
+}
+function renderLibrary(){
+  const q=query.trim().toLowerCase();
+  let list=places.filter(p=>activeBucket==='all'||p.bucket===activeBucket);
+  if(q)list=list.filter(p=>(p.name+' '+p.addr+' '+p.desc).toLowerCase().includes(q));
+  const el=document.getElementById('libList');
+
+  if(activeDay!=='all'){
+    const d=dayByKey(activeDay);
+    const items=plan[activeDay];
+    let html=`<div class="day-banner"><span class="dn display">${d.name}</span> <span class="dd">${d.date}</span><div class="ds">${d.sub}</div></div>`;
+    if(items.length){
+      html+=`<div class="tl" id="tl">`+items.map((it,i)=>timelineHTML(activeDay,it,i,items.length)).join('')+`</div>`;
+      html+=`<div class="tl-hint">Drag to reorder · tap a time to edit</div>`;
+    }else{
+      html+=`<div class="group-label" style="color:var(--faint);font-weight:400;line-height:1.5">Nothing planned for ${d.name} yet. Switch to “All days,” open a place, and add it to ${d.name.slice(0,3)}.</div>`;
+    }
+    const recs=places.filter(p=>p.recDay===activeDay&&!inDay(activeDay,p.id));
+    if(recs.length){
+      html+=`<div class="group-label" style="padding-top:20px">Recommended <span style="font-weight:400;color:var(--faint)">· not added yet</span></div>`;
+      html+=`<div class="rec-sub">My picks for ${d.name}. Tap one, then add it to lock it into the day.</div>`;
+      html+=recs.map(recCardHTML).join('');
+    }
+    el.innerHTML=html;
+    bindTimeline();
+  }else{
+    const grouped={};list.forEach(p=>(grouped[p.bucket]=grouped[p.bucket]||[]).push(p));
+    let html='';
+    BUCKET_ORDER.forEach(b=>{
+      if(!grouped[b])return;
+      html+=`<div class="group-label">${BUCKET[b].label}</div>`+grouped[b].map(cardHTML).join('');
+    });
+    el.innerHTML=html||'<div class="group-label" style="font-weight:400">No matches.</div>';
+  }
+}
+
+/* ── Timeline (per-day planner) ── */
+function timelineHTML(day,it,i,total){
+  const p=byId(it.id);if(!p)return'';
+  const last=i===total-1;
+  const meta=p.drive+(p.cost&&p.cost!=='—'&&p.cost!=='Free'?' · '+p.cost:'');
+  return `<div class="tl-item${selectedId===p.id?' sel':''}" draggable="true" data-day="${day}" data-idx="${i}" data-id="${p.id}">
+    <div class="tl-rail"><span class="tl-node" style="background:${BUCKET[p.bucket].color}"></span>${last?'':'<span class="tl-line"></span>'}</div>
+    <div class="tl-body">
+      <input class="tl-time" value="${it.time||''}" placeholder="add time" data-day="${day}" data-idx="${i}">
+      <div class="tl-name">${p.name}</div>
+      <div class="tl-meta">${meta}</div>
+    </div>
+    <button class="tl-x" title="Remove" data-day="${day}" data-idx="${i}"><span class="msr">close</span></button>
+  </div>`;
+}
+let tldrag=null;
+function bindTimeline(){
+  const tl=document.getElementById('tl');if(!tl)return;
+  tl.querySelectorAll('.tl-time').forEach(inp=>{
+    inp.addEventListener('change',()=>{plan[inp.dataset.day][+inp.dataset.idx].time=inp.value.trim();save();});
+    inp.addEventListener('click',e=>e.stopPropagation());
+    inp.addEventListener('mousedown',e=>e.stopPropagation());
+  });
+  tl.querySelectorAll('.tl-x').forEach(b=>b.addEventListener('click',e=>{
+    e.stopPropagation();plan[b.dataset.day].splice(+b.dataset.idx,1);
+    save();renderLibrary();applyMapFilter();if(selectedId)refreshDayBtns();
+  }));
+  tl.querySelectorAll('.tl-item').forEach(el=>{
+    el.addEventListener('click',e=>{
+      if(e.target.closest('.tl-x')||e.target.closest('.tl-time'))return;
+      selectPlace(+el.dataset.id);
+    });
+    el.addEventListener('dragstart',e=>{tldrag={day:el.dataset.day,idx:+el.dataset.idx};el.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
+    el.addEventListener('dragend',()=>el.classList.remove('dragging'));
+  });
+  tl.addEventListener('dragover',e=>{e.preventDefault();});
+  tl.addEventListener('drop',e=>{
+    e.preventDefault();if(!tldrag)return;
+    const day=tldrag.day,items=[...tl.querySelectorAll('.tl-item:not(.dragging)')];
+    let pos=items.length;
+    for(let i=0;i<items.length;i++){const r=items[i].getBoundingClientRect();if(e.clientY<r.top+r.height/2){pos=i;break;}}
+    const moved=plan[day][tldrag.idx];
+    plan[day].splice(tldrag.idx,1);
+    if(tldrag.idx<pos)pos--;
+    plan[day].splice(pos,0,moved);
+    tldrag=null;save();renderLibrary();
+  });
+}
+
+/* ── Detail ── */
+function selectPlace(id){
+  selectedId=id;const p=byId(id);if(!p)return;
+  document.getElementById('detEmpty').style.display='none';
+  const s=document.getElementById('detScroll');s.classList.add('show');
+  document.getElementById('detail').classList.add('open');
+  const maps=`https://www.google.com/maps/dir/${HOTEL.lat},${HOTEL.lng}/${p.lat},${p.lng}`;
+  const search=`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name+' '+p.addr)}`;
+
+  // stat strip: Cost · From hotel
+  const stat=(k,v,warm)=>`<div class="stat"><div class="k">${k}</div><div class="val${warm?' warm':''}">${v}</div></div>`;
+  let stats='';
+  if(p.cost)stats+=stat('Cost',p.cost);
+  stats+=stat('From hotel',p.drive);
+
+  // labelled rows for everything else (timing/fixed moved here)
+  const row=(l,v,warm)=>`<div class="drow"><div class="l">${l}</div><div class="v${warm?' warm':''}">${v}</div></div>`;
+  let rows='';
+  if(p.hours)rows+=row('Hours',p.hours);
+  if(p.day)rows+=row('Fixed for',p.day);
+  if(p.deadline)rows+=row('Timing',p.deadline.replace(' ⚠',''),p.urgent);
+  rows+=row('Address',p.addr);
+
+  s.innerHTML=`
+    <div class="det-head">
+      <div class="det-cat">${BUCKET[p.bucket].label}</div>
+      <div class="det-name display">${p.name}</div>
+      <div class="det-addr">${p.addr}</div>
+    </div>
+
+    <div class="det-stats">${stats}</div>
+    <div class="det-div"></div>
+
+    <div class="det-sec">
+      <div class="sec-head"><h2>About</h2></div>
+      <div class="det-desc">${p.desc}</div>
+      ${p.tip?`<div class="callout"><b>Tip.</b> ${p.tip}</div>`:''}
+      ${p.note?`<div class="callout"><b>Heads up.</b> ${p.note}</div>`:''}
+    </div>
+    <div class="det-div"></div>
+
+    <div class="det-sec">
+      <div class="sec-head"><h2>Good to know</h2></div>
+      <div class="det-rows">${rows}</div>
+    </div>
+    <div class="det-div"></div>
+
+    <div class="det-sec" style="padding-bottom:32px">
+      <div class="sec-head"><h2>Add to a day</h2></div>
+      <div class="dayrow" id="dayrow">
+        ${DAYS.map(d=>`<button class="daybtn" data-day="${d.key}">${d.name.slice(0,3)}</button>`).join('')}
+      </div>
+      <div class="det-links">
+        <a href="${maps}" target="_blank"><span class="msr">directions</span>Directions</a>
+        <a href="${search}" target="_blank"><span class="msr">map</span>Maps</a>
+        ${p.link?`<a href="${p.link}" target="_blank"><span class="msr">language</span>Website</a>`:''}
+      </div>
+    </div>`;
+  s.querySelectorAll('.daybtn').forEach(b=>b.addEventListener('click',()=>toggleDay(id,b.dataset.day)));
+  refreshDayBtns();
+  panTo(p);
+  updateMarkers();
+  renderLibrary();
+}
+function refreshDayBtns(){
+  document.querySelectorAll('#dayrow .daybtn').forEach(b=>{
+    b.classList.toggle('on',selectedId&&inDay(b.dataset.day,selectedId));
+  });
+}
+function toggleDay(id,day){
+  const arr=plan[day],i=arr.findIndex(x=>x.id===id);
+  if(i>=0)arr.splice(i,1);else arr.push({id});
+  save();refreshDayBtns();renderLibrary();applyMapFilter();
+}
+
+/* ── Filters ── */
+document.getElementById('dayChips').addEventListener('click',e=>{
+  const b=e.target.closest('.chip');if(!b)return;activeDay=b.dataset.day;
+  document.querySelectorAll('#dayChips .chip').forEach(x=>x.classList.toggle('on',x===b));
+  renderLibrary();applyMapFilter();
+});
+document.getElementById('search').addEventListener('input',e=>{query=e.target.value;renderLibrary();});
+document.getElementById('libList').addEventListener('click',e=>{
+  const c=e.target.closest('.card');if(c)selectPlace(+c.dataset.id);
+});
+document.getElementById('reset').addEventListener('click',()=>{
+  if(confirm('Reset the itinerary to the fixed plans only?')){plan=seed();save();renderLibrary();refreshDayBtns();}
+});
+
+/* ── Map ── */
+const map=L.map('map',{zoomControl:false}).setView([34.03,-118.33],11);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap · © CARTO',maxZoom:20}).addTo(map);
+L.control.zoom({position:'topright'}).addTo(map);
+
+function pinIcon(p,sel,rec){
+  const c=BUCKET[p.bucket].color;
+  const size=sel?42:(rec?28:34);
+  const isz=sel?25:(rec?17:20);
+  const bg=rec?`linear-gradient(rgba(255,255,255,0.82),rgba(255,255,255,0.82)),${c}`:c;  // ~20% tint = "recommended" treatment
+  const col=rec?c:'#fff';
+  return L.divIcon({className:'',iconSize:[size,size],iconAnchor:[size/2,size/2],popupAnchor:[0,-size/2-2],
+    html:`<div class="pin${sel?' sel':''}${rec?' rec':''}" style="background:${bg};width:${size}px;height:${size}px;color:${col}"><span class="msr" style="font-size:${isz}px">${p.icon}</span></div>`});
+}
+const hotelMarker=L.marker([HOTEL.lat,HOTEL.lng],{icon:L.divIcon({className:'',iconSize:[38,38],iconAnchor:[19,19],popupAnchor:[0,-22],html:`<div class="pin hotel" style="width:38px;height:38px"><span class="msr">hotel</span></div>`}),zIndexOffset:1000}).addTo(map);
+hotelMarker.bindPopup(`<div class="pp-name">Your hotel</div><div class="pp-sub">${HOTEL.name}</div>`,{closeButton:false,autoPan:false});
+hotelMarker.off('click');
+hotelMarker.on('mouseover',()=>hotelMarker.openPopup());
+hotelMarker.on('mouseout',()=>hotelMarker.closePopup());
+
+const markers={};
+places.forEach(p=>{
+  const m=L.marker([p.lat,p.lng],{icon:pinIcon(p,false)}).addTo(map);
+  m.bindPopup(`<div class="pp-name">${p.name}</div><div class="pp-sub">${p.drive}${p.cost&&p.cost!=='—'&&p.cost!=='Free'?' · '+p.cost:''}</div>`,{closeButton:false,autoPan:false});
+  m.off('click');                                  // drop Leaflet's open-on-click
+  m.on('mouseover',()=>{if(p.id!==selectedId)m.openPopup();});  // hover preview
+  m.on('mouseout',()=>m.closePopup());
+  m.on('click',()=>{m.closePopup();selectPlace(p.id);});         // select closes the popup
+  markers[p.id]=m;
+});
+function isRec(p){return activeDay!=='all'&&p.recDay===activeDay&&!inDay(activeDay,p.id);}
+function updateMarkers(){places.forEach(p=>markers[p.id].setIcon(pinIcon(p,p.id===selectedId,isRec(p))));}
+function panTo(p){map.panTo([p.lat,p.lng],{animate:true,duration:.4});}
+function applyMapFilter(){
+  places.forEach(p=>{
+    let show=activeBucket==='all'||p.bucket===activeBucket;
+    if(show&&activeDay!=='all')show=inDay(activeDay,p.id)||isRec(p);  // scheduled OR recommended for this day
+    const m=markers[p.id];
+    m.setIcon(pinIcon(p,p.id===selectedId,isRec(p)));
+    if(show){if(!map.hasLayer(m))m.addTo(map);}
+    else{if(map.hasLayer(m))map.removeLayer(m);}
+  });
+}
+
+/* ── Init ── */
+renderLibrary();
+applyMapFilter();
+</script>
+</body>
+</html>

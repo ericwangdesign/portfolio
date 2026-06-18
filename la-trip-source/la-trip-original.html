@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LA Trip 🌴</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  background: #0f0f0f;
+  color: #e0e0e0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── TOP BAR ── */
+#topbar {
+  background: #141414;
+  border-bottom: 1px solid #242424;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+  z-index: 10;
+}
+#topbar h1 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e8d5b7;
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+}
+.sep { color: #333; font-size: 18px; }
+.filters { display: flex; gap: 5px; flex-wrap: nowrap; }
+.filter-btn {
+  padding: 4px 11px;
+  border-radius: 20px;
+  border: 1px solid #2a2a2a;
+  background: transparent;
+  color: #666;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.filter-btn:hover { border-color: #444; color: #999; }
+.filter-btn.active { color: #111 !important; border-color: transparent !important; }
+.filter-btn[data-cat="all"].active    { background: #e8d5b7; }
+.filter-btn[data-cat="art"].active    { background: #ff6b6b; }
+.filter-btn[data-cat="fixed"].active  { background: #4d96ff; }
+.filter-btn[data-cat="explore"].active { background: #6bcb77; }
+.filter-btn[data-cat="food"].active   { background: #ffd93d; }
+.filter-btn[data-cat="event"].active  { background: #c77dff; }
+.filter-count {
+  display: inline-block;
+  background: rgba(255,255,255,0.12);
+  border-radius: 8px;
+  padding: 0 4px;
+  font-size: 10px;
+  margin-left: 3px;
+  font-weight: 600;
+}
+#hotel-label {
+  margin-left: auto;
+  font-size: 11px;
+  color: #555;
+  white-space: nowrap;
+}
+
+/* ── MAIN LAYOUT ── */
+#main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── SIDEBAR ── */
+#sidebar {
+  width: 272px;
+  flex-shrink: 0;
+  background: #141414;
+  border-right: 1px solid #222;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.section-label {
+  padding: 10px 14px 5px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: #444;
+  font-weight: 600;
+}
+.location-item {
+  padding: 9px 14px;
+  border-bottom: 1px solid #1c1c1c;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.location-item:hover { background: #1a1a1a; }
+.location-item.active { background: #1e1e1e; border-left: 2px solid #e8d5b7; padding-left: 12px; }
+.loc-name {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #ddd;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.3;
+}
+.cat-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.loc-meta {
+  font-size: 11px;
+  color: #555;
+  margin-top: 3px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.badge {
+  font-size: 9.5px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+.b-urgent { background: rgba(255,107,107,0.15); color: #ff8080; border: 1px solid rgba(255,107,107,0.3); }
+.b-new    { background: rgba(107,203,119,0.15); color: #6bcb77; border: 1px solid rgba(107,203,119,0.3); }
+.b-free   { background: rgba(77,150,255,0.15);  color: #7ab0ff; border: 1px solid rgba(77,150,255,0.3); }
+.b-fixed  { background: rgba(255,217,61,0.15);  color: #ffd93d; border: 1px solid rgba(255,217,61,0.3); }
+.b-oc     { background: rgba(199,125,255,0.15); color: #c77dff; border: 1px solid rgba(199,125,255,0.3); }
+
+/* ── MAP ── */
+#map { flex: 1; }
+
+/* ── DETAIL PANEL ── */
+#detail {
+  width: 290px;
+  flex-shrink: 0;
+  background: #141414;
+  border-left: 1px solid #222;
+  overflow-y: auto;
+  display: none;
+  flex-direction: column;
+}
+#detail.open { display: flex; }
+#det-header {
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid #222;
+  position: relative;
+}
+#det-close {
+  position: absolute; top: 12px; right: 12px;
+  background: none; border: none;
+  color: #555; font-size: 20px; line-height: 1;
+  cursor: pointer; padding: 2px;
+}
+#det-close:hover { color: #999; }
+#det-cat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 5px;
+  font-weight: 600;
+}
+#det-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #e8d5b7;
+  line-height: 1.3;
+  padding-right: 20px;
+}
+#det-addr {
+  font-size: 11px;
+  color: #555;
+  margin-top: 3px;
+}
+#det-body { padding: 14px; flex: 1; }
+.drow { margin-bottom: 11px; }
+.dlabel {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #4a4a4a;
+  margin-bottom: 2px;
+  font-weight: 600;
+}
+.dval {
+  font-size: 12.5px;
+  color: #bbb;
+  line-height: 1.5;
+}
+.dval.urgent { color: #ff8080; }
+.dval.highlight { color: #7ab0ff; }
+.det-desc {
+  font-size: 12px;
+  color: #999;
+  line-height: 1.6;
+  margin: 12px 0;
+}
+.det-tip {
+  background: #1a1a1a;
+  border-left: 2px solid #e8d5b7;
+  padding: 8px 10px;
+  font-size: 11.5px;
+  color: #aaa;
+  line-height: 1.55;
+  border-radius: 0 4px 4px 0;
+  margin-bottom: 8px;
+}
+.det-note {
+  background: #1a1a1a;
+  border-left: 2px solid #ffd93d;
+  padding: 8px 10px;
+  font-size: 11.5px;
+  color: #aaa;
+  line-height: 1.55;
+  border-radius: 0 4px 4px 0;
+  margin-bottom: 8px;
+}
+.det-links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.det-link {
+  font-size: 11.5px;
+  color: #e8d5b7;
+  text-decoration: none;
+  border: 1px solid #333;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+.det-link:hover { background: #1e1e1e; border-color: #e8d5b7; }
+
+/* ADD TO DAY */
+#add-day-section {
+  padding: 12px 14px;
+  border-top: 1px solid #222;
+}
+.add-day-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #444;
+  margin-bottom: 7px;
+  font-weight: 600;
+}
+.day-btns { display: flex; gap: 5px; }
+.day-btn {
+  flex: 1;
+  padding: 6px 4px;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 6px;
+  color: #666;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+  font-weight: 500;
+}
+.day-btn:hover { background: #222; color: #ddd; border-color: #444; }
+.day-btn.in-plan { background: #1e2a1a; color: #6bcb77; border-color: #3a5a3a; }
+
+/* ── BOTTOM PLANNER ── */
+#planner {
+  height: 150px;
+  flex-shrink: 0;
+  background: #0f0f0f;
+  border-top: 1px solid #1e1e1e;
+  display: flex;
+  overflow: hidden;
+}
+.day-col {
+  flex: 1;
+  border-right: 1px solid #1e1e1e;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.day-col:last-child { border-right: none; }
+.day-header {
+  padding: 7px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #1e1e1e;
+  background: #111;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.plan-items {
+  flex: 1;
+  overflow-y: auto;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.plan-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  background: #161616;
+  border-radius: 4px;
+  font-size: 10.5px;
+  color: #bbb;
+  border: 1px solid #1e1e1e;
+}
+.plan-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.plan-remove {
+  background: none; border: none;
+  color: #3a3a3a; font-size: 13px;
+  cursor: pointer; flex-shrink: 0;
+  line-height: 1; padding: 0;
+}
+.plan-remove:hover { color: #ff6b6b; }
+.plan-empty {
+  font-size: 10px;
+  color: #333;
+  text-align: center;
+  padding: 10px 6px;
+}
+
+/* Leaflet overrides */
+.leaflet-popup-content-wrapper {
+  background: #1a1a1a !important;
+  border: 1px solid #2a2a2a !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.6) !important;
+  border-radius: 8px !important;
+  color: #e0e0e0 !important;
+}
+.leaflet-popup-tip { background: #1a1a1a !important; }
+.leaflet-popup-content { margin: 11px 14px !important; }
+.leaflet-popup-close-button { color: #555 !important; top: 6px !important; right: 8px !important; }
+.leaflet-control-zoom a { background: #1a1a1a !important; color: #888 !important; border-color: #333 !important; }
+.leaflet-control-zoom a:hover { background: #222 !important; color: #ddd !important; }
+.leaflet-bar { border: 1px solid #333 !important; }
+.popup-name { font-weight: 600; font-size: 13px; margin-bottom: 3px; color: #e8d5b7; }
+.popup-sub { font-size: 11px; color: #777; line-height: 1.4; }
+.popup-badge { font-size: 10px; color: #ff8080; margin-top: 2px; }
+.popup-action { font-size: 11px; color: #e8d5b7; cursor: pointer; margin-top: 6px; display: inline-block; }
+.popup-action:hover { text-decoration: underline; }
+
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <h1>🌴 LA Trip Planner</h1>
+  <span class="sep">·</span>
+  <div class="filters">
+    <button class="filter-btn active" data-cat="all">All <span class="filter-count" id="fc-all"></span></button>
+    <button class="filter-btn" data-cat="art">🎨 Art</button>
+    <button class="filter-btn" data-cat="fixed">📌 Fixed</button>
+    <button class="filter-btn" data-cat="explore">🏘 Explore</button>
+    <button class="filter-btn" data-cat="food">🍜 Food</button>
+    <button class="filter-btn" data-cat="event">🎬 Events</button>
+  </div>
+  <span id="hotel-label">📍 Hotel: Culver City</span>
+</div>
+
+<div id="main">
+  <div id="sidebar"></div>
+  <div id="map"></div>
+  <div id="detail">
+    <div id="det-header">
+      <button id="det-close">×</button>
+      <div id="det-cat-label"></div>
+      <div id="det-name"></div>
+      <div id="det-addr"></div>
+    </div>
+    <div id="det-body"></div>
+    <div id="add-day-section">
+      <div class="add-day-label">Add to day</div>
+      <div class="day-btns">
+        <button class="day-btn" data-day="thu">Thu</button>
+        <button class="day-btn" data-day="fri">Fri</button>
+        <button class="day-btn" data-day="sat">Sat</button>
+        <button class="day-btn" data-day="sun">Sun</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="planner">
+  <div class="day-col">
+    <div class="day-header">Thu · Drive in</div>
+    <div class="plan-items" id="plan-thu"></div>
+  </div>
+  <div class="day-col">
+    <div class="day-header">Friday</div>
+    <div class="plan-items" id="plan-fri"></div>
+  </div>
+  <div class="day-col">
+    <div class="day-header">Saturday</div>
+    <div class="plan-items" id="plan-sat"></div>
+  </div>
+  <div class="day-col">
+    <div class="day-header">Sun · Drive out</div>
+    <div class="plan-items" id="plan-sun"></div>
+  </div>
+</div>
+
+<script>
+const HOTEL = { lat: 34.0096, lng: -118.3976, name: '8684 Washington Blvd, Culver City' };
+
+const CAT_COLOR = {
+  art:     '#ff6b6b',
+  fixed:   '#4d96ff',
+  explore: '#6bcb77',
+  food:    '#ffd93d',
+  event:   '#c77dff',
+};
+const CAT_LABEL = {
+  art:     '🎨 Art / Exhibition',
+  fixed:   '📌 Fixed',
+  explore: '🏘 Neighborhood',
+  food:    '🍜 Food',
+  event:   '🎬 Event',
+};
+
+const places = [
+  // ── ART / EXHIBITIONS ──────────────────────────────
+  {
+    id: 1, cat: 'art',
+    name: 'Hospital of Emotions',
+    addr: '2131 W 3rd St, Los Angeles',
+    lat: 34.0607, lng: -118.2853,
+    cost: '$58', drive: '32 min',
+    hours: 'Daily 10am – 8:10pm (timed entry every 10 min)',
+    deadline: 'Closes July 31 ⚠',
+    urgent: true, needsTickets: true,
+    desc: '70 artists have taken over 80+ rooms of a real decommissioned hospital. Each room is a standalone immersive installation around one emotion. You "check in" with intake paperwork, collect stamps room by room, and "discharge" at the end. ~2 hrs.',
+    tip: 'Sells out — pre-book at hospitalofemotions.com before you go.',
+    link: 'https://www.hospitalofemotions.com/',
+  },
+  {
+    id: 2, cat: 'art',
+    name: 'DATALAND',
+    addr: '100 S Grand Ave, Downtown (The Grand LA)',
+    lat: 34.0545, lng: -118.2480,
+    cost: 'Tickets required', drive: '33 min',
+    hours: 'Tue–Fri 11am–10pm · Sat–Sun 10am–10pm',
+    deadline: 'Machine Dreams: Rainforest · through Jan 2027',
+    isNew: true,
+    desc: 'World\'s first AI art museum, co-founded by Refik Anadol. 25,000 sqft immersive generative environments. You can operate installations to create your own AI art. JUST OPENED June 20, 2026.',
+    tip: 'The Broad + MOCA are literally next door — bundle all three in one afternoon.',
+    link: 'https://dataland.art/',
+  },
+  {
+    id: 3, cat: 'art',
+    name: 'Yoko Ono: Music of the Mind',
+    addr: 'The Broad, 221 S Grand Ave',
+    lat: 34.0556, lng: -118.2499,
+    cost: '$21 · Free Thu 5–8pm', drive: '33 min',
+    hours: 'Tue/Wed/Fri 11–5 · Thu 11–8 · Sat–Sun 10–6',
+    deadline: 'Through Oct 11, 2026',
+    desc: 'Her first SoCal solo retrospective, organized with Tate Modern. You hammer nails into a canvas, hang wish cards on olive trees outside, climb a ladder to read "YES" on the ceiling. Genuinely interactive — not just looking at art.',
+    tip: 'Free Thursdays 5–8pm. Walkable from DATALAND.',
+    link: 'https://www.thebroad.org/art/special-exhibitions/yoko-ono-music-mind',
+  },
+  {
+    id: 4, cat: 'art',
+    name: 'Hauser & Wirth LA',
+    addr: '901 E 3rd St, Arts District',
+    lat: 34.0413, lng: -118.2354,
+    cost: 'FREE', drive: '32 min',
+    hours: 'Tue–Sun 11am–6pm',
+    deadline: 'Keith Tyson: The Generative Universe · through Aug 16',
+    isFree: true,
+    desc: 'World-class gallery in the Arts District, not a museum — but as good as one. Currently: Keith Tyson\'s "The Generative Universe," 3 decades of work exploring the universe as a single generative system. Rooftop garden has Downtown views.',
+    tip: 'Anchor of an Arts District walk. ROW DTLA is 10 min on foot.',
+    link: 'https://www.hauserwirth.com/',
+  },
+  {
+    id: 5, cat: 'art',
+    name: 'Hammer Museum',
+    addr: '10899 Wilshire Blvd, Westwood',
+    lat: 34.0591, lng: -118.4437,
+    cost: 'FREE', drive: '22 min',
+    hours: 'Tue–Sun 11am–6pm (Thu until 8pm)',
+    deadline: 'Shows through Aug 2026',
+    isFree: true,
+    desc: 'UCLA-affiliated, perpetually underrated. Two strong shows: "Several Eternities in a Day" (22 artists from the Americas, living materials: clay, cacao, achiote, cochineal) through Aug 23 + Arthur Jafa\'s experimental film "The White Album" through Aug 30.',
+    tip: 'Closest major museum to your hotel and genuinely good. Easy half-day.',
+    link: 'https://hammer.ucla.edu/',
+  },
+  {
+    id: 6, cat: 'art',
+    name: 'MOCA Grand Avenue',
+    addr: '250 S Grand Ave, Downtown',
+    lat: 34.0554, lng: -118.2493,
+    cost: '$18', drive: '33 min',
+    hours: 'Mon/Thu 11–5 · Fri 11–8 · Sat–Sun 11–6 (closed Tue/Wed)',
+    deadline: 'Afterlives · through Sept 20',
+    desc: 'Museum of Contemporary Art, Downtown. "Afterlives" shows MOCA\'s collection from the 1940s–70s. Literally next door to The Broad and one block from DATALAND — bundle these three.',
+    tip: 'The Grand Ave cluster: MOCA + Broad + DATALAND all within 3 min walk.',
+    link: 'https://www.moca.org/',
+  },
+
+  // ── FIXED ──────────────────────────────────────────
+  {
+    id: 7, cat: 'fixed',
+    name: '洞庭鲜 (Dong Ting Xian)',
+    addr: '727 E Valley Blvd, San Gabriel',
+    lat: 34.0688, lng: -118.0963,
+    cost: '$$', drive: '42 min',
+    hours: 'Mon–Sat 11am–9:30pm · Sun 11am–9pm',
+    day: 'Friday dinner',
+    desc: 'Hunan-style (not Cantonese) — water-boiled fish, dry-fried dishes, spicy fermented flavors. Night market atmosphere deep in the SGV. This is the real Chinese food hub of SoCal.',
+    tip: 'Best as an early dinner (7–8pm) before heading to DTLA for 10pm drinks.',
+    note: 'SGV is 42 min from hotel and opposite direction from DTLA. Consider direction when routing your Friday.',
+  },
+  {
+    id: 8, cat: 'fixed',
+    name: 'OC & Lau Restaurant',
+    addr: '10130 Garden Grove Blvd, Garden Grove, OC',
+    lat: 33.7774, lng: -117.9330,
+    cost: '$$', drive: '38 min south',
+    hours: 'Mon/Wed–Thu 10am–10pm · Fri–Sat 10am–11pm · Sun 10am–10pm',
+    day: 'Saturday lunch',
+    isOC: true,
+    desc: 'Vietnamese seafood spot famous for 18 types of escargot. No-frills, very local Vietnamese-American crowd. No reservations — show up early.',
+    tip: 'Go by 11am–noon to avoid a long wait. Closed Tuesdays.',
+    note: 'This is in Orange County — 38 min south of your hotel. Saturday means you\'ll be in OC at noon, then driving back north for the rest of the day.',
+  },
+  {
+    id: 9, cat: 'fixed',
+    name: 'DTLA Drinks (Fred\'s)',
+    addr: 'Downtown Los Angeles',
+    lat: 34.0522, lng: -118.2437,
+    cost: '—', drive: '30 min',
+    hours: 'After 10pm, Friday',
+    day: 'Friday night',
+    desc: 'Fixed: drinks at friend\'s apartment in DTLA after 10pm Friday. Great area to explore during the day too — Arts District and Grand Ave both within walking distance.',
+    tip: 'You\'ll already be in the neighborhood — consider visiting DATALAND, Hauser & Wirth, or Smorgasburg earlier that day.',
+  },
+
+  // ── EXPLORE / NEIGHBORHOODS ────────────────────────
+  {
+    id: 10, cat: 'explore',
+    name: 'Culver City Arts District',
+    addr: 'Washington Blvd & La Cienega, Culver City',
+    lat: 34.0100, lng: -118.3860,
+    cost: 'Free', drive: '🚶 Walking distance',
+    hours: 'Galleries: Tue–Sat ~11am–6pm',
+    desc: 'You\'re literally staying here. USA Today top-10 arts district. Galleries: Jeffrey Deitch, Blum, ThinkSpace, BLK/MRKT, WWA Gallery, Bergamot Station. Washington + La Cienega corridor.',
+    tip: 'Your backyard. Easy to explore before/after dinner or during any free hour.',
+  },
+  {
+    id: 11, cat: 'explore',
+    name: 'Abbot Kinney Blvd',
+    addr: 'Abbot Kinney Blvd, Venice',
+    lat: 33.9921, lng: -118.4698,
+    cost: 'Free', drive: '10 min',
+    hours: 'Shops ~11am onward',
+    desc: 'Walkable, hip street closest to your hotel. Circular Library (Korean indie boutique), Fellow Coffee (beautifully designed pour-overs), Goodies (quality home goods). Walk to Venice Beach at the end.',
+    tip: 'Best morning option — 10 min from hotel, then head east from here.',
+  },
+  {
+    id: 12, cat: 'explore',
+    name: 'Silver Lake',
+    addr: 'Sunset Blvd, Silver Lake',
+    lat: 34.0873, lng: -118.2713,
+    cost: 'Free', drive: '28 min',
+    hours: 'Shops ~11am–7pm',
+    desc: 'Best neighborhood for actual shopping. Mohawk General Store (Acne, APC, indie designers), Rare Reserve (the best archive vintage in LA — real deadstock, 2002 Gucci rarities), Clare V., Tartine bakery.',
+    tip: 'Rare Reserve is the real reason to come. Archive-level vintage not found anywhere else in the city.',
+  },
+  {
+    id: 13, cat: 'explore',
+    name: 'Highland Park / York Blvd',
+    addr: 'York Blvd, Highland Park',
+    lat: 34.1078, lng: -118.2009,
+    cost: 'Free', drive: '38 min',
+    hours: 'Shops ~11am · Sunday farmers market AM',
+    desc: 'Most DIY and local of LA\'s artsy neighborhoods. Arts & Crafts architecture from 1895. Artist studios open weekends. Chicano culture, vinyl stores, indie boutiques. Sunday farmers market.',
+    tip: 'Best on Sunday morning — farmers market + studios open, fewer people than Silver Lake.',
+  },
+  {
+    id: 14, cat: 'explore',
+    name: 'Frogtown (Elysian Valley)',
+    addr: 'Elysian Valley, along the LA River',
+    lat: 34.0920, lng: -118.2436,
+    cost: 'Free', drive: '32 min',
+    hours: 'Studios open weekends',
+    desc: 'Artist studios in repurposed M2 manufacturing buildings along the LA River. The river walkway is an open-air street art gallery — constantly changing murals. Almost no tourists come here. The most raw, authentic art neighborhood in LA.',
+    tip: 'Pair with Silver Lake or Atwater Village — all within 10 min of each other.',
+  },
+  {
+    id: 15, cat: 'explore',
+    name: 'Arts District DTLA',
+    addr: 'E 3rd St, Arts District, Downtown',
+    lat: 34.0413, lng: -118.2370,
+    cost: 'Free', drive: '32 min',
+    hours: 'All day',
+    desc: 'Converted warehouse district. Hauser & Wirth anchor + rotating murals (Retna, Shepard Fairey, DEFER). ROW DTLA is here: Bodega (cult streetwear, no sign on the door — find it), Friday Gallery (multicultural contemporary artists), Smorgasburg on Sundays.',
+    tip: 'Start at Hauser & Wirth, walk to ROW DTLA (~10 min), then to Grand Ave cluster (~15 min more).',
+  },
+  {
+    id: 16, cat: 'explore',
+    name: 'Melrose Ave / West Hollywood',
+    addr: 'Melrose Ave, West Hollywood',
+    lat: 34.0838, lng: -118.3607,
+    cost: 'Free', drive: '22 min',
+    hours: 'Shops ~11am',
+    desc: 'Vintage boutiques, streetwear, indie brands strung along Melrose. Sunset Strip is more bars + history + late-night. Neither is as dense as Silver Lake but worth a pass-through if you\'re heading east.',
+    tip: 'Better as a daytime stop on the way somewhere else rather than a destination.',
+  },
+  {
+    id: 17, cat: 'explore',
+    name: 'Atwater Village',
+    addr: 'Glendale Blvd, Atwater Village',
+    lat: 34.0967, lng: -118.2583,
+    cost: 'Free', drive: '33 min',
+    hours: 'Shops ~11am · Sunday market AM',
+    desc: 'Small dense strip between Silver Lake and Glendale. Jacknife Records & Tapes (excellent used vinyl), The Social Type (curated gifts), small Sunday market. Underrated and very local.',
+    tip: 'Combine with Frogtown — they\'re next to each other and both easy to underestimate.',
+  },
+
+  // ── FOOD ───────────────────────────────────────────
+  {
+    id: 18, cat: 'food',
+    name: 'Smorgasburg @ ROW DTLA',
+    addr: '777 S Alameda St, Arts District',
+    lat: 34.0361, lng: -118.2304,
+    cost: 'Free entry · pay per item', drive: '33 min',
+    hours: 'Sundays only · 10am–4pm',
+    desc: 'LA\'s biggest outdoor food market, every Sunday. 30+ rotating vendors, craft food, always interesting. Summer 2026: Ice Cream Alley launching July 6. Adjacent to Arts District and Hauser & Wirth.',
+    tip: 'Sunday only — natural pair with an Arts District walk or Grand Ave gallery cluster.',
+    link: 'https://la.smorgasburg.com/',
+  },
+  {
+    id: 19, cat: 'food',
+    name: 'Tartine Bakery',
+    addr: 'Sunset Blvd, Silver Lake',
+    lat: 34.0876, lng: -118.2706,
+    cost: '$', drive: '28 min',
+    hours: 'Opens ~8am',
+    desc: 'The SF sourdough legend\'s LA outpost. Great coffee, excellent pastries and bread. Walk-in. Natural start to a Silver Lake morning.',
+    tip: 'Arrive early — bread sells out.',
+  },
+  {
+    id: 20, cat: 'food',
+    name: 'Great White',
+    addr: 'Larchmont Blvd, Larchmont Village',
+    lat: 34.0731, lng: -118.3244,
+    cost: '$$', drive: '20 min',
+    hours: 'Weekends 9am–3pm',
+    desc: 'The Sunday brunch spot locals actually go to. Australian-inflected, good coffee, great eggs. Always a wait — go early or expect 30 min. Larchmont Village has a Sunday farmers market next door.',
+    tip: 'If you want a classic LA Sunday morning, this + the Larchmont farmers market is it.',
+  },
+
+  // ── EVENTS ─────────────────────────────────────────
+  {
+    id: 21, cat: 'event',
+    name: 'Cinespia @ Hollywood Forever',
+    addr: '6000 Santa Monica Blvd, Hollywood',
+    lat: 34.0903, lng: -118.3181,
+    cost: '$25–35', drive: '25 min',
+    hours: 'Saturday evenings, July only',
+    deadline: 'Jul 11 Pulp Fiction · Jul 18 Rosemary\'s Baby · Jul 25 Edward Scissorhands',
+    desc: 'Movies screened on the lawn of a working celebrity cemetery. Bring blankets, food, and booze (allowed). DJ set before the film. 25th anniversary season. No tourists — just Angelenos who\'ve been doing this since childhood.',
+    tip: 'Only if your Saturday is in July. This is one of the most genuinely local LA experiences possible.',
+    link: 'https://cinespia.org/',
+  },
+];
+
+// ── State ─────────────────────────────────────────────────
+let activeFilter = 'all';
+let selectedId = null;
+let plan = { thu: [], fri: [], sat: [] , sun: [] };
+
+// Pre-seed fixed items
+plan.fri.push({ id: 7, name: '洞庭鲜 Dinner', cat: 'fixed' });
+plan.fri.push({ id: 9, name: 'DTLA Drinks (Fred\'s)', cat: 'fixed' });
+plan.sat.push({ id: 8, name: 'OC & Lau Lunch', cat: 'fixed' });
+
+// ── Map ───────────────────────────────────────────────────
+const map = L.map('map', { zoomControl: false }).setView([34.04, -118.29], 11);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap · © CARTO', maxZoom: 19
+}).addTo(map);
+L.control.zoom({ position: 'topright' }).addTo(map);
+
+// Hotel marker
+const hotelIcon = L.divIcon({
+  html: `<div style="width:14px;height:14px;background:#e8d5b7;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,0.7)"></div>`,
+  iconSize: [14, 14], iconAnchor: [7, 7], className: ''
+});
+L.marker([HOTEL.lat, HOTEL.lng], { icon: hotelIcon })
+  .addTo(map)
+  .bindPopup(`<div class="popup-name">🏨 Your Hotel</div><div class="popup-sub">${HOTEL.name}</div>`);
+
+// Place markers
+const markers = {};
+function makeIcon(p, selected = false) {
+  const c = CAT_COLOR[p.cat];
+  const s = selected ? 18 : 12;
+  return L.divIcon({
+    html: `<div style="width:${s}px;height:${s}px;background:${c};border-radius:50%;border:${selected?3:2}px solid rgba(255,255,255,${selected?0.9:0.6});box-shadow:0 2px 8px rgba(0,0,0,0.6);transition:all 0.15s"></div>`,
+    iconSize: [s, s], iconAnchor: [s/2, s/2], className: ''
+  });
+}
+
+places.forEach(p => {
+  const m = L.marker([p.lat, p.lng], { icon: makeIcon(p) }).addTo(map);
+  m.bindPopup(`
+    <div class="popup-name">${p.name}</div>
+    <div class="popup-sub">${p.drive || ''}${p.cost ? ' · ' + p.cost : ''}</div>
+    ${p.deadline ? `<div class="popup-badge">${p.deadline}</div>` : ''}
+    <span class="popup-action" onclick="selectPlace(${p.id})">Details & add to plan →</span>
+  `);
+  m.on('click', () => selectPlace(p.id));
+  markers[p.id] = m;
+});
+
+// ── Filter ────────────────────────────────────────────────
+function applyFilter() {
+  places.forEach(p => {
+    const show = activeFilter === 'all' || p.cat === activeFilter;
+    if (show) { if (!map.hasLayer(markers[p.id])) markers[p.id].addTo(map); }
+    else       { if ( map.hasLayer(markers[p.id])) map.removeLayer(markers[p.id]); }
+  });
+  renderSidebar();
+}
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    activeFilter = btn.dataset.cat;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    applyFilter();
+  });
+});
+
+// ── Sidebar ───────────────────────────────────────────────
+function renderSidebar() {
+  const visible = activeFilter === 'all' ? places : places.filter(p => p.cat === activeFilter);
+  const grouped = {};
+  visible.forEach(p => {
+    if (!grouped[p.cat]) grouped[p.cat] = [];
+    grouped[p.cat].push(p);
+  });
+
+  let html = '';
+  const catOrder = ['fixed', 'art', 'explore', 'food', 'event'];
+  catOrder.forEach(cat => {
+    if (!grouped[cat]) return;
+    html += `<div class="section-label">${CAT_LABEL[cat]}</div>`;
+    grouped[cat].forEach(p => {
+      const c = CAT_COLOR[p.cat];
+      const badges = [];
+      if (p.urgent)      badges.push('<span class="badge b-urgent">Closes soon</span>');
+      if (p.isNew)       badges.push('<span class="badge b-new">NEW</span>');
+      if (p.isFree || p.cost === 'FREE') badges.push('<span class="badge b-free">FREE</span>');
+      if (p.day)         badges.push(`<span class="badge b-fixed">${p.day}</span>`);
+      if (p.isOC)        badges.push('<span class="badge b-oc">OC</span>');
+      html += `
+        <div class="location-item${selectedId === p.id ? ' active' : ''}" onclick="selectPlace(${p.id})">
+          <div class="loc-name">
+            <div class="cat-dot" style="background:${c}"></div>
+            ${p.name}
+          </div>
+          <div class="loc-meta">
+            <span>${p.drive || ''}</span>
+            ${badges.join('')}
+          </div>
+        </div>`;
+    });
+  });
+  document.getElementById('sidebar').innerHTML = html;
+}
+
+// ── Select Place ─────────────────────────────────────────
+function selectPlace(id) {
+  selectedId = id;
+  const p = places.find(x => x.id === id);
+  if (!p) return;
+
+  // Update marker sizes
+  places.forEach(x => markers[x.id].setIcon(makeIcon(x, x.id === id)));
+
+  // Pan map
+  map.panTo([p.lat, p.lng], { animate: true });
+
+  // Detail panel
+  const det = document.getElementById('detail');
+  det.classList.add('open');
+
+  const c = CAT_COLOR[p.cat];
+  document.getElementById('det-cat-label').innerHTML = `<span style="color:${c}">${CAT_LABEL[p.cat]}</span>`;
+  document.getElementById('det-name').textContent = p.name;
+  document.getElementById('det-addr').textContent = p.addr;
+
+  // Body
+  let rows = '';
+  if (p.cost)     rows += detRow('Cost', p.cost, p.cost === 'FREE' || p.isFree ? 'highlight' : '');
+  if (p.hours)    rows += detRow('Hours', p.hours);
+  if (p.deadline) rows += detRow('Deadline', p.deadline, p.urgent ? 'urgent' : '');
+  if (p.drive)    rows += detRow('From Hotel', p.drive);
+  if (p.day)      rows += detRow('Fixed For', p.day);
+
+  const mapsUrl = `https://www.google.com/maps/dir/${HOTEL.lat},${HOTEL.lng}/${p.lat},${p.lng}`;
+  const placeMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name + ' ' + p.addr)}`;
+
+  document.getElementById('det-body').innerHTML = `
+    ${rows}
+    <p class="det-desc">${p.desc}</p>
+    ${p.tip  ? `<div class="det-tip">💡 ${p.tip}</div>` : ''}
+    ${p.note ? `<div class="det-note">⚠️ ${p.note}</div>` : ''}
+    <div class="det-links">
+      <a class="det-link" href="${mapsUrl}" target="_blank">🗺 Directions</a>
+      <a class="det-link" href="${placeMapsUrl}" target="_blank">📍 Maps</a>
+      ${p.link ? `<a class="det-link" href="${p.link}" target="_blank">🔗 Website</a>` : ''}
+    </div>
+  `;
+
+  refreshDayBtns();
+  renderSidebar();
+}
+
+function detRow(label, val, cls = '') {
+  return `<div class="drow"><div class="dlabel">${label}</div><div class="dval ${cls}">${val}</div></div>`;
+}
+
+// ── Close detail ─────────────────────────────────────────
+document.getElementById('det-close').addEventListener('click', () => {
+  document.getElementById('detail').classList.remove('open');
+  selectedId = null;
+  places.forEach(p => markers[p.id].setIcon(makeIcon(p, false)));
+  renderSidebar();
+});
+
+// ── Day plan buttons ──────────────────────────────────────
+function refreshDayBtns() {
+  document.querySelectorAll('.day-btn').forEach(btn => {
+    const day = btn.dataset.day;
+    const inPlan = plan[day].some(x => x.id === selectedId);
+    btn.classList.toggle('in-plan', inPlan);
+    const d = day.charAt(0).toUpperCase() + day.slice(1);
+    btn.textContent = inPlan ? `✓ ${d}` : d;
+  });
+}
+
+document.querySelectorAll('.day-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (!selectedId) return;
+    const day = btn.dataset.day;
+    const p = places.find(x => x.id === selectedId);
+    const idx = plan[day].findIndex(x => x.id === selectedId);
+    if (idx >= 0) plan[day].splice(idx, 1);
+    else plan[day].push({ id: p.id, name: p.name, cat: p.cat });
+    refreshDayBtns();
+    renderPlanner();
+  });
+});
+
+// ── Planner ───────────────────────────────────────────────
+function renderPlanner() {
+  ['thu', 'fri', 'sat', 'sun'].forEach(day => {
+    const el = document.getElementById(`plan-${day}`);
+    if (!plan[day].length) {
+      el.innerHTML = '<div class="plan-empty">Drop something here</div>';
+      return;
+    }
+    el.innerHTML = plan[day].map(item => {
+      const c = CAT_COLOR[item.cat] || '#888';
+      return `<div class="plan-item">
+        <div class="cat-dot" style="background:${c};width:5px;height:5px;border-radius:50%;flex-shrink:0"></div>
+        <span title="${item.name}">${item.name}</span>
+        <button class="plan-remove" onclick="removePlan('${day}',${item.id})" title="Remove">×</button>
+      </div>`;
+    }).join('');
+  });
+}
+
+function removePlan(day, id) {
+  plan[day] = plan[day].filter(x => x.id !== id);
+  renderPlanner();
+  if (selectedId === id) refreshDayBtns();
+}
+
+// ── Init ──────────────────────────────────────────────────
+document.getElementById('fc-all').textContent = places.length;
+renderSidebar();
+renderPlanner();
+</script>
+</body>
+</html>
