@@ -1,0 +1,467 @@
+---
+import { publicJournalEntries } from "../../data/journal";
+
+const entries = publicJournalEntries;
+const categories = Array.from(new Set(entries.map((entry) => entry.category)));
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Journal — Eric Wang Design</title>
+    <meta
+      name="description"
+      content="A canvas journal of public notes, essays, rabbitholes, and writing made in collaboration with Codex."
+    />
+    <link rel="icon" type="image/png" href="/favicon-lightbg.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Spectral:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <main class="journal-shell" data-canvas-shell>
+      <header class="masthead">
+        <a class="home-link" href="/">Eric Wang Design</a>
+        <div class="title-block">
+          <p class="eyebrow">Journal</p>
+          <h1>A canvas of papers, drafts, and public thoughts.</h1>
+        </div>
+        <div class="legend" aria-label="Journal categories">
+          {categories.map((category) => <span>{category}</span>)}
+        </div>
+      </header>
+
+      <section class="canvas-frame" aria-label="Journal canvas">
+        <div class="canvas-hint">
+          <span>Drag the desk</span>
+          <span>Scroll to zoom</span>
+          <span>Open a paper</span>
+        </div>
+        <div class="canvas" data-canvas>
+          <div class="grid-paper"></div>
+          <div class="thread thread-one"></div>
+          <div class="thread thread-two"></div>
+          <div class="cluster-label cluster-one">first seeds</div>
+          <div class="cluster-label cluster-two">collaboration</div>
+
+          {
+            entries.map((entry, index) => (
+              <a
+                class="paper"
+                href={`/journal/${entry.slug}/`}
+                style={`--x:${entry.position.x}px; --y:${entry.position.y}px; --r:${entry.position.rotate}deg; --w:${entry.position.width}px; --paper:${entry.paper}; --accent:${entry.accent}; --delay:${index * 80}ms;`}
+              >
+                <span class="pin" aria-hidden="true"></span>
+                <span class="paper-category">{entry.category}</span>
+                <span class="paper-date">
+                  {new Date(`${entry.date}T00:00:00`).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </span>
+                <strong>{entry.title}</strong>
+                <span class="paper-excerpt">{entry.excerpt}</span>
+                <span class="paper-footer">
+                  <span>public</span>
+                  <span>open</span>
+                </span>
+              </a>
+            ))
+          }
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const shell = document.querySelector("[data-canvas-shell]");
+      const canvas = document.querySelector("[data-canvas]");
+
+      if (shell && canvas) {
+        let isDragging = false;
+        let startX = 0;
+        let startY = 0;
+        let originX = 0;
+        let originY = 0;
+        let offsetX = 0;
+        let offsetY = 0;
+        let scale = 1;
+
+        const applyTransform = () => {
+          canvas.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+        };
+
+        shell.addEventListener("pointerdown", (event) => {
+          const target = event.target;
+          if (target instanceof Element && target.closest("a")) return;
+          isDragging = true;
+          shell.setPointerCapture(event.pointerId);
+          startX = event.clientX;
+          startY = event.clientY;
+          originX = offsetX;
+          originY = offsetY;
+          shell.classList.add("is-dragging");
+        });
+
+        shell.addEventListener("pointermove", (event) => {
+          if (!isDragging) return;
+          offsetX = originX + event.clientX - startX;
+          offsetY = originY + event.clientY - startY;
+          applyTransform();
+        });
+
+        shell.addEventListener("pointerup", (event) => {
+          isDragging = false;
+          shell.releasePointerCapture(event.pointerId);
+          shell.classList.remove("is-dragging");
+        });
+
+        shell.addEventListener(
+          "wheel",
+          (event) => {
+            event.preventDefault();
+            const nextScale = Math.min(1.45, Math.max(0.72, scale - event.deltaY * 0.001));
+            scale = nextScale;
+            applyTransform();
+          },
+          { passive: false },
+        );
+      }
+    </script>
+
+    <style is:global>
+      :root {
+        --ink: #17120d;
+        --muted: #6c6258;
+        --line: rgba(42, 33, 24, 0.14);
+        --desk: #e7d8bd;
+        --desk-deep: #c5aa7f;
+        --serif: "Spectral", Georgia, "Times New Roman", serif;
+        --sans: "General Sans", "Inter", system-ui, sans-serif;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100svh;
+        color: var(--ink);
+        background:
+          linear-gradient(120deg, rgba(255,255,255,0.36), transparent 34%),
+          radial-gradient(circle at 20% 10%, rgba(255, 122, 89, 0.22), transparent 28%),
+          radial-gradient(circle at 80% 20%, rgba(47, 127, 117, 0.18), transparent 30%),
+          linear-gradient(135deg, var(--desk), var(--desk-deep));
+        font-family: var(--serif);
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+
+      a { color: inherit; }
+
+      .journal-shell {
+        position: relative;
+        min-height: 100svh;
+        cursor: grab;
+        overflow: hidden;
+      }
+
+      .journal-shell.is-dragging { cursor: grabbing; }
+
+      .masthead {
+        position: fixed;
+        z-index: 10;
+        top: 0;
+        left: 0;
+        right: 0;
+        display: grid;
+        grid-template-columns: minmax(120px, 1fr) minmax(280px, 560px) minmax(120px, 1fr);
+        gap: 24px;
+        align-items: start;
+        padding: 28px 32px;
+        pointer-events: none;
+      }
+
+      .home-link,
+      .legend span {
+        pointer-events: auto;
+        font-family: var(--sans);
+        font-size: 13px;
+        font-weight: 500;
+        text-decoration: none;
+      }
+
+      .home-link:hover { opacity: 0.62; }
+
+      .title-block { text-align: center; }
+
+      .eyebrow {
+        margin: 0 0 8px;
+        font-family: var(--sans);
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 34px;
+        font-weight: 300;
+        line-height: 1.05;
+      }
+
+      .legend {
+        display: flex;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .legend span,
+      .canvas-hint span {
+        border: 1px solid rgba(23, 18, 13, 0.16);
+        border-radius: 999px;
+        padding: 7px 10px;
+        background: rgba(255, 248, 232, 0.54);
+        backdrop-filter: blur(12px);
+      }
+
+      .canvas-frame {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+      }
+
+      .canvas-hint {
+        position: fixed;
+        z-index: 11;
+        left: 32px;
+        bottom: 28px;
+        display: flex;
+        gap: 8px;
+        font-family: var(--sans);
+        font-size: 12px;
+        color: rgba(23, 18, 13, 0.72);
+        pointer-events: none;
+      }
+
+      .canvas {
+        position: absolute;
+        left: calc(50% - 520px);
+        top: calc(50% - 390px);
+        width: 1120px;
+        height: 820px;
+        transform-origin: center;
+        transition: transform 120ms ease-out;
+      }
+
+      .grid-paper {
+        position: absolute;
+        inset: -240px;
+        opacity: 0.34;
+        background-image:
+          linear-gradient(rgba(23, 18, 13, 0.12) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(23, 18, 13, 0.12) 1px, transparent 1px);
+        background-size: 64px 64px;
+        mask-image: radial-gradient(circle, black 0%, transparent 72%);
+      }
+
+      .thread {
+        position: absolute;
+        height: 2px;
+        border-top: 2px dashed rgba(23, 18, 13, 0.18);
+        transform-origin: left center;
+      }
+
+      .thread-one {
+        left: 430px;
+        top: 300px;
+        width: 280px;
+        rotate: 13deg;
+      }
+
+      .thread-two {
+        left: 390px;
+        top: 500px;
+        width: 220px;
+        rotate: -28deg;
+      }
+
+      .cluster-label {
+        position: absolute;
+        font-family: var(--sans);
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: rgba(23, 18, 13, 0.44);
+      }
+
+      .cluster-one { left: 120px; top: 95px; rotate: -8deg; }
+      .cluster-two { left: 675px; top: 505px; rotate: 5deg; }
+
+      .paper {
+        position: absolute;
+        left: var(--x);
+        top: var(--y);
+        width: var(--w);
+        min-height: 265px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 24px;
+        color: var(--ink);
+        text-decoration: none;
+        background:
+          linear-gradient(135deg, rgba(255,255,255,0.76), rgba(255,255,255,0) 44%),
+          var(--paper);
+        border: 1px solid rgba(23, 18, 13, 0.12);
+        border-radius: 7px;
+        box-shadow:
+          0 18px 34px rgba(61, 42, 20, 0.22),
+          0 2px 0 rgba(255,255,255,0.64) inset;
+        transform: rotate(var(--r));
+        transform-origin: 50% 20%;
+        animation: paper-in 520ms ease both;
+        animation-delay: var(--delay);
+        cursor: pointer;
+      }
+
+      .paper::before {
+        content: "";
+        position: absolute;
+        inset: 12px;
+        border: 1px solid rgba(23, 18, 13, 0.08);
+        border-radius: 4px;
+        pointer-events: none;
+      }
+
+      .paper:hover {
+        transform: rotate(var(--r)) translateY(-7px) scale(1.015);
+        box-shadow:
+          0 24px 42px rgba(61, 42, 20, 0.28),
+          0 2px 0 rgba(255,255,255,0.72) inset;
+      }
+
+      .pin {
+        position: absolute;
+        top: 14px;
+        right: 18px;
+        width: 15px;
+        height: 15px;
+        border-radius: 999px;
+        background: var(--accent);
+        box-shadow: 0 2px 7px rgba(23, 18, 13, 0.24);
+      }
+
+      .paper-category,
+      .paper-date,
+      .paper-footer {
+        font-family: var(--sans);
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--muted);
+      }
+
+      .paper-category {
+        width: fit-content;
+        color: var(--ink);
+        border-bottom: 3px solid var(--accent);
+      }
+
+      .paper strong {
+        max-width: 12ch;
+        font-size: 34px;
+        font-weight: 400;
+        line-height: 0.98;
+      }
+
+      .paper-excerpt {
+        margin-top: auto;
+        font-size: 16px;
+        line-height: 1.35;
+      }
+
+      .paper-footer {
+        display: flex;
+        justify-content: space-between;
+        padding-top: 12px;
+        border-top: 1px solid rgba(23, 18, 13, 0.14);
+        text-transform: uppercase;
+      }
+
+      @keyframes paper-in {
+        from { opacity: 0; transform: rotate(var(--r)) translateY(20px) scale(0.96); }
+        to { opacity: 1; transform: rotate(var(--r)) translateY(0) scale(1); }
+      }
+
+      @media (max-width: 760px) {
+        body { overflow: auto; }
+
+        .journal-shell {
+          min-height: auto;
+          overflow: visible;
+          cursor: default;
+        }
+
+        .masthead {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+          padding: 24px 18px 10px;
+          pointer-events: auto;
+        }
+
+        .title-block { text-align: left; }
+        h1 { font-size: 31px; }
+        .legend { justify-content: flex-start; }
+        .canvas-hint { display: none; }
+
+        .canvas-frame {
+          position: relative;
+          min-height: auto;
+          padding: 20px 18px 44px;
+          overflow: visible;
+        }
+
+        .canvas {
+          position: relative;
+          left: auto;
+          top: auto;
+          width: 100%;
+          height: auto;
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+          transform: none !important;
+        }
+
+        .grid-paper,
+        .thread,
+        .cluster-label { display: none; }
+
+        .paper {
+          position: relative;
+          left: auto;
+          top: auto;
+          width: 100%;
+          min-height: 230px;
+          transform: rotate(0deg);
+        }
+
+        .paper:hover { transform: translateY(-4px); }
+        .paper strong { max-width: 14ch; font-size: 30px; }
+      }
+    </style>
+  </body>
+</html>
