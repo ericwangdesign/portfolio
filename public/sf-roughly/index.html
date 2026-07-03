@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>San Francisco, roughly</title>
+  <style>
+    :root {
+      --paper: #06060c;
+      --ink: #ece9e2;
+      --faint: #ece9e233;
+      --dim: #ece9e299;
+    }
+    * { box-sizing: border-box; margin: 0; }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 36px 28px;
+      min-width: 0;
+    }
+    .canvas-col {
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+      align-items: center;
+      width: min(100%, calc(78vh * 1.19));
+      max-height: 100%;
+    }
+    .stage { position: relative; width: 100%; }
+    .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    .stage::before { content: ""; display: block; padding-top: calc(100% / 1.19); }
+    #border-layer { pointer-events: none; }
+    .transport { width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+    .clock { display: flex; align-items: baseline; gap: 10px; }
+    .clock .time { font-size: 26px; font-weight: 400; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+    .clock .phase { font-size: 12px; color: var(--dim); }
+    .playrow { display: flex; align-items: center; gap: 14px; width: 100%; }
+    .playrow button {
+      font: inherit; font-size: 11px; width: 30px; height: 24px; flex: none;
+      background: none; border: 1px solid var(--faint); color: var(--ink); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .playrow button:hover { border-color: var(--ink); }
+    .playrow input[type="range"] { flex: 1; }
+    aside {
+      width: 296px;
+      padding: 44px 36px 36px 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 26px;
+      overflow-y: auto;
+      font-size: 12.5px;
+    }
+    h1 { font-size: 15px; font-weight: 500; }
+    .sub { font-size: 12.5px; line-height: 1.65; color: var(--dim); margin-top: 10px; }
+    .seg { display: flex; gap: 16px; }
+    .seg button {
+      font: inherit; font-size: 12.5px; padding: 0;
+      background: none; border: none; color: var(--dim); cursor: pointer;
+    }
+    .seg button:hover { color: var(--ink); }
+    .seg button.active { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
+    .palette-block { display: flex; flex-direction: column; gap: 14px; }
+    .swatches { display: flex; gap: 10px; align-items: center; }
+    .swatches button { width: 20px; height: 20px; padding: 0; border: 1px solid var(--faint); cursor: pointer; }
+    .swatches button.active { outline: 1px solid var(--ink); outline-offset: 2px; }
+    .legend { display: flex; gap: 14px; font-size: 12px; color: var(--dim); }
+    .legend span { display: flex; align-items: center; gap: 6px; }
+    .legend i { width: 8px; height: 8px; display: inline-block; }
+    .params { display: flex; flex-direction: column; gap: 24px; }
+    .control label { display: flex; justify-content: space-between; color: var(--dim); margin-bottom: 2px; }
+    .control label:hover { color: var(--ink); }
+    .control output { font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; appearance: none; height: 1px; background: var(--faint); outline: none; }
+    input[type="range"]::-webkit-slider-thumb {
+      appearance: none; width: 11px; height: 11px; border-radius: 50%; background: var(--ink); cursor: pointer; border: none;
+    }
+    footer { font-size: 11px; color: var(--dim); opacity: 0.75; line-height: 1.7; margin-top: auto; padding-top: 20px; }
+    @media (max-width: 760px) {
+      body { flex-direction: column; height: auto; min-height: 100dvh; overflow: auto; }
+      main { padding: 18px 16px 6px; }
+      .canvas-col { width: 100%; gap: 16px; }
+      aside { width: 100%; padding: 18px 20px 44px; gap: 22px; }
+      footer { margin-top: 8px; }
+    }
+    @media (pointer: coarse) {
+      input[type="range"] { height: 2px; }
+      input[type="range"]::-webkit-slider-thumb { width: 20px; height: 20px; }
+    }
+  </style>
+  <script type="module" crossorigin src="/sf-roughly/assets/index-B12-s7Gr.js"></script>
+</head>
+<body>
+  <main>
+    <div class="canvas-col">
+      <div class="stage">
+        <canvas id="live"></canvas>
+        <canvas id="border-layer"></canvas>
+      </div>
+      <div class="transport">
+        <div class="clock">
+          <span class="time" id="clock-time">00:00</span>
+          <span class="phase" id="clock-phase">deep night</span>
+        </div>
+        <div class="playrow">
+          <button id="play" aria-label="Play"><svg width="9" height="11" viewBox="0 0 9 11" aria-hidden="true"><path d="M0 0 L9 5.5 L0 11 Z" fill="currentColor"/></svg></button>
+          <input type="range" id="hour" min="0" max="1440" step="1" value="480" />
+        </div>
+      </div>
+    </div>
+  </main>
+  <aside>
+    <div>
+      <h1>San Francisco, roughly</h1>
+      <p class="sub">One day, on a loop. Each mark is a few hundred people doing whatever people do at this hour — counted where the data is real, guessed where it isn't.</p>
+    </div>
+    <div class="seg" id="daytype">
+      <button data-day="week" class="active">weekday</button>
+      <button data-day="weekend">weekend</button>
+    </div>
+    <div class="palette-block">
+      <div class="swatches" id="swatches"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="params">
+      <div class="control">
+        <label for="color-amount">color <output id="out-color-amount">0.9</output></label>
+        <input type="range" id="color-amount" min="0" max="1" step="0.05" value="0.9" />
+      </div>
+      <div class="control">
+        <label for="exposure">liveliness <output id="out-exposure">1.5</output></label>
+        <input type="range" id="exposure" min="0.3" max="3.5" step="0.05" value="1.5" />
+      </div>
+      <div class="control">
+        <label for="cell">cell <output id="out-cell">6 px</output></label>
+        <input type="range" id="cell" min="3" max="14" step="1" value="6" />
+      </div>
+      <div class="control">
+        <label for="bleed">bleed <output id="out-bleed">0.00</output></label>
+        <input type="range" id="bleed" min="0" max="0.2" step="0.01" value="0" />
+      </div>
+      <div class="control">
+        <label for="speed">speed <output id="out-speed">1.5×</output></label>
+        <input type="range" id="speed" min="0.2" max="4" step="0.1" value="1.5" />
+      </div>
+    </div>
+    <div class="seg">
+      <button id="borders-toggle">show tract lines</button>
+    </div>
+    <footer>Counted: homes (2020 census), jobs (LODES 2021), parks (SF Rec &amp; Park + Presidio), shoreline (US Census). Guessed: the hours in between.</footer>
+  </aside>
+</body>
+</html>
