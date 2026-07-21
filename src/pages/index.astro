@@ -1,5 +1,7 @@
 ---
 // Eric Wang Design — portfolio landing
+import Analytics from "../components/Analytics.astro";
+
 const experience = [
   { company: "Google", year: "2025+", desc: "Across Google Maps: AskMap's generative cartography, monetization, 3D abstract and satellite maps, and driving experiences." },
   { company: "Tesla", year: "2025", desc: "Internal AI for finding what the company already knows, and finance dashboards for seeing where the money goes." },
@@ -32,6 +34,7 @@ const experience = [
       href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500&display=swap"
       rel="stylesheet"
     />
+    <Analytics />
   </head>
   <body>
     <main>

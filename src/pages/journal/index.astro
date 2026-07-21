@@ -3,6 +3,7 @@
 // The full canvas journal is preserved in git history (and in ./[slug].astro
 // / src/data/journal.ts). Restore this file from git when the journal is ready
 // to publish.
+import Analytics from "../../components/Analytics.astro";
 ---
 
 <!doctype html>
@@ -24,6 +25,7 @@
       href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&display=swap"
       rel="stylesheet"
     />
+    <Analytics />
   </head>
   <body>
     <main class="wip">
