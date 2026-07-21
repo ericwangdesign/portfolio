@@ -2,10 +2,9 @@
 import { publicJournalEntries } from "../../data/journal";
 
 export function getStaticPaths() {
-  return publicJournalEntries.map((entry) => ({
-    params: { slug: entry.slug },
-    props: { entry },
-  }));
+  // Journal is a work in progress — no entry pages are published for now.
+  // Restore the original map() below (see git history) when re-launching.
+  return [];
 }
 
 const { entry } = Astro.props;
