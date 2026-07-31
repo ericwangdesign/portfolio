@@ -809,7 +809,7 @@ function layout(events, opts){
       while(k2 < list.length && list[k2].struck && list[k2].runId === rid && list[k2].line === ln){
         x1 = list[k2].x + list[k2].adv; sz = Math.max(sz, list[k2].size); k2++;
       }
-      strikes.push({ x0, x1, y: y - sz * 0.30, seed: rid * 7 + ln, w: Math.max(5.6, sz*0.28) });
+      strikes.push({ x0, x1, y: y - sz * 0.30, seed: rid * 7 + ln, w: Math.max(1.4, sz*0.07) });
       k = k2;
     }
   }
@@ -1046,7 +1046,7 @@ function render(m){
   elSvg.setAttribute('height', m.height);
   let svg = '';
   for(const s of m.strikes){
-    svg += '<path d="'+wobblyPath(s)+'" fill="none" stroke="'+mixColor(0.55)+
+    svg += '<path d="'+wobblyPath(s)+'" fill="none" stroke="'+mixColor(1)+
            '" stroke-opacity="'+STRIKE_OP+
            '" stroke-width="'+s.w.toFixed(2)+'" stroke-linecap="round"/>';
   }
@@ -1543,7 +1543,7 @@ async function savePage(){
     x.restore();
   }
   // strikes
-  x.strokeStyle = mixColor(0.55);
+  x.strokeStyle = mixColor(1);
   x.globalAlpha = STRIKE_OP;
   x.lineCap = 'round';
   for(const s of m.strikes){
