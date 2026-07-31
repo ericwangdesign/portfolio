@@ -1,0 +1,6 @@
+{
+  "redirects": [
+    { "source": "/pen&paper", "destination": "/pen-and-paper", "permanent": false },
+    { "source": "/pen-paper", "destination": "/pen-and-paper", "permanent": false }
+  ]
+}
