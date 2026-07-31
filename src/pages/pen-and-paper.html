@@ -4,12 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pen &amp; Paper</title>
-<meta name="description" content="A typing surface where letterforms record the process of writing — hesitation, speed, deletions — as ink on paper.">
-<meta property="og:title" content="Pen &amp; Paper">
-<meta property="og:description" content="We digitized the words and lost the writing.">
-<meta property="og:image" content="/og-image.png">
-<meta name="twitter:card" content="summary_large_image">
-<link rel="icon" type="image/png" href="/favicon-lightbg.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Homemade+Apple&family=La+Belle+Aurore&family=Caveat:wght@400..700&family=Nanum+Pen+Script&family=Shantell+Sans:ital,wght@0,300..800;1,300..800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
@@ -134,6 +128,64 @@
   #caption.show{opacity:.5}
   #caption .d{font-size:.62em; opacity:.75}
 
+  /* ---------- zero state ----------
+     The piece has to teach itself: most people arrive from a link with no
+     one there to explain it. Opens as a small card, folds to a corner tab
+     the moment they start writing. */
+  #intro{
+    /* sits above the mic control, which owns the bottom-left corner */
+    position:fixed; left:26px; bottom:64px; z-index:41;
+    width:288px;
+    background:rgba(247,244,236,.94);
+    backdrop-filter:blur(10px);
+    border:1px solid rgba(107,101,96,.20);
+    border-radius:3px;
+    box-shadow:0 8px 30px rgba(60,54,44,.09);
+    padding:16px 17px 14px;
+    font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;
+    color:#4b4640;
+    transition:opacity .55s ease, transform .55s cubic-bezier(.4,0,.2,1);
+    cursor:default;
+  }
+  #intro h3{
+    margin:0 0 7px; font-size:9px; font-weight:500;
+    letter-spacing:.15em; text-transform:uppercase; color:#8d867d;
+  }
+  #intro .lede{
+    margin:0 0 12px; font-size:12px; line-height:1.55; color:#3f3b36;
+  }
+  #intro ul{ margin:0; padding:0; list-style:none; }
+  #intro li{
+    font-size:11px; line-height:1.5; color:#6b6560;
+    padding:3.5px 0 3.5px 13px; position:relative;
+  }
+  #intro li::before{
+    content:""; position:absolute; left:2px; top:11px;
+    width:4px; height:1px; background:rgba(107,101,96,.5);
+  }
+  #intro li b{ color:#3f3b36; font-weight:500; }
+  #intro .foot{
+    margin:11px 0 0; padding-top:9px; font-size:10px; color:#9a938a;
+    border-top:1px solid rgba(107,101,96,.15);
+  }
+  #intro .x{
+    position:absolute; right:9px; top:8px;
+    font-size:13px; line-height:1; color:#b0a89e;
+    cursor:pointer; padding:3px 5px; border-radius:2px;
+  }
+  #intro .x:hover{ color:#6b6560; }
+  /* folded: collapses to a quiet tab in the corner */
+  #intro.folded{
+    width:auto; padding:7px 11px; cursor:pointer;
+    box-shadow:0 3px 12px rgba(60,54,44,.07);
+  }
+  #intro.folded .lede,
+  #intro.folded ul,
+  #intro.folded .foot,
+  #intro.folded .x{ display:none; }
+  #intro.folded h3{ margin:0; }
+  #intro.folded:hover{ background:rgba(250,248,242,.98); }
+
   #hidden{
     position:fixed; left:-9999px; top:0; width:1px; height:1px;
     opacity:0; border:0; padding:0; resize:none;
@@ -214,10 +266,6 @@
   #panel button:hover{background:rgba(255,255,255,.9)}
   #panel button:disabled{opacity:.4;cursor:default}
 </style>
-<!-- Microsoft Clarity -->
-<script>
-(function(){var CLARITY_ID="xprgtw49pv";if(CLARITY_ID==="PASTE_CLARITY_PROJECT_ID")return;(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script",CLARITY_ID);})();
-</script>
 </head>
 <body>
 <div id="stage">
@@ -230,6 +278,19 @@
   </div>
 </div>
 <textarea id="hidden" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+
+<div id="intro">
+  <span class="x" title="close">&times;</span>
+  <h3>Pen &amp; Paper</h3>
+  <p class="lede">Typing kept the words and lost the writing. This keeps it — the page records <em>how</em> you wrote, not just what.</p>
+  <ul>
+    <li><b>Type slowly</b> — the hand stays careful and even</li>
+    <li><b>Type fast</b> — it runs, leans, joins into cursive</li>
+    <li><b>Stop for a moment</b> — ink pools where you paused</li>
+    <li><b>Delete something</b> — it stays, crossed out, like paper</li>
+  </ul>
+  <p class="foot">Just start typing. Refresh for a clean page.</p>
+</div>
 
 <div id="mic" title="dictate onto the page"><span class="dot"></span><span class="lbl">listen</span></div>
 
@@ -1168,6 +1229,33 @@ function commitRevision(){
   selection = null;
   relayout(); touched();
 }
+/* ----------------------------- zero state -----------------------------
+   Most people meet this piece through a link, with nobody there to explain
+   it. The card carries the whole idea, then gets out of the way the instant
+   they start writing — folding to a corner tab they can reopen. */
+const elIntro = document.getElementById('intro');
+let introFolded = false;
+
+function foldIntro(){
+  if(introFolded || !elIntro) return;
+  introFolded = true;
+  elIntro.classList.add('folded');
+  elIntro.title = 'what is this?';
+}
+function unfoldIntro(){
+  if(!elIntro) return;
+  introFolded = false;
+  elIntro.classList.remove('folded');
+  elIntro.title = '';
+}
+if(elIntro){
+  elIntro.addEventListener('mousedown', e => {
+    e.stopPropagation();               // never steal focus from the page
+    if(e.target.classList.contains('x')){ foldIntro(); return; }
+    if(introFolded) unfoldIntro();
+  });
+}
+
 function cancelRevision(){
   if(!selection) return;
   if(selection.pending) Timeline.push({ type:'revcancel', t: Date.now() });
@@ -1177,7 +1265,7 @@ function cancelRevision(){
 
 function typeChar(ch){
   const t = Date.now();
-  if(!firstKeyDone){ firstKeyDone = true; elPh.style.opacity = '0'; }
+  if(!firstKeyDone){ firstKeyDone = true; elPh.style.opacity = '0'; foldIntro(); }
   if(selection){
     if(ch === ' ' || ch === '\n'){
       if(selection.pending){ commitRevision(); return; }
@@ -1587,6 +1675,10 @@ async function savePage(){
 /* ============================ CONTROL PANEL =========================== */
 
 const elPanel = document.getElementById('panel');
+// Open by default: people arrive from a link with no one to demo this, so the
+// controls should be visible as part of the piece rather than hidden behind a
+// shortcut. Cmd/Ctrl+/ still toggles it away.
+elPanel.classList.add('on');
 function togglePanel(){ elPanel.classList.toggle('on'); }
 
 (function buildPanel(){
