@@ -1,0 +1,2323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pen &amp; Paper</title>
+<meta name="description" content="A page that records how you wrote, not just what. Type slowly and the hand stays careful; type fast and it runs into cursive.">
+<meta property="og:title" content="Pen &amp; Paper">
+<meta property="og:description" content="We digitized the words and lost the writing. This page keeps it.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f5f1e8;
+    --graphite:#6b6560;
+    --ink:#1c1a17;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    overflow-y:auto;
+    overflow-x:hidden;
+    cursor:text;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* paper grain */
+  body::before{
+    content:"";
+    position:fixed; inset:0;
+    pointer-events:none;
+    z-index:0;
+    opacity:.055;
+    mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='240' height='240' filter='url(%23n)'/></svg>");
+    background-size:240px 240px;
+  }
+  /* a barely-there warmth gradient so the paper isn't dead flat */
+  body::after{
+    content:"";
+    position:fixed; inset:0;
+    pointer-events:none; z-index:0;
+    background:radial-gradient(120% 90% at 50% 0%, rgba(255,253,247,.55), rgba(233,226,212,.35) 70%, rgba(224,216,200,.5) 100%);
+  }
+
+  #stage{position:relative; z-index:1; width:100%;}
+  #page{
+    position:relative;
+    width:640px;
+    margin:0 auto;
+    min-height:100vh;
+  }
+  #glyphs{position:absolute; inset:0;}
+  #strikes{position:absolute; left:0; top:0; overflow:visible; pointer-events:none;}
+  .g{
+    position:absolute;
+    line-height:1;
+    white-space:pre;
+    transform-origin:50% 100%;
+    user-select:none;
+    cursor:text;
+    /* NO will-change here. It promotes every glyph to its own composited
+       layer, and the layer is rasterized to the element's box — but these
+       hands draw far outside theirs (line-height:1, ascenders and flourishes
+       climbing well past the em box), so promotion shears the tops off every
+       tall letter. Transforms here are static per glyph, not animated, so the
+       hint bought nothing; dropping it also avoids a layer per character. */
+  }
+  .g.click{cursor:pointer}
+  /* the ink itself: an svg filled with currentColor. overflow:visible and
+     no mask/filter anywhere - the ink is free to leave its box (ascenders,
+     wobble, drag-traces reaching back to the previous letter). */
+  svg.gi{ position:absolute; left:0; top:0; width:100%; height:100%; overflow:visible; display:block; }
+  /* NO masks and NO filters anywhere on glyphs. Both rasterize the element
+     into its own layer sized to the element's box, and these hands draw far
+     outside their box — every mask/filter variant we tried ended up shearing
+     ascenders at some size or during some frame of animation. The entrance
+     is a plain opacity fade: quick enough to read as the ink landing, with
+     nothing that can clip. */
+  @keyframes penstroke{
+    0%  { opacity:0; }
+    100%{ opacity:1; }
+  }
+  .gi.reveal{
+    animation:penstroke var(--rd,140ms) ease-out backwards;
+  }
+  @media (prefers-reduced-motion:reduce){
+    .gi.reveal{ animation:none; }
+  }
+  .blot{
+    position:absolute;
+    pointer-events:none;
+    border-radius:50%;
+    transform:translate(-50%,-50%);
+  }
+  .selunder{
+    position:absolute;
+    height:1px;
+    background:var(--graphite);
+    opacity:.55;
+    pointer-events:none;
+  }
+  #caret{
+    position:absolute;
+    width:1.5px;
+    background:var(--ink);
+    opacity:.85;
+    pointer-events:none;
+    animation:blink 1.1s steps(1,end) infinite;
+  }
+  @keyframes blink{0%,55%{opacity:.85}56%,100%{opacity:0}}
+  #placeholder{
+    position:absolute;
+    color:var(--graphite);
+    opacity:.30;
+    pointer-events:none;
+    line-height:1;
+    white-space:pre;
+    transition:opacity .5s ease;
+  }
+  #caption{
+    position:absolute;
+    left:0; width:100%;
+    text-align:center;
+    color:var(--graphite);
+    opacity:0;
+    transition:opacity 1.4s ease;
+    pointer-events:none;
+    line-height:1.5;
+  }
+  #caption.show{opacity:.5}
+  #caption .d{font-size:.62em; opacity:.75}
+
+  /* ---------- zero state ----------
+     The piece has to teach itself: most people arrive from a link with no
+     one there to explain it. Opens as a small card, folds to a corner tab
+     the moment they start writing. */
+  #intro{
+    /* sits above the mic control, which owns the bottom-left corner */
+    position:fixed; left:26px; bottom:64px; z-index:41;
+    width:288px;
+    background:rgba(247,244,236,.94);
+    backdrop-filter:blur(10px);
+    border:1px solid rgba(107,101,96,.20);
+    border-radius:3px;
+    box-shadow:0 8px 30px rgba(60,54,44,.09);
+    padding:16px 17px 14px;
+    font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;
+    color:#4b4640;
+    transition:opacity .55s ease, transform .55s cubic-bezier(.4,0,.2,1);
+    cursor:default;
+  }
+  #intro h3{
+    margin:0 0 7px; font-size:9px; font-weight:500;
+    letter-spacing:.15em; text-transform:uppercase; color:#8d867d;
+  }
+  #intro .lede{
+    margin:0 0 12px; font-size:12px; line-height:1.55; color:#3f3b36;
+  }
+  #intro ul{ margin:0; padding:0; list-style:none; }
+  #intro li{
+    font-size:11px; line-height:1.5; color:#6b6560;
+    padding:3.5px 0 3.5px 13px; position:relative;
+  }
+  #intro li::before{
+    content:""; position:absolute; left:2px; top:11px;
+    width:4px; height:1px; background:rgba(107,101,96,.5);
+  }
+  #intro li b{ color:#3f3b36; font-weight:500; }
+  #intro .foot{
+    margin:11px 0 0; padding-top:9px; font-size:10px; color:#9a938a;
+    border-top:1px solid rgba(107,101,96,.15);
+  }
+  #intro .x{
+    position:absolute; right:9px; top:8px;
+    font-size:13px; line-height:1; color:#b0a89e;
+    cursor:pointer; padding:3px 5px; border-radius:2px;
+  }
+  #intro .x:hover{ color:#6b6560; }
+  /* folded: collapses to a quiet tab in the corner */
+  #intro.folded{
+    width:auto; padding:7px 11px; cursor:pointer;
+    box-shadow:0 3px 12px rgba(60,54,44,.07);
+  }
+  #intro.folded .lede,
+  #intro.folded ul,
+  #intro.folded .foot,
+  #intro.folded .x{ display:none; }
+  #intro.folded h3{ margin:0; }
+  #intro.folded:hover{ background:rgba(250,248,242,.98); }
+
+  #hidden{
+    position:fixed; left:-9999px; top:0; width:1px; height:1px;
+    opacity:0; border:0; padding:0; resize:none;
+  }
+
+  /* ---------- voice ---------- */
+  #mic{
+    position:fixed; left:26px; bottom:22px; z-index:40;
+    color:var(--graphite); opacity:.32;
+    line-height:1;
+    cursor:pointer; user-select:none;
+    transition:opacity .35s ease, color .35s ease;
+    display:flex; align-items:center; gap:9px;
+  }
+  #mic:hover{opacity:.55}
+  #mic.on{color:var(--ink); opacity:.85}
+  #mic .dot{
+    width:7px; height:7px; border-radius:50%;
+    background:currentColor; opacity:0;
+    transition:opacity .3s ease;
+  }
+  #mic.on .dot{opacity:.8; animation:micpulse 1.6s ease-in-out infinite}
+  @keyframes micpulse{0%,100%{transform:scale(.7);opacity:.45}50%{transform:scale(1);opacity:.9}}
+  #mic.err{opacity:.2; cursor:default}
+
+  /* ---------- control panel ---------- */
+  #panel{
+    position:fixed; right:22px; top:22px; z-index:50;
+    width:268px;
+    background:rgba(247,244,236,.93);
+    backdrop-filter:blur(8px);
+    border:1px solid rgba(107,101,96,.22);
+    border-radius:3px;
+    box-shadow:0 6px 26px rgba(60,54,44,.10);
+    padding:14px 14px 12px;
+    font-family:Inter,-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
+    font-size:10.5px;
+    color:#4b4640;
+    display:none;
+    max-height:calc(100vh - 44px);
+    overflow-y:auto;
+    cursor:default;
+  }
+  #panel.on{display:block}
+  #panel h4{
+    margin:0 0 10px; font-size:9px; font-weight:500;
+    letter-spacing:.14em; text-transform:uppercase; color:#8d867d;
+  }
+  #panel .hint{font-size:9px;color:#9a938a;margin:-6px 0 12px;letter-spacing:.02em}
+  #panel .row{margin-bottom:9px}
+  #panel label{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:3px; letter-spacing:.01em}
+  #panel .val{color:#8d867d; font-variant-numeric:tabular-nums; font-size:9.5px}
+  #panel select{
+    width:100%; font-family:inherit; font-size:10.5px; padding:4px 5px;
+    background:rgba(255,255,255,.6); color:#3d3934;
+    border:1px solid rgba(107,101,96,.25); border-radius:2px; outline:none;
+  }
+  #panel input[type=range]{
+    -webkit-appearance:none; appearance:none; width:100%; height:14px; background:transparent; outline:none; margin:0;
+  }
+  #panel input[type=range]::-webkit-slider-runnable-track{height:1px;background:rgba(107,101,96,.35)}
+  #panel input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:9px;height:9px;border-radius:50%;
+    background:#5c564f; margin-top:-4px; cursor:pointer;
+  }
+  #panel input[type=range]::-moz-range-track{height:1px;background:rgba(107,101,96,.35)}
+  #panel input[type=range]::-moz-range-thumb{width:9px;height:9px;border:0;border-radius:50%;background:#5c564f;cursor:pointer}
+  #panel .tog{display:flex;justify-content:flex-start;align-items:center;gap:7px;margin-bottom:7px;cursor:pointer;user-select:none}
+  #panel .tog input{accent-color:#5c564f;margin:0;cursor:pointer}
+  #panel .sep{height:1px;background:rgba(107,101,96,.16);margin:12px 0 11px}
+  #panel .btns{display:flex;gap:6px;flex-wrap:wrap}
+  #panel button{
+    flex:1 1 auto; font-family:inherit; font-size:10px; letter-spacing:.02em;
+    padding:6px 8px; background:rgba(255,255,255,.5); color:#4b4640;
+    border:1px solid rgba(107,101,96,.28); border-radius:2px; cursor:pointer;
+    transition:background .15s;
+  }
+  #panel button:hover{background:rgba(255,255,255,.9)}
+  #panel button:disabled{opacity:.4;cursor:default}
+</style>
+<script type="text/javascript">
+(function(){var CLARITY_ID="xprgtw49pv";if(CLARITY_ID==="PASTE_CLARITY_PROJECT_ID")return;(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script",CLARITY_ID);})();
+</script>
+</head>
+<body>
+<div id="stage">
+  <div id="page">
+    <svg id="strikes" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div id="glyphs"></div>
+    <div id="placeholder">start writing</div>
+    <div id="caret"></div>
+    <div id="caption"></div>
+  </div>
+</div>
+<textarea id="hidden" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+
+<div id="intro">
+  <span class="x" title="close">&times;</span>
+  <h3>Pen &amp; Paper</h3>
+  <p class="lede">Typing kept the words and lost the writing. This keeps it — the page records <em>how</em> you wrote, not just what.</p>
+  <ul>
+    <li><b>Type slowly</b> — the hand stays careful and even</li>
+    <li><b>Type fast</b> — it runs, leans, joins into cursive</li>
+    <li><b>Stop for a moment</b> — ink pools where you paused</li>
+    <li><b>Delete something</b> — it stays, crossed out, like paper</li>
+  </ul>
+  <p class="foot">Just start typing. Refresh for a clean page.</p>
+</div>
+
+<div id="mic" title="dictate onto the page"><span class="dot"></span><span class="lbl">listen</span></div>
+
+<div id="panel">
+  <h4>Pen &amp; Paper</h4>
+  <div class="hint">⌘/ (ctrl /) toggles this panel · esc cancels a revision</div>
+  <div id="controls"></div>
+  <div class="sep"></div>
+  <div class="btns">
+    <button id="btnReplay">Replay</button>
+    <button id="btnSave">Save page</button>
+    <button id="btnClear">Clear</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =========================================================================
+   PEN & PAPER
+   A typing surface where letterforms record the process of writing.
+
+   Three layers, one code path:
+     Timeline  — the raw record of what happened (events + timestamps)
+     Layout    — (timeline + settings) -> positioned, styled glyphs
+     Renderer  — glyphs -> DOM (and, for export, -> canvas)
+
+   Replay, font switching, resizing and slider changes ALL just re-run
+   Layout + Render over the timeline. Nothing is stored in the DOM.
+   ========================================================================= */
+
+/* ------------------------------ constants ------------------------------ */
+
+const GRAPHITE = [0x6b, 0x65, 0x60];
+const INK      = [0x1c, 0x1a, 0x17];
+const COL_W    = 640;          // writing column width
+const PAD_TOP  = 132;          // top of page padding
+const PAD_BOT  = 180;
+const FAST_MS  = 70;           // dt considered "fast"
+const SLOW_MS  = 620;          // dt considered "deliberate"
+const DT_CAP   = 1400;         // dt above this doesn't loosen the hand further
+// The hand stays PERFECTLY regular until the pen is genuinely moving, then
+// breaks down fast. SCRAP_KNEE is that threshold on the 0..1 pace scale:
+// 0.62 lands at roughly 160ms/char, so deliberate and ordinary typing both
+// render dead-straight and even, and only a real burst goes messy. Below the
+// knee scrap is exactly 0 — not merely small — which is what makes the slow
+// end read as 规整 rather than slightly-wobbly.
+const SCRAP_KNEE  = 0.30;
+const STRIKE_OP = 1;           // the strike is a mark of its own, not a ghost — full ink
+const IDLE_CAP = 10000;        // ms of stillness before the caption fades in
+const REPLAY_GAP_CAP = 3000;
+
+/* The hand's join floor: the tracking, in em, at which drag-traces from one
+   letter reach the next comfortably. Slightly negative - a rushed hand
+   crowds its letters. */
+const SPREAD_CAP = 0.046;
+
+/* ------------------------------ settings ------------------------------- */
+
+const SPEC = [
+  { key:'baseSize',    type:'range',  label:'Size',              def:28,   min:20,  max:40,  step:1,    fmt:v=>v+'px' },
+  { key:'weight',      type:'range',  label:'Weight',            def:0.050,min:0.03,max:0.10, step:0.002,fmt:v=>v.toFixed(3) },
+  { key:'pauseThresh', type:'range',  label:'Pause threshold',   def:2.0,  min:0.5, max:5,   step:0.1,  fmt:v=>v.toFixed(1)+'s' },
+  { key:'poolMax',     type:'range',  label:'Pool max',          def:5.0,  min:2,   max:10,  step:0.5,  fmt:v=>v.toFixed(1)+'s' },
+  { key:'poolDark',    type:'range',  label:'Pool darkness',     def:0.95, min:0.5, max:1,   step:0.01, fmt:v=>v.toFixed(2) },
+  { key:'poolBleed',   type:'range',  label:'Pool bleed',        def:0.55, min:0,   max:1.6, step:0.05, fmt:v=>v.toFixed(2) },
+  { key:'scrapAmt',    type:'range',  label:'Scrappiness',       def:1.0,  min:0,   max:2,   step:0.05, fmt:v=>v.toFixed(2) },
+  { key:'letterSpread',type:'range',  label:'Letter spread',     def:1.0,  min:0,   max:2,   step:0.05, fmt:v=>v.toFixed(2) },
+  { key:'ghostOp',     type:'range',  label:'Ghost opacity',     def:1.0,  min:0.3, max:1,   step:0.01, fmt:v=>v.toFixed(2) },
+  { key:'wobbleAmt',   type:'range',  label:'Wobble amount',     def:1.0,  min:0,   max:2.5, step:0.05, fmt:v=>v.toFixed(2) },
+  { key:'wobbleOn',    type:'toggle', label:'Rhythm wobble',     def:true },
+];
+
+const S = {};
+SPEC.forEach(s => S[s.key] = s.def);
+
+// v8: elegance pass - smaller x-height, taller extenders, more slant,
+// spindlier default weight, no trailing pool.
+const LS_KEY = 'pen-and-paper/settings/v8';
+function loadSettings(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if(!raw) return;
+    const o = JSON.parse(raw);
+    SPEC.forEach(s => { if(o[s.key] !== undefined) S[s.key] = o[s.key]; });
+  }catch(e){ /* first run, or storage blocked */ }
+}
+function saveSettings(){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(S)); }catch(e){}
+}
+loadSettings();
+
+/* --------------------------- deterministic noise ----------------------- */
+// Layout must be reproducible: the same timeline + settings must always
+// produce the same wobble, or resizing/font-switching would reshuffle ink.
+function hash(n, salt){
+  const x = Math.sin(n * 127.1 + (salt||0) * 311.7 + 74.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+const rnd = (n,salt) => hash(n,salt) * 2 - 1;   // -1..1
+
+const clamp = (v,a,b) => v < a ? a : v > b ? b : v;
+const lerp  = (a,b,t) => a + (b-a)*t;
+function mixColor(t){                            // graphite -> ink
+  const c = GRAPHITE.map((g,i)=> Math.round(lerp(g, INK[i], t)));
+  return 'rgb('+c[0]+','+c[1]+','+c[2]+')';
+}
+
+/* ------------------------------ ink pools ------------------------------
+   A pool is a pure function of how long the pen rested: it starts at the
+   pause threshold and reaches full at "Pool max". The live growth loop and
+   layout() both go through poolPhase/applyPool, so what you watch happen
+   is exactly what a re-layout, a replay and the export will reproduce.
+   ----------------------------------------------------------------------- */
+function poolPhase(gapMs){
+  const thresh = S.pauseThresh * 1000;
+  const span   = Math.max(200, S.poolMax * 1000 - thresh);
+  return clamp((gapMs - thresh) / span, 0, 1);
+}
+// the first sliver of a pool fades in rather than snapping on, so growth
+// reads as continuous. It only ever scales the tuned values down.
+const poolFade = p => clamp(p * 5, 0, 1);
+// The TRAILING pool is GONE (Eric, round 2: damp it; round 3: "remove the
+// dint when i stopped typing"). Finishing a page is not hesitation - only
+// pauses BETWEEN marks pool. 0 kills both layout()'s trailing branch and
+// the live growth loop (which only ever grows the trailing pool).
+const TRAIL_POOL = 0;
+// alpha at the centre of a full pool (see blotStyle)
+const POOL_CORE = 0.95;
+
+function applyPool(g, p, base){
+  if(p <= 0) return;
+  const f = poolFade(p);
+  g.pool    = Math.max(g.pool, p);
+  g.opacity = Math.max(g.opacity, lerp(g.opacity, S.poolDark, f));
+  g.density = Math.max(g.density, lerp(g.density, 1, f));
+  // The blot (see blotCenter) now carries the story of where the pen
+  // rested; the glyph itself should only swell a little, not visibly grow.
+  g.size    = Math.max(g.size,    base * lerp(1, 1.015, f));
+  g.blur    = Math.max(g.blur,    0.4 * f);
+  g.color   = mixColor(g.density);
+}
+
+/* ============================== TIMELINE ==============================
+   Events are the single source of truth. Types:
+     char      {ch, t}          a character at the current writing position
+     back      {t}              a backspace
+     revstart  {anchor, t}      begin a revision over the word at `anchor`
+     revcommit {t}              accept the pending revision
+     revcancel {t}              discard it
+     revstrike {anchor, t}      strike an existing floating revision (2-layer cap)
+   ====================================================================== */
+
+const Timeline = {
+  events: [],
+  push(e){ this.events.push(e); },
+  clear(){ this.events.length = 0; },
+  first(){ return this.events.length ? this.events[0].t : 0; },
+  last(){ return this.events.length ? this.events[this.events.length-1].t : 0; },
+};
+
+/* =============================== THE HAND ==============================
+   The letterforms themselves. Not a font: each glyph is the path a pen
+   travels (a skeleton), rendered at draw time as variable-width ink. Speed
+   (g.scrap) deforms the geometry itself:
+     0  careful print - crisp corners, even directional pressure, dots
+        are pressed dots, crossbars sit where they should
+     1  rushed hand - corners cut, pressure light and patchy, dots smear
+        into flicks that land late, crossbars drift, and faint drag-traces
+        join letters where the pen never fully lifted
+   Coordinates: x-height = 1, baseline y = 0, y up. Ascender ~1.5,
+   caps 1.45, descender ~-0.5. A point is [x,y] or [x,y,1] (sharp corner).
+   ======================================================================= */
+
+const XH     = 0.37;   // x-height as a fraction of font size - small on
+                       // purpose: elegant hands keep the x-height modest
+                       // and let ascenders carry the height
+const TOP_K  = 0.72;   // glyph box top above baseline, fraction of size
+const DESC_K = 0.28;   // glyph box bottom below baseline
+const SIDE   = 0.062;  // sidebearing, em
+const HAND_SLANT = 8.5; // baked-in slant, deg - word lean stacks on top
+const CURSIVE_KNEE = 0.45; // word mean scrap past which a word writes cursive
+const JOIN_REACH   = 1.0;  // sanity cap on a connector's length, em
+
+const harc = (cx, cy, r, a0, a1, n = 10, ry) => {
+  ry = ry === undefined ? r : ry;
+  const o = [];
+  for(let i = 0; i <= n; i++){
+    const a = (a0 + (a1 - a0) * i / n) * Math.PI / 180;
+    o.push([cx + r * Math.cos(a), cy + ry * Math.sin(a)]);
+  }
+  return o;
+};
+
+const HAND_GLYPHS = {
+  a: { adv:.82, ent:[.60,.75], ext:[.80,.26], strokes:[
+        { pts: harc(.31,.48,.28, 60, 415) },
+        { pts: [[.60,.96],[.62,.40],[.63,.10],[.72,.04],[.80,.26]] } ]},
+  b: { adv:.72, ent:[.08,1.5], ext:[.60,.12], strokes:[
+        { pts: [[.08,1.5],[.08,.04]] },
+        { pts: [[.09,.80],[.26,.96],[.46,.90],[.56,.62],[.52,.28],[.34,.06],[.10,.06]] } ]},
+  c: { adv:.62, ent:[.55,.78], ext:[.54,.20], strokes:[
+        { pts: harc(.33,.49,.29, 52, 308) } ]},
+  d: { adv:.82, ent:[.55,.80], ext:[.80,.26], strokes:[
+        { pts: harc(.31,.47,.28, 55, 310) },
+        { pts: [[.62,1.5],[.62,.10],[.72,.04],[.80,.26]] } ]},
+  e: { adv:.68, ent:[.07,.52], ext:[.63,.28], strokes:[
+        { pts: [[.07,.52],[.55,.55],[.53,.78],[.32,.94],[.10,.76],[.05,.48],[.14,.16],[.36,.04],[.56,.14],[.63,.28]] } ]},
+  f: { adv:.52, ent:[.44,1.42], ext:[.16,.04], strokes:[
+        { pts: [[.44,1.40],[.30,1.50],[.18,1.36],[.15,1.05],[.15,.05]] },
+        { pts: [[.00,.95],[.36,.95]], kind:'bar' } ]},
+  g: { adv:.76, ent:[.58,.76], ext:[.16,-.44], strokes:[
+        { pts: harc(.30,.48,.27, 60, 415) },
+        { pts: [[.58,.90],[.60,.30],[.58,-.20],[.44,-.48],[.22,-.44],[.12,-.30]] } ]},
+  h: { adv:.70, ent:[.06,1.5], ext:[.64,.22], strokes:[
+        { pts: [[.06,1.5],[.06,.03]] },
+        { pts: [[.07,.58],[.14,.88],[.32,.98],[.50,.84],[.55,.45],[.56,.06],[.64,.22]] } ]},
+  i: { adv:.32, ent:[.09,.96], ext:[.20,.24], strokes:[
+        { pts: [[.09,.96],[.11,.06],[.20,.24]] },
+        { pts: [[.10,1.32],[.11,1.34]], kind:'dot' } ]},
+  j: { adv:.32, ent:[.13,.96], ext:[-.04,-.46], strokes:[
+        { pts: [[.13,.96],[.15,.25],[.12,-.28],[-.02,-.48],[-.10,-.42]] },
+        { pts: [[.14,1.32],[.15,1.34]], kind:'dot' } ]},
+  k: { adv:.60, ent:[.06,1.5], ext:[.54,.02], strokes:[
+        { pts: [[.06,1.5],[.06,.03]] },
+        { pts: [[.48,.94],[.09,.48,1],[.22,.60],[.54,.02]] } ]},
+  l: { adv:.34, ent:[.09,1.5], ext:[.27,.24], strokes:[
+        { pts: [[.09,1.5],[.10,.10],[.20,.05],[.27,.24]] } ]},
+  m: { adv:.94, ent:[.05,.94], ext:[.88,.22], strokes:[
+        { pts: [[.05,.94],[.05,.04],[.06,.55],[.13,.88],[.26,.96],[.38,.80],[.41,.05],[.42,.55],[.49,.88],[.62,.96],[.74,.80],[.78,.40],[.80,.06],[.88,.22]] } ]},
+  n: { adv:.68, ent:[.06,.94], ext:[.62,.22], strokes:[
+        { pts: [[.06,.94],[.06,.05],[.07,.52],[.15,.86],[.31,.97],[.47,.82],[.52,.42],[.54,.06],[.62,.22]] } ]},
+  o: { adv:.66, ent:[.33,.98], ext:[.55,.25], strokes:[
+        { pts: harc(.33,.49,.285, 92, 452) } ]},
+  p: { adv:.72, ent:[.07,.94], ext:[.58,.14], strokes:[
+        { pts: [[.07,.94],[.07,-.48]] },
+        { pts: [[.08,.78],[.25,.95],[.46,.89],[.56,.60],[.51,.26],[.33,.05],[.09,.06]] } ]},
+  q: { adv:.76, ent:[.55,.78], ext:[.72,-.40], strokes:[
+        { pts: harc(.30,.48,.27, 60, 415) },
+        { pts: [[.58,.88],[.59,.10],[.58,-.36],[.66,-.48],[.74,-.38]] } ]},
+  r: { adv:.50, ent:[.07,.94], ext:[.44,.80], strokes:[
+        { pts: [[.07,.94],[.07,.03]] },
+        { pts: [[.08,.56],[.15,.85],[.30,.96],[.44,.84]] } ]},
+  s: { adv:.58, ent:[.50,.80], ext:[.06,.16], strokes:[
+        { pts: [[.50,.80],[.37,.94],[.17,.90],[.10,.72],[.21,.55],[.40,.45],[.48,.28],[.40,.09],[.19,.05],[.06,.16]] } ]},
+  t: { adv:.52, ent:[.20,1.35], ext:[.46,.16], strokes:[
+        { pts: [[.20,1.35],[.20,.22],[.30,.05],[.46,.16]] },
+        { pts: [[.02,.95],[.40,.95]], kind:'bar' } ]},
+  u: { adv:.68, ent:[.06,.94], ext:[.64,.22], strokes:[
+        { pts: [[.06,.94],[.05,.35],[.13,.08],[.30,.03],[.45,.14],[.51,.50],[.53,.94],[.54,.40],[.56,.06],[.64,.22]] } ]},
+  v: { adv:.54, ent:[.04,.94], ext:[.50,.94], strokes:[
+        { pts: [[.04,.94],[.26,.04,1],[.50,.94]] } ]},
+  w: { adv:.84, ent:[.03,.94], ext:[.78,.94], strokes:[
+        { pts: [[.03,.94],[.20,.04,1],[.40,.68,1],[.58,.04,1],[.78,.94]] } ]},
+  x: { adv:.56, ent:[.04,.94], ext:[.52,.02], strokes:[
+        { pts: [[.04,.94],[.52,.02]] },
+        { pts: [[.50,.94],[.03,.02]] } ]},
+  y: { adv:.58, ent:[.05,.94], ext:[.02,-.46], strokes:[
+        { pts: [[.05,.94],[.10,.40],[.24,.22]] },
+        { pts: [[.52,.94],[.30,.05],[.14,-.38],[.00,-.48]] } ]},
+  z: { adv:.58, ent:[.05,.94], ext:[.54,.03], strokes:[
+        { pts: [[.05,.94],[.50,.94,1],[.06,.05,1],[.54,.03]] } ]},
+  A: { adv:.78, ent:[.04,.02], ext:[.74,.02], strokes:[
+        { pts: [[.04,.02],[.37,1.45,1],[.74,.02]] },
+        { pts: [[.18,.52],[.58,.52]], kind:'bar' } ]},
+  B: { adv:.70, strokes:[
+        { pts: [[.08,1.45],[.08,.03]] },
+        { pts: [[.09,1.43],[.40,1.42],[.54,1.22],[.48,.85],[.10,.76],[.46,.70],[.60,.42],[.50,.08],[.09,.04]] } ]},
+  C: { adv:.72, strokes:[ { pts: harc(.38,.72,.34, 48, 312, 12, .72) } ]},
+  D: { adv:.76, strokes:[
+        { pts: [[.08,1.45],[.08,.03]] },
+        { pts: [[.09,1.42],[.36,1.42],[.60,1.18],[.66,.72],[.58,.26],[.34,.04],[.09,.04]] } ]},
+  E: { adv:.62, strokes:[
+        { pts: [[.52,1.43],[.08,1.44,1],[.08,.04,1],[.54,.03]] },
+        { pts: [[.08,.78],[.44,.78]], kind:'bar' } ]},
+  F: { adv:.58, strokes:[
+        { pts: [[.52,1.43],[.08,1.44,1],[.08,.02]] },
+        { pts: [[.08,.78],[.42,.78]], kind:'bar' } ]},
+  G: { adv:.76, strokes:[
+        { pts: harc(.38,.72,.34, 45, 315, 12, .72).concat([[.66,.28],[.66,.55],[.44,.55]]) } ]},
+  H: { adv:.74, strokes:[
+        { pts: [[.07,1.45],[.07,.02]] },
+        { pts: [[.63,1.45],[.64,.02]] },
+        { pts: [[.08,.74],[.62,.74]], kind:'bar' } ]},
+  I: { adv:.26, strokes:[ { pts: [[.10,1.45],[.10,.02]] } ]},
+  J: { adv:.50, strokes:[ { pts: [[.40,1.45],[.40,.35],[.32,.06],[.14,.02],[.00,.14]] } ]},
+  K: { adv:.70, strokes:[
+        { pts: [[.07,1.45],[.07,.02]] },
+        { pts: [[.60,1.42],[.09,.62,1],[.26,.76],[.64,.02]] } ]},
+  L: { adv:.58, strokes:[ { pts: [[.08,1.45],[.08,.05,1],[.54,.03]] } ]},
+  M: { adv:.92, strokes:[ { pts: [[.04,.02],[.08,1.45,1],[.45,.30,1],[.82,1.45,1],[.86,.02]] } ]},
+  N: { adv:.76, strokes:[ { pts: [[.06,.02],[.07,1.45,1],[.66,.02,1],[.68,1.45]] } ]},
+  O: { adv:.80, strokes:[ { pts: harc(.40,.72,.34, 92, 452, 14, .74) } ]},
+  P: { adv:.66, strokes:[
+        { pts: [[.08,.02],[.08,1.44]] },
+        { pts: [[.09,1.42],[.42,1.42],[.58,1.18],[.50,.82],[.09,.74]] } ]},
+  Q: { adv:.82, strokes:[
+        { pts: harc(.40,.72,.34, 92, 452, 14, .74) },
+        { pts: [[.48,.30],[.78,-.10]] } ]},
+  R: { adv:.70, strokes:[
+        { pts: [[.08,.02],[.08,1.44]] },
+        { pts: [[.09,1.42],[.42,1.42],[.56,1.18],[.48,.84],[.09,.76],[.34,.72],[.66,.02]] } ]},
+  S: { adv:.64, strokes:[
+        { pts: [[.56,1.22],[.42,1.42],[.18,1.38],[.10,1.12],[.24,.86],[.44,.68],[.52,.40],[.42,.10],[.16,.05],[.04,.22]] } ]},
+  T: { adv:.62, strokes:[
+        { pts: [[.02,1.44],[.58,1.44]] },
+        { pts: [[.30,1.43],[.31,.02]] } ]},
+  U: { adv:.74, strokes:[ { pts: [[.07,1.45],[.06,.50],[.16,.10],[.38,.02],[.58,.14],[.65,.55],[.66,1.45]] } ]},
+  V: { adv:.72, strokes:[ { pts: [[.04,1.45],[.35,.03,1],[.68,1.45]] } ]},
+  W: { adv:1.04, strokes:[ { pts: [[.03,1.45],[.25,.03,1],[.50,1.05,1],[.74,.03,1],[.98,1.45]] } ]},
+  X: { adv:.70, strokes:[
+        { pts: [[.05,1.45],[.66,.02]] },
+        { pts: [[.62,1.45],[.04,.02]] } ]},
+  Y: { adv:.68, strokes:[
+        { pts: [[.04,1.45],[.33,.68]] },
+        { pts: [[.62,1.45],[.32,.66],[.32,.02]] } ]},
+  Z: { adv:.66, strokes:[ { pts: [[.05,1.44],[.58,1.44,1],[.05,.04,1],[.62,.03]] } ]},
+  '0': { adv:.66, strokes:[ { pts: harc(.33,.70,.27, 92, 452, 12, .72) } ]},
+  '1': { adv:.40, strokes:[ { pts: [[.06,1.14],[.24,1.42],[.25,.02]] } ]},
+  '2': { adv:.60, strokes:[ { pts: [[.08,1.16],[.20,1.40],[.42,1.40],[.52,1.14],[.40,.80],[.06,.06,1],[.56,.04]] } ]},
+  '3': { adv:.58, strokes:[ { pts: [[.08,1.28],[.24,1.42],[.46,1.34],[.48,1.06],[.28,.80],[.48,.62],[.52,.28],[.34,.04],[.08,.12]] } ]},
+  '4': { adv:.62, strokes:[ { pts: [[.42,1.42],[.06,.48,1],[.58,.48]] }, { pts: [[.44,.90],[.45,.02]] } ]},
+  '5': { adv:.60, strokes:[ { pts: [[.50,1.40],[.12,1.40,1],[.08,.82],[.30,.90],[.50,.72],[.52,.34],[.34,.04],[.06,.12]] } ]},
+  '6': { adv:.62, strokes:[ { pts: [[.50,1.34],[.28,1.42],[.10,1.08],[.06,.55],[.14,.14],[.38,.02],[.54,.22],[.52,.52],[.32,.66],[.10,.52]] } ]},
+  '7': { adv:.58, strokes:[ { pts: [[.04,1.40],[.56,1.40,1],[.20,.02]] } ]},
+  '8': { adv:.62, strokes:[ { pts: harc(.32,1.06,.22, 90, 450, 10, .34).concat(harc(.32,.36,.26, 90, -270, 10, .36)) } ]},
+  '9': { adv:.62, strokes:[ { pts: [[.52,.90],[.30,.76],[.10,.94],[.10,1.24],[.30,1.42],[.50,1.28],[.54,.90],[.50,.40],[.36,.04],[.14,.02]] } ]},
+  '.': { adv:.24, strokes:[ { pts: [[.09,.05],[.11,.06]], kind:'dot' } ]},
+  ',': { adv:.24, strokes:[ { pts: [[.11,.10],[.10,-.06],[.03,-.22]] } ]},
+  "'": { adv:.18, strokes:[ { pts: [[.08,1.44],[.05,1.18]] } ]},
+  '"': { adv:.32, strokes:[ { pts: [[.07,1.44],[.04,1.20]] }, { pts: [[.22,1.44],[.19,1.20]] } ]},
+  '-': { adv:.44, strokes:[ { pts: [[.04,.48],[.36,.50]], kind:'bar' } ]},
+  '!': { adv:.26, strokes:[ { pts: [[.09,1.44],[.11,.42]] }, { pts: [[.11,.06],[.13,.07]], kind:'dot' } ]},
+  '?': { adv:.52, strokes:[ { pts: [[.05,1.16],[.14,1.40],[.36,1.44],[.47,1.20],[.40,.92],[.26,.76],[.25,.48]] },
+                            { pts: [[.25,.06],[.27,.07]], kind:'dot' } ]},
+  ':': { adv:.24, strokes:[ { pts: [[.09,.72],[.11,.73]], kind:'dot' }, { pts: [[.09,.06],[.11,.07]], kind:'dot' } ]},
+  ';': { adv:.24, strokes:[ { pts: [[.09,.72],[.11,.73]], kind:'dot' }, { pts: [[.11,.10],[.10,-.06],[.03,-.22]] } ]},
+  '(': { adv:.36, strokes:[ { pts: [[.34,1.48],[.12,1.10],[.05,.50],[.12,-.10],[.34,-.44]] } ]},
+  ')': { adv:.36, strokes:[ { pts: [[.02,1.48],[.24,1.10],[.31,.50],[.24,-.10],[.02,-.44]] } ]},
+  '/': { adv:.46, strokes:[ { pts: [[.02,-.12],[.42,1.35]] } ]},
+  '\\': { adv:.46, strokes:[ { pts: [[.02,1.35],[.42,-.12]] } ]},
+  '+': { adv:.52, strokes:[ { pts: [[.04,.50],[.44,.50]], kind:'bar' }, { pts: [[.24,.72],[.24,.28]] } ]},
+  '=': { adv:.52, strokes:[ { pts: [[.04,.62],[.44,.62]], kind:'bar' }, { pts: [[.04,.36],[.44,.36]], kind:'bar' } ]},
+  '_': { adv:.52, strokes:[ { pts: [[.02,-.06],[.46,-.06]], kind:'bar' } ]},
+  '*': { adv:.40, strokes:[ { pts: [[.16,1.34],[.18,1.02]] }, { pts: [[.03,1.10],[.32,1.26]] }, { pts: [[.03,1.26],[.32,1.10]] } ]},
+  '@': { adv:.92, strokes:[ { pts: harc(.55,.50,.16, 60, 400, 8).concat([[.72,.62],[.72,.30],[.80,.24]]) },
+                            { pts: harc(.44,.46,.38, 20, 330, 12) } ]},
+  '&': { adv:.74, strokes:[ { pts: [[.62,.42],[.28,.04],[.08,.22],[.14,.52],[.48,.90],[.50,1.20],[.36,1.40],[.20,1.28],[.20,1.02],[.66,.24],[.72,.32]] } ]},
+  '#': { adv:.62, strokes:[ { pts: [[.20,1.10],[.14,.10]] }, { pts: [[.44,1.10],[.38,.10]] },
+                            { pts: [[.04,.78],[.56,.80]], kind:'bar' }, { pts: [[.02,.40],[.54,.42]], kind:'bar' } ]},
+  '·': { adv:.24, strokes:[ { pts: [[.09,.50],[.11,.51]], kind:'dot' } ]},
+  '^': { adv:.34, strokes:[ { pts: [[.02,.00],[.15,.42,1],[.28,.00]] } ]},
+};
+/* =========================== THE CURSIVE SET ===========================
+   Fast writing is NOT degraded print (that experiment produced mush -
+   "pretend to be cursive", Eric, 2026-08-24). Cursive is a different
+   CONSTRUCTION: each letter is one continuous stroke whose entry and exit
+   are part of the form. When a word flows (mean scrap past CURSIVE_KNEE),
+   its letters come from this set; the exit of one meets the entry of the
+   next and the word writes as a single gesture. Entries rise from ~y.18
+   at x0; exits rise to ~y.26 at the advance; o v w b exit high, as real
+   cursive does. Caps, digits and punctuation stay print - casual writers
+   don't write cursive capitals. Same raw coordinates as the print set;
+   matureHand() remaps both.
+   ======================================================================= */
+const CURSIVE_GLYPHS = {
+  a: { adv:.64, strokes:[ { pts: [[0,.18],[.32,.78],[.15,.90],[.03,.52],[.10,.12],[.30,.06],[.40,.40],[.43,.85],[.45,.15],[.53,.05],[.62,.28]] } ]},
+  b: { adv:.52, strokes:[ { pts: [[0,.18],[.18,.80],[.26,1.48],[.13,1.42],[.08,.72],[.11,.08],[.24,.04],[.36,.14],[.40,.38],[.30,.52],[.46,.55]] } ]},
+  c: { adv:.50, strokes:[ { pts: [[0,.18],[.32,.78],[.15,.88],[.04,.50],[.11,.10],[.28,.05],[.44,.22]] } ]},
+  d: { adv:.64, strokes:[ { pts: [[0,.18],[.32,.78],[.15,.90],[.03,.52],[.10,.12],[.30,.06],[.40,.45],[.42,1.38],[.43,1.45],[.44,1.38],[.45,.15],[.53,.05],[.62,.28]] } ]},
+  e: { adv:.50, strokes:[ { pts: [[0,.18],[.26,.52],[.28,.86],[.10,.84],[.05,.50],[.14,.10],[.32,.04],[.46,.26]] } ]},
+  f: { adv:.50, strokes:[ { pts: [[0,.18],[.20,.82],[.28,1.48],[.14,1.42],[.10,.70],[.13,-.25],[.24,-.48],[.32,-.28],[.30,.10],[.44,.26]] } ]},
+  g: { adv:.60, strokes:[ { pts: [[0,.18],[.32,.78],[.15,.90],[.03,.52],[.10,.12],[.30,.06],[.40,.45],[.43,.85],[.45,-.28],[.34,-.52],[.22,-.38],[.40,-.02],[.56,.26]] } ]},
+  h: { adv:.56, strokes:[ { pts: [[0,.18],[.18,.80],[.26,1.48],[.13,1.42],[.08,.70],[.11,.08],[.13,.50],[.24,.90],[.36,.78],[.39,.10],[.47,.04],[.56,.28]] } ]},
+  i: { adv:.40, strokes:[ { pts: [[0,.18],[.24,.90],[.27,.10],[.33,.04],[.40,.28]] },
+                          { pts: [[.28,1.28],[.29,1.30]], kind:'dot' } ]},
+  j: { adv:.40, strokes:[ { pts: [[0,.18],[.26,.90],[.28,-.28],[.18,-.52],[.06,-.36],[.22,-.04],[.38,.24]] },
+                          { pts: [[.30,1.28],[.31,1.30]], kind:'dot' } ]},
+  k: { adv:.54, strokes:[ { pts: [[0,.18],[.18,.80],[.26,1.48],[.13,1.42],[.08,.70],[.11,.06],[.13,.45],[.34,.85],[.22,.52],[.16,.44],[.42,.05],[.54,.26]] } ]},
+  l: { adv:.42, strokes:[ { pts: [[0,.18],[.20,.80],[.28,1.48],[.14,1.42],[.09,.72],[.14,.12],[.26,.04],[.40,.28]] } ]},
+  m: { adv:.88, strokes:[ { pts: [[0,.18],[.20,.90],[.22,.12],[.24,.52],[.32,.92],[.42,.80],[.45,.12],[.47,.52],[.55,.92],[.65,.78],[.68,.10],[.76,.04],[.86,.28]] } ]},
+  n: { adv:.66, strokes:[ { pts: [[0,.18],[.22,.90],[.24,.12],[.26,.52],[.34,.92],[.46,.78],[.49,.10],[.57,.04],[.65,.28]] } ]},
+  o: { adv:.52, strokes:[ { pts: [[0,.18],[.30,.75],[.14,.88],[.03,.50],[.11,.10],[.30,.06],[.40,.30],[.40,.65],[.32,.82],[.50,.68]] } ]},
+  p: { adv:.56, strokes:[ { pts: [[0,.18],[.22,.85],[.23,-.45],[.25,.35],[.30,.75],[.44,.65],[.46,.22],[.34,.05],[.44,.10],[.55,.26]] } ]},
+  q: { adv:.62, strokes:[ { pts: [[0,.18],[.32,.78],[.15,.90],[.03,.52],[.10,.12],[.30,.06],[.40,.45],[.43,.85],[.44,-.40],[.52,-.52],[.58,-.38],[.60,.20]] } ]},
+  r: { adv:.52, strokes:[ { pts: [[0,.18],[.20,.90],[.24,.95],[.27,.68],[.32,.92],[.36,.94],[.37,.50],[.38,.10],[.44,.04],[.52,.26]] } ]},
+  s: { adv:.48, strokes:[ { pts: [[0,.18],[.22,.82],[.30,.94],[.20,.70],[.10,.42],[.20,.08],[.34,.12],[.40,.26]] } ]},
+  t: { adv:.46, strokes:[ { pts: [[0,.18],[.22,.85],[.26,1.22],[.27,1.28],[.28,1.22],[.29,.15],[.36,.04],[.46,.26]] },
+                          { pts: [[.06,.92],[.48,.94]], kind:'bar' } ]},
+  u: { adv:.70, strokes:[ { pts: [[0,.18],[.22,.90],[.24,.12],[.32,.04],[.44,.35],[.48,.90],[.50,.12],[.58,.05],[.68,.28]] } ]},
+  v: { adv:.54, strokes:[ { pts: [[0,.18],[.20,.88],[.24,.12],[.36,.05],[.46,.55],[.48,.78],[.54,.60]] } ]},
+  w: { adv:.74, strokes:[ { pts: [[0,.18],[.18,.88],[.22,.12],[.32,.05],[.40,.65],[.44,.12],[.54,.05],[.64,.75],[.72,.58]] } ]},
+  x: { adv:.54, strokes:[ { pts: [[0,.18],[.22,.88],[.44,.12],[.52,.26]] },
+                          { pts: [[.44,.88],[.10,.10]] } ]},
+  y: { adv:.60, strokes:[ { pts: [[0,.18],[.22,.88],[.24,.12],[.34,.05],[.46,.40],[.50,.88],[.52,-.28],[.42,-.52],[.30,-.38],[.46,-.04],[.60,.24]] } ]},
+  z: { adv:.54, strokes:[ { pts: [[0,.18],[.24,.86],[.44,.86,1],[.12,.08,1],[.46,.06],[.54,.24]] } ]},
+};
+for(const k in CURSIVE_GLYPHS){
+  const g = CURSIVE_GLYPHS[k];
+  const body = g.strokes.find(st => !st.kind);
+  g.ent = body.pts[0].slice(0, 2);
+  g.ext = body.pts[body.pts.length - 1].slice(0, 2);
+}
+
+/* The maturing pass: Eric's own hand is narrow and slanted with tall
+   ascenders - the first draft read as child writing because it was round,
+   upright and wide. Rather than re-author every skeleton, squash x by 0.88
+   and stretch the extender zones (ascenders x1.5 above the x-height,
+   descenders x1.3 below the baseline) once at init. Anchors and advances
+   come along, so joins and spacing stay exact. */
+(function matureHand(){
+  const fy = y => y > 1 ? 1 + (y - 1) * 1.6 : (y < 0 ? y * 1.4 : y);
+  const fp = p => { p[0] *= 0.88; p[1] = fy(p[1]); };
+  // the cursive set shares the extender stretch but NOT the narrowing -
+  // the opposite: cursive bodies must be generous and round (narrowed, the
+  // bowls collapsed into pencil-thin blobs). Entries/exits scale along.
+  const fpc = pt => { pt[0] *= 1.18; pt[1] = fy(pt[1]); };
+  for(const k in CURSIVE_GLYPHS){
+    const g = CURSIVE_GLYPHS[k];
+    g.adv *= 1.18;
+    fpc(g.ent); fpc(g.ext);
+    for(const st of g.strokes) for(const pt of st.pts) fpc(pt);
+  }
+  for(const k in HAND_GLYPHS){
+    const g = HAND_GLYPHS[k];
+    g.adv *= 0.88;
+    if(g.ent) fp(g.ent);
+    if(g.ext) fp(g.ext);
+    for(const st of g.strokes) for(const pt of st.pts) fp(pt);
+    // the CURSIVE entry: where a connector running along the baseline meets
+    // this letter - its leftmost low point (a stem's foot, a bowl's bottom
+    // left), NOT the print entry (h prints from the ascender top; no pen
+    // joins a letter up there). Computed after the remap so it lives in
+    // final coordinates like ent/ext.
+    let best = null;
+    for(const st of g.strokes){
+      if(st.kind) continue;
+      for(const pt of st.pts){
+        if(pt[1] > 0.60 || pt[1] < -0.18) continue;
+        if(!best || pt[0] < best[0]) best = pt;
+      }
+    }
+    g.centr = best ? [best[0], best[1]] : (g.ent ? [g.ent[0], g.ent[1]] : null);
+  }
+})();
+
+// anything the alphabet doesn't cover renders as a short baseline dash -
+// visibly "a mark was made here", never an invisible hole
+const HAND_FALLBACK = { adv:.44, strokes:[ { pts: [[.06,.38],[.36,.42]] } ]};
+const handDef = ch => HAND_GLYPHS[ch] || HAND_FALLBACK;
+
+/* skeleton -> smoothed centerline. cornerCut in [0,1]: sharp corners are
+   honored at 0 (point doubled so the spline turns hard) and shortcut as
+   the hand speeds up. */
+function centerline(pts, cornerCut, samplesPer){
+  const P = [];
+  for(let i = 0; i < pts.length; i++){
+    const p = pts[i];
+    if(p[2] === 1 && i > 0 && i < pts.length - 1){
+      const a = pts[i-1], b = pts[i+1];
+      const t = 0.04 + cornerCut * 0.22;
+      P.push([p[0] + (a[0]-p[0])*t, p[1] + (a[1]-p[1])*t]);
+      P.push([p[0] + (b[0]-p[0])*t, p[1] + (b[1]-p[1])*t]);
+    } else P.push([p[0], p[1]]);
+  }
+  if(P.length === 1) return [P[0], [P[0][0]+.02, P[0][1]]];
+  const out = [];
+  const n = P.length;
+  const get = i => P[Math.max(0, Math.min(n-1, i))];
+  for(let i = 0; i < n - 1; i++){
+    const p0 = get(i-1), p1 = get(i), p2 = get(i+1), p3 = get(i+2);
+    const seg = Math.max(2, Math.round(samplesPer *
+      Math.hypot(p2[0]-p1[0], p2[1]-p1[1]) * 2 + 2));
+    for(let j = 0; j < seg; j++){
+      const t = j / seg, t2 = t*t, t3 = t2*t;
+      out.push([
+        0.5*((2*p1[0]) + (-p0[0]+p2[0])*t + (2*p0[0]-5*p1[0]+4*p2[0]-p3[0])*t2 + (-p0[0]+3*p1[0]-3*p2[0]+p3[0])*t3),
+        0.5*((2*p1[1]) + (-p0[1]+p2[1])*t + (2*p0[1]-5*p1[1]+4*p2[1]-p3[1])*t2 + (-p0[1]+3*p1[1]-3*p2[1]+p3[1])*t3),
+      ]);
+    }
+  }
+  out.push([P[n-1][0], P[n-1][1]]);
+  return out;
+}
+
+/* centerline + per-sample widths -> one filled outline path ("d" string).
+   Self-intersections at retraces just fill darker - like real ink. */
+function inkPath(line, widths){
+  const n = line.length;
+  if(n < 2) return '';
+  const L = [], R = [];
+  let px = 0, py = -1;
+  for(let i = 0; i < n; i++){
+    const a = line[Math.max(0, i-1)], b = line[Math.min(n-1, i+1)];
+    let dx = b[0]-a[0], dy = b[1]-a[1];
+    const m = Math.hypot(dx, dy);
+    if(m > 1e-6){ px = -dy/m; py = dx/m; }
+    const w = widths[i] / 2;
+    L.push([line[i][0] + px*w, line[i][1] + py*w]);
+    R.push([line[i][0] - px*w, line[i][1] - py*w]);
+  }
+  const f = p => p[0].toFixed(2) + ' ' + p[1].toFixed(2);
+  let d = 'M' + f(L[0]);
+  for(let i = 1; i < n; i++) d += 'L' + f(L[i]);
+  for(let i = n-1; i >= 0; i--) d += 'L' + f(R[i]);
+  return d + 'Z';
+}
+
+/* handGlyph(ch, o) -> array of {d} path descriptors in glyph-local px:
+   origin at the baseline-left, y down (screen space).
+   o: { size, scrap, seed, wobble, weight } */
+// the def a glyph actually renders with: cursive construction when the
+// word flows and the letter has a cursive form; print otherwise
+function handDefFor(ch, cursive){
+  return (cursive && CURSIVE_GLYPHS[ch]) || handDef(ch);
+}
+
+function handGlyph(ch, o){
+  const def = handDefFor(ch, o.cursive);
+  const K = o.size * XH;               // skeleton unit -> px
+  const slantTan = Math.tan(HAND_SLANT * Math.PI / 180);
+  const paths = [];
+  const baseW = o.weight * o.size;     // stroke width, px
+
+  def.strokes.forEach((st, si) => {
+    let pts = st.pts;
+    const seed = o.seed * 31 + si * 7;
+
+    // when this glyph is joined (o.joinIn / o.joinOut), the stroke end the
+    // connector meets must NOT taper to a point - the seam has to flow
+    // through, not pinch. The join-in lands on the cursive entry (centr),
+    // the join-out leaves from ext; blunt whichever stroke end sits there.
+    const jAnchors = [];
+    // cursive joins land on the authored entry; print fallbacks (caps,
+    // digits inside a flowing word) are met at their low point
+    const inAnchor = o.cursive && CURSIVE_GLYPHS[ch] ? def.ent : (def.centr || def.ent);
+    if(o.joinIn  && inAnchor) jAnchors.push(inAnchor);
+    if(o.joinOut && def.ext) jAnchors.push(def.ext);
+    const nearJoin = pt => jAnchors.some(a2 =>
+      Math.hypot(pt[0] - a2[0], pt[1] - a2[1]) < 0.15);
+    const bluntStart = st.kind === undefined && jAnchors.length && nearJoin(pts[0]);
+    const bluntEnd   = st.kind === undefined && jAnchors.length && nearJoin(pts[pts.length-1]);
+
+    if(st.kind === 'dot'){
+      // a dot is a press of the pen: a blob slightly wider than the stroke.
+      // hurried, it lands late (to the right), high, and smears into a flick.
+      const dx = o.scrap * (0.20 + 0.22 * Math.abs(rnd(seed, 1)));
+      const dy = o.scrap * 0.14 * rnd(seed, 2);
+      const cx0 = pts[0][0] + dx, cy0 = pts[0][1] + dy;
+      const r = (baseW / K) * (0.48 + 0.08 * rnd(seed, 3)) * (1 - o.scrap * 0.25);
+      const cx = (cx0 + cy0 * slantTan) * K, cy = -cy0 * K, rp = r * K;
+      let d = 'M' + (cx-rp).toFixed(2) + ' ' + cy.toFixed(2) +
+              'A' + rp.toFixed(2) + ' ' + rp.toFixed(2) + ' 0 1 0 ' + (cx+rp).toFixed(2) + ' ' + cy.toFixed(2) +
+              'A' + rp.toFixed(2) + ' ' + rp.toFixed(2) + ' 0 1 0 ' + (cx-rp).toFixed(2) + ' ' + cy.toFixed(2) + 'Z';
+      if(o.scrap > 0.3){
+        const len = (o.scrap - 0.3) * 0.5, ang = 0.2 + rnd(seed, 4) * 0.5;
+        const ex = cx0 + len * Math.cos(ang), ey = cy0 + len * Math.sin(ang) * 0.4;
+        d += inkPath([[cx, cy], [(ex + ey*slantTan) * K, -ey * K]], [rp * 1.2, rp * 0.3]);
+      }
+      paths.push({ d });
+      return;
+    }
+    if(st.kind === 'bar'){
+      // crossbars drift right and tilt when rushed
+      const dx = o.scrap * 0.14 * (1 + rnd(seed, 3));
+      const tilt = o.scrap * 0.12 * rnd(seed, 4);
+      pts = pts.map((p, i) => [p[0] + dx, p[1] + (i === pts.length-1 ? tilt : 0)]);
+    }
+
+    // cursive keeps its corners: a cursive z's zigzag IS the letter, so
+    // speed barely cuts it. Print corners still round off with hurry.
+    const line = centerline(pts, o.cursive ? o.scrap * 0.35 : o.scrap, 9);
+    const N = line.length;
+
+    // THE MELT. Past mid-speed the letterforms themselves relax: an
+    // endpoint-preserving smoothing pass pulls articulation toward gesture,
+    // so an s flattens toward a wave and arches go shallow - the way a real
+    // hand degrades into cursive, instead of printing faster. Runs before
+    // widths/wobble so the ink follows the melted geometry.
+    // cursive forms are already fluid - melting them back into mush is the
+    // exact mistake this construction replaces. They relax only at extreme
+    // speed, and mildly. Print keeps its old ramp (moot in practice: print
+    // words sit below CURSIVE_KNEE).
+    const melt = o.cursive
+      ? Math.max(0, (o.scrap - 0.78) / 0.22) * 0.5
+      : Math.max(0, (o.scrap - 0.55) / 0.45);
+    // one pass ALWAYS runs: it rounds off the faint polyline stiffness that
+    // made even the careful hand read young. Deliberate sharp corners
+    // survive it (their doubled points keep the spline turning hard).
+    const passes = 1 + Math.round(melt * (o.cursive ? 4 : 7));
+    for(let pass = 0; pass < passes; pass++){
+      for(let i = 1; i < N - 1; i++){
+        line[i][0] = line[i][0] * 0.5 + (line[i-1][0] + line[i+1][0]) * 0.25;
+        line[i][1] = line[i][1] * 0.5 + (line[i-1][1] + line[i+1][1]) * 0.25;
+      }
+    }
+
+    let arcLen = 0;
+    const al = [0];
+    for(let i = 1; i < N; i++){
+      arcLen += Math.hypot(line[i][0]-line[i-1][0], line[i][1]-line[i-1][1]);
+      al.push(arcLen);
+    }
+    const widths = [];
+    const f1 = 5 + Math.abs(rnd(seed, 5)) * 3, f2 = 11 + Math.abs(rnd(seed, 6)) * 5;
+    const ph1 = rnd(seed, 7) * 7, ph2 = rnd(seed, 8) * 7;
+    const wob = (o.wobble || 0) * (0.006 + o.scrap * 0.020);
+    const wf1 = 3.2 + Math.abs(rnd(seed, 9)) * 2;
+    const wph = rnd(seed, 10) * 7;
+    // a careful pen lifts cleanly (blunt ends); a rushed one flicks -
+    // unless the end is joined, in which case it doesn't end at all
+    const tIn = 0.035 + o.scrap * 0.10, tOut = 0.045 + o.scrap * 0.13;
+    // directional pressure: downstrokes press, upstrokes and horizontals
+    // glide. This is what separates a pen from a felt-tip. Contrast relaxes
+    // as the hand speeds up - a rushed hand doesn't modulate pressure.
+    const press = 0.42 * (1 - o.scrap * 0.35);
+
+    for(let i = 0; i < N; i++){
+      const t = arcLen > 0 ? al[i] / arcLen : 0;
+      const taper = Math.min(1, bluntStart ? 1 : t / tIn, bluntEnd ? 1 : (1 - t) / tOut);
+      const tp = Math.max(0.10, Math.pow(Math.max(taper, 0), 0.55));
+      const a2 = line[Math.max(0, i-1)], b2 = line[Math.min(N-1, i+1)];
+      const tdx = b2[0]-a2[0], tdy = b2[1]-a2[1], tm = Math.hypot(tdx, tdy) || 1;
+      const down = Math.max(0, -tdy / tm);
+      const dir = 1 - press * 0.55 + press * down;
+      // ink WEIGHT stays roughly constant across the spectrum (Eric,
+      // 2026-08-24) - speed shows in geometry, only faintly in ink. Patch
+      // depth is mild and there is no overall speed lightening any more.
+      const patch = 1 - o.scrap * 0.13 * (0.5 + 0.5 * Math.sin(al[i] * f1 + ph1))
+                      - o.scrap * 0.07 * (0.5 + 0.5 * Math.sin(al[i] * f2 + ph2));
+      widths.push(baseW / K * tp * dir * Math.max(0.60, patch));
+      const dn = wob * Math.sin(al[i] * wf1 + wph) + wob * 0.5 * rnd(seed, 20 + i) * o.scrap;
+      const na = line[Math.max(0, i-1)], nb = line[Math.min(N-1, i+1)];
+      const ndx = nb[0]-na[0], ndy = nb[1]-na[1], nm = Math.hypot(ndx, ndy) || 1;
+      line[i][0] += (-ndy/nm) * dn;
+      line[i][1] += ( ndx/nm) * dn;
+    }
+
+    const px = line.map(p => [ (p[0] + p[1]*slantTan) * K, -p[1] * K ]);
+    const wpx = widths.map(w => w * K);
+    paths.push({ d: inkPath(px, wpx) });
+  });
+  return paths;
+}
+
+// glyph-local px of a skeleton anchor point (ent/ext), for drag-traces
+function handAnchor(pt, size){
+  const K = size * XH;
+  const slantTan = Math.tan(HAND_SLANT * Math.PI / 180);
+  return [ (pt[0] + pt[1]*slantTan) * K, -pt[1] * K ];
+}
+
+// the connector a hurrying pen writes instead of lifting. Real cursive
+// connectors are underturns: they dip toward the baseline between letters
+// and rise into the next entry, in solid ink (an upstroke, not a ghost).
+function joinPath(x1, y1, x2, y2, sag, seed){
+  const mx = (x1+x2)/2, my = Math.max(y1, y2) + sag;
+  return 'M' + x1.toFixed(1) + ' ' + y1.toFixed(1) +
+         ' Q' + (mx + rnd(seed,1)*2).toFixed(1) + ' ' + (my + rnd(seed,2)*2).toFixed(1) +
+         ' ' + x2.toFixed(1) + ' ' + y2.toFixed(1);
+}
+
+/* Does the pen join pv -> g? One shared gate for the DOM, the export and
+   the taper logic, so ink, blunt ends and connectors always agree.
+   Coordinates come back in g's local frame (word-uniform transforms make
+   the previous letter a plain x offset there). w is the join's ramp 0..1:
+   connectors fade in just past the knee and are solid ink soon after. */
+function joinInfo(pv, g){
+  if(!pv || !g) return null;
+  // joins exist only between letters of a flowing (cursive-mode) word -
+  // print never fakes them any more
+  if(!pv.cursive || !g.cursive) return null;
+  if(pv.ch === ' ' || pv.ch === '\n' || g.ch === ' ' || g.ch === '\n') return null;
+  if(pv.line !== g.line || pv.struck !== g.struck) return null;
+  const A = handDefFor(pv.ch, true), B = handDefFor(g.ch, true);
+  if(!A.ext || !B.ent) return null;
+  // a print-form letter inside a cursive word (caps, digits) is met at its
+  // low point, not its print entry
+  const target = CURSIVE_GLYPHS[g.ch] ? B.ent : (B.centr || B.ent);
+  const a = handAnchor(A.ext, pv.size), b = handAnchor(target, g.size);
+  const ax = a[0] + (pv.x - g.x), ay = a[1];
+  const gap = Math.hypot(b[0] - ax, b[1] - ay);
+  if(gap >= g.size * JOIN_REACH) return null;
+  return { ax, ay, bx: b[0], by: b[1], gap, w: 1,
+           sag: Math.min(g.size * XH * 0.18, gap * 0.28) };
+}
+// the connector's ink: solid quickly (an upstroke is lighter than a
+// downstroke but it is still ink, not a pencil ghost)
+const joinAlpha = w => Math.min(1, 0.55 + 0.60 * w);
+const joinWidth = (size, w) => S.weight * size * (0.55 + 0.25 * w);
+
+/* lay out a short run of engine text (page furniture: placeholder, caption,
+   mic label, revision caret). Returns {parts:[{d,tx}], w}: each part is a
+   glyph-local path plus its x offset; total width in px. */
+function handTextParts(text, size, scrap, seedBase){
+  const parts = [];
+  let x = 0;
+  for(let i = 0; i < text.length; i++){
+    const ch = text[i];
+    if(ch === ' '){ x += size * 0.30; continue; }
+    if(ch === '\n'){ continue; }
+    const ps = handGlyph(ch, { size, scrap, seed: seedBase + i, wobble: 0.6, weight: 0.060 });
+    for(const p of ps) parts.push({ d: p.d, tx: x });
+    x += charW('hand', ch) * size;
+  }
+  return { parts, w: x };
+}
+// the same run as an inline SVG string, origin on the left at the baseline
+function handTextSVG(text, size, scrap, seedBase, color, opacity){
+  const r = handTextParts(text, size, scrap, seedBase);
+  const asc = size * TOP_K, desc = size * DESC_K;
+  let inner = '';
+  for(const p of r.parts)
+    inner += '<path d="' + p.d + '" transform="translate(' + p.tx.toFixed(1) + ',0)" fill="' + (color || 'currentColor') + '"/>';
+  return { svg:
+    '<svg width="' + Math.ceil(r.w + size*0.3) + '" height="' + Math.ceil(asc + desc) +
+    '" style="overflow:visible;display:block' + (opacity !== undefined ? ';opacity:' + opacity : '') + '">' +
+    '<g transform="translate(0,' + asc.toFixed(1) + ')">' + inner + '</g></svg>', w: r.w };
+}
+
+/* ============================== MEASURER ==============================
+   Widths and vertical metrics now come from the skeletons, not canvas
+   text measurement. Signatures kept so layout() reads the same.
+   ====================================================================== */
+
+function fontStack(font){ return '"Inter", sans-serif'; }
+
+// width of one char, per 1px of font-size. 'font' carries the mode:
+// 'cursive' reads the cursive set's advances, anything else the print set.
+function charW(font, ch){
+  if(ch === ' ') return 0.30;
+  if(ch === '\n') return 0;
+  return handDefFor(ch, font === 'cursive').adv * XH + SIDE;
+}
+
+function fontMetrics(font){
+  return { asc: TOP_K, desc: DESC_K, lh: (TOP_K + DESC_K) * 1.45, top: TOP_K };
+}
+function flushMeasureCache(){ /* nothing cached anymore */ }
+
+/* ============================== LAYOUT ================================ */
+
+/**
+ * Replay the event list into glyph objects, then position and style them.
+ * Pure-ish: same (events, settings, nowT) always yields the same model.
+ */
+function layout(events, opts){
+  opts = opts || {};
+  const nowT   = opts.nowT !== undefined ? opts.nowT : Date.now();
+  const font   = 'hand';
+  // join floor is OPEN (not negative): rushed cursive doesn't crowd its
+  // letters - it keeps the distance and writes a connector across it. The
+  // underturn needs room to dip, or joins read as ticks instead of flow.
+  const face   = { id:'hand', scale:1, join: 0.035 };
+  const baseSize = S.baseSize;
+  const M = fontMetrics(face.id);
+  const ascPx  = M.asc  * baseSize;
+  const descPx = M.desc * baseSize;
+  const lh      = (ascPx + descPx) * 1.45;
+  // a representative face/size for page furniture that isn't "the writing"
+  // itself: placeholder, caption, revision caret mark. There's only one
+  // face on the page now, so this is just it.
+  const reprFont = face.id, reprBase = baseSize, reprM = M;
+  // the tracking ceiling this page's Letter spread resolves to — never
+  // below the face's own join floor, so the range stays valid at any
+  // slider position (see the join-floor doc comment above).
+  const cap = Math.max(SPREAD_CAP * S.letterSpread, face.join);
+
+  /* --- pass 1: build the streams from the event tape --- */
+  const main = [];              // glyphs written in-line
+  const all  = [];              // every glyph in creation order (for timing)
+  const revisions = new Map();  // anchor -> {anchor, glyphs, struck, runId}
+  let pending = null;           // the revision being composed right now
+  let mode = 'append';
+  let runId = 0, inBackRun = false;
+  let prevT = null;
+
+  function mkGlyph(ch, t, layer){
+    const dt = prevT === null ? 900 : Math.max(0, t - prevT);
+    prevT = t;
+    const g = { ch, t, dt, seq: all.length, layer, struck:false, runId:-1 };
+    all.push(g);
+    return g;
+  }
+  function strikeRange(list, from, to, rid){
+    for(let i=from;i<to;i++){
+      if(!list[i].struck){ list[i].struck = true; list[i].runId = rid; }
+    }
+  }
+  function wordEnd(list, anchor){
+    let j = anchor;
+    while(j < list.length && list[j].ch !== ' ' && list[j].ch !== '\n') j++;
+    return j;
+  }
+
+  for(const e of events){
+    if(e.type === 'char'){
+      if(mode === 'revise'){
+        pending.glyphs.push(mkGlyph(e.ch, e.t, 'rev'));
+      }else{
+        main.push(mkGlyph(e.ch, e.t, 'main'));
+        inBackRun = false;
+      }
+    }
+    else if(e.type === 'back'){
+      if(mode === 'revise'){
+        // The pending revision hasn't dried yet — it erases normally.
+        const g = pending.glyphs.pop();
+        if(g){ const i = all.indexOf(g); if(i>=0) all.splice(i,1); }
+      }else{
+        if(!inBackRun){ runId++; inBackRun = true; }
+        for(let i = main.length-1; i >= 0; i--){
+          if(!main[i].struck){ main[i].struck = true; main[i].runId = runId; break; }
+        }
+      }
+    }
+    else if(e.type === 'revstart'){
+      mode = 'revise';
+      pending = { anchor: e.anchor, glyphs: [], live:true };
+      inBackRun = false;
+    }
+    else if(e.type === 'revcancel'){
+      if(pending){ for(const g of pending.glyphs){ const i=all.indexOf(g); if(i>=0) all.splice(i,1); } }
+      mode = 'append'; pending = null;
+    }
+    else if(e.type === 'revcommit'){
+      if(pending && pending.glyphs.length){
+        runId++;
+        strikeRange(main, pending.anchor, wordEnd(main, pending.anchor), runId);
+        pending.live = false;
+        revisions.set(pending.anchor, pending);
+      }else if(pending){
+        // nothing typed — treat as a cancel
+      }
+      mode = 'append'; pending = null;
+    }
+    else if(e.type === 'revstrike'){
+      const r = revisions.get(e.anchor);
+      if(r && !r.struck){ runId++; r.struck = true; r.runId = runId; for(const g of r.glyphs){ g.struck = true; g.runId = runId; } }
+    }
+  }
+  // re-index after any splices so seq is contiguous
+  all.forEach((g,i)=> g.seq = i);
+  if(pending) revisions.set(pending.anchor, pending);
+
+  /* --- pass 2: timing -> the discipline of the hand --------------------
+     Speed says nothing about how much ink hits the page — a fast pen is
+     not a darker pen. What speed changes is whether the pen LIFTS.
+
+     Slow, deliberate writing prints: each letter is set down on its own,
+     upright, with daylight around it. Fast writing is cursive — the nib
+     never leaves the paper, so the exit stroke of one letter runs into the
+     entry stroke of the next and the word becomes a single gesture.
+
+     That forces a rule: WITHIN a word nothing may break the join. No
+     per-letter rotation, no per-letter size, no per-letter baseline — the
+     strokes can only meet if every letter of the word shares one baseline,
+     one slant and one size. The unruliness of a hurrying hand therefore
+     lives a level up, on the WORD: whole words lean, drift off the line and
+     swell or shrink together. Letters flow; words stagger.
+     ---------------------------------------------------------------------- */
+  const N = all.length;
+
+  for(let i=0;i<N;i++){
+    const g = all[i];
+
+    // (1) smoothed pace over a rolling window of 5 -> scrappiness 0..1
+    let sum = 0, cnt = 0;
+    for(let k = Math.max(0, i-4); k <= i; k++){ sum += Math.min(all[k].dt, DT_CAP); cnt++; }
+    const avg = sum / cnt;
+    // norm: 0 = flying, 1 = deliberate
+    const norm = clamp(
+      (Math.log(Math.max(avg, 8)) - Math.log(FAST_MS)) / (Math.log(SLOW_MS) - Math.log(FAST_MS)),
+      0, 1);
+    // A SPECTRUM, not a switch (Eric, 2026-08-24: "not a Boolean - four
+    // levels, auto-detected"). A small deadzone below SCRAP_KNEE keeps truly
+    // deliberate typing ruled-flat, then a gentle power curve ramps through
+    // legible intermediate states: roughly 0-0.25 ruled, 0.25-0.5 relaxed
+    // (a little lean, softer corners), 0.5-0.75 hurried (joins appear,
+    // dots flick), 0.75-1 scrawl. Continuous underneath - the "levels" are
+    // how it reads, not steps in the code.
+    const speed = 1 - norm;
+    const u = clamp((speed - SCRAP_KNEE) / (1 - SCRAP_KNEE), 0, 1);
+    const scrap = clamp(Math.pow(u, 1.5) * S.scrapAmt, 0, 1);
+    g.speed = speed;
+    g.scrap = scrap;
+    // the pen entrance: quick flicks when fast, unhurried strokes when slow
+    g.revealMs = Math.round(lerp(215, 68, speed));
+
+    // (2) Ink pressure. A careful hand presses EVENLY — so this unevenness is
+    // gated by scrappiness too, exactly like the geometry. At the slow end
+    // every letter is the same weight and the same colour; patchy, uneven ink
+    // is a symptom of a hurrying pen, and it was the last thing making the
+    // deliberate hand read as messy after the geometry went flat.
+    g.density = clamp(0.90 + rnd(g.seq, 8) * 0.05 * scrap, 0, 1);
+    g.opacity = clamp(0.86 + rnd(g.seq, 7) * 0.05 * scrap, 0, 1);
+    g.blur    = 0;
+    g.pool    = 0;
+
+    // (3) rhythm wobble: variance of recent intervals loosens the line.
+    // A second source of looseness — but it is GATED by scrappiness, so the
+    // deliberate end of the axis is genuinely ruled-line straight. Wobble can
+    // only roughen a hand that is already hurrying; it can't unsettle a
+    // careful one, however uneven the pauses between careful marks are.
+    let vj = 0;
+    if(S.wobbleOn){
+      const w = [];
+      for(let k = Math.max(0, i-7); k <= i; k++) w.push(Math.min(all[k].dt, DT_CAP));
+      const m = w.reduce((a,b)=>a+b,0) / w.length;
+      const v = Math.sqrt(w.reduce((a,b)=>a+(b-m)*(b-m),0) / w.length) / 320;
+      // Gated by scrap, which is exactly 0 below the knee — so the careful
+      // hand is ruled-flat, with no residual wobble at all.
+      vj = clamp(v, 0, 1.4) * S.wobbleAmt * scrap;
+    }
+    g.vj = vj;
+  }
+
+  /* (5) the word pass: lean, drift and swell, uniform across the word — the
+     unruliness of a hurrying hand lives on the WORD, never the letter, so
+     the strokes of a joined word still meet (one baseline, one slant, one
+     size). Tracking, though, is resolved PER GLYPH (not per word): it's the
+     one thing the user wants breathing continuously with speed, letter to
+     letter, inside the word. A word's lean/drift/swell character comes from
+     the mean pace of its own letters, and its seeded variation from the seq
+     of its first letter — so it is stable across re-layouts, font switches,
+     resizes and replay. */
+  function wordPass(list){
+    let i = 0;
+    while(i < list.length){
+      const g = list[i];
+      if(g.ch === ' ' || g.ch === '\n'){
+        // A space isn't part of a word, but it still tracks continuously off
+        // its own scrap. It keeps its full measure, and never a negative
+        // one, so that however hard the hand hurries, words stay words.
+        g.font = face.id; g.faceScale = face.scale; g.topK = M.top;
+        g.cursive = false;
+        let te = lerp(cap, face.join, g.scrap);
+        te += rnd(g.seq, 2) * 0.045 * g.vj;
+        g.trackEm = clamp(te, face.join, cap);
+        g.size = baseSize;
+        g.tracking = Math.max(0, g.trackEm * baseSize);
+        g.skew = 0; g.rot = 0; g.jitter = 0;
+        i++; continue;
+      }
+      let j = i, ss = 0, vv = 0;
+      while(j < list.length && list[j].ch !== ' ' && list[j].ch !== '\n'){
+        ss += list[j].scrap; vv += list[j].vj; j++;
+      }
+      const n  = j - i;
+      const ms = ss / n, mv = vv / n;      // the word's own pace
+      const s0 = list[i].seq;              // its seed
+      // THE CONSTRUCTION DECISION: a flowing word doesn't print faster, it
+      // switches to cursive forms. Per-word, because a hand commits to one
+      // construction for the length of a word (and joined strokes need the
+      // word-uniform baseline/slant/size anyway).
+      const cursive = ms > CURSIVE_KNEE;
+      // The messy state is now rare (see SCRAP_KNEE), so when it arrives it
+      // should be unmistakable from across a room.
+      const lean  = -19 * ms * (1 + rnd(s0, 11) * 0.30);
+      const drift = rnd(s0, 12) * (5.4 * ms + 1.8 * mv);
+      const swell = 1 + rnd(s0, 13) * 0.12 * ms;
+      for(let k = i; k < j; k++){
+        const gg = list[k];
+        gg.cursive = cursive;
+        // the font id doubles as the advance table selector (see charW)
+        gg.font = cursive ? 'cursive' : face.id;
+        gg.faceScale = face.scale; gg.topK = M.top;
+        // per-letter tracking: the measure of how far the pen travelled
+        // between two strokes, held in em so a word-level size change can't
+        // reopen a join. At rest: SPREAD_CAP (scaled by the "Letter spread"
+        // slider), continuously per glyph off that glyph's own scrap — never
+        // past the cap. At speed it closes onto this face's own join
+        // distance and stops dead there — never past it either.
+        let te = lerp(cap, face.join, gg.scrap);
+        te += rnd(gg.seq, 2) * 0.045 * gg.vj;
+        gg.trackEm = clamp(te, face.join, cap);
+        gg.skew = lean;      // one slant, or the strokes meet at an angle
+        gg.jitter = drift;   // one baseline, or they meet at the wrong height
+        gg.rot = 0;          // no letter turns against its neighbours
+        gg.size = baseSize * swell;
+        gg.tracking = gg.trackEm * gg.size;
+      }
+      i = j;
+    }
+  }
+  wordPass(main);
+  for(const r of revisions.values()) wordPass(r.glyphs);
+
+  // (2) pause -> ink pool. A glyph pools if the NEXT mark came long after it.
+  // The pen rests on the last LETTER, not on the space after it — otherwise
+  // the commonest hesitation of all (finish a word, then think) leaves no mark.
+  const threshMs = S.pauseThresh * 1000;
+  const lastT = events.length ? events[events.length-1].t : 0;
+  let hesitations = 0;
+  // Every pause pools, including the trailing one: a finished page is allowed
+  // to carry the mark of the pen that stopped on it.
+  for(let i=0;i<N;i++){
+    const gap = (i < N-1) ? all[i+1].dt : Math.max(0, nowT - lastT);
+    if(gap <= threshMs) continue;
+    if(i < N-1) hesitations++;   // the caption counts pauses BETWEEN marks
+    let k = i;
+    while(k > 0 && (all[k].ch === ' ' || all[k].ch === '\n')) k--;
+    const g = all[k];
+    if(g.ch === ' ' || g.ch === '\n' || g.struck) continue;
+    // the trailing rest is damped - see TRAIL_POOL
+    applyPool(g, poolPhase(gap) * (i < N-1 ? 1 : TRAIL_POOL), S.baseSize * g.faceScale);
+  }
+
+  // Struck ink keeps its weight — crossing a word out doesn't lift ink off
+  // the paper. The hairline through it is the only record of the deletion.
+  for(const g of all){
+    if(g.struck){
+      g.opacity = clamp(g.opacity * S.ghostOp, 0.04, 1);
+      g.blur = 0;
+      g.pool = 0;
+    }
+    g.color = mixColor(g.density);
+  }
+
+  /* --- pass 3: position the main stream, wrapping at spaces --- */
+  const advOf = g => charW(g.font, g.ch) * g.size + g.tracking;
+  const ascPart = ascPx * 1.06;
+  const lineY = k => PAD_TOP + lh * k + ascPart;
+
+  let x = 0, line = 0;
+  let i = 0;
+  while(i < main.length){
+    const g = main[i];
+    if(g.ch === '\n'){
+      // A newline is a zero-width event. Struck (backspaced over) it leaves
+      // no ink to cross out and no break: the caret simply carries on with
+      // the previous line, exactly as if the Enter had never been pressed.
+      g.x = x; g.line = line; g.y = lineY(line); g.adv = 0;
+      if(!g.struck){ x = 0; line++; }
+      i++; continue;
+    }
+    if(g.ch === ' '){
+      g.adv = advOf(g); g.x = x; g.line = line; g.y = lineY(line);
+      x += g.adv; i++; continue;
+    }
+    // measure the whole word so we never break mid-word
+    let j = i, w = 0;
+    while(j < main.length && main[j].ch !== ' ' && main[j].ch !== '\n'){ w += advOf(main[j]); j++; }
+    if(w > COL_W){
+      // pathological long word: break per character
+      for(let k=i;k<j;k++){
+        const gg = main[k], a = advOf(gg);
+        if(x + a > COL_W && x > 0){ x = 0; line++; }
+        gg.adv = a; gg.x = x; gg.line = line; gg.y = lineY(line); x += a;
+      }
+      i = j; continue;
+    }
+    if(x + w > COL_W && x > 0){ x = 0; line++; }
+    for(let k=i;k<j;k++){
+      const gg = main[k], a = advOf(gg);
+      gg.adv = a; gg.x = x; gg.line = line; gg.y = lineY(line); x += a;
+    }
+    i = j;
+  }
+  const caret = { x, y: lineY(line), h: (ascPx + descPx) * 0.86, line };
+
+  /* --- pass 4: place revisions above their word --- */
+  const revItems = [];
+  for(const [anchor, r] of revisions){
+    if(!r.glyphs.length) continue;
+    const end = wordEnd(main, anchor);
+    if(anchor >= main.length) continue;
+    const a = main[anchor];
+    // the word's on-page extent (use the first line if the word itself wrapped)
+    let x0 = a.x, x1 = a.x, ln = a.line;
+    for(let k = anchor; k < end; k++){
+      if(main[k].line !== ln) break;
+      x1 = main[k].x + main[k].adv;
+    }
+    const scale = 0.75;
+    let w = 0;
+    for(const g of r.glyphs){
+      g.size *= scale; g.tracking *= scale; g.jitter *= scale;
+      w += charW(g.font, g.ch) * g.size + g.tracking;
+    }
+    let rx = clamp((x0 + x1)/2 - w/2, 0, Math.max(0, COL_W - w));
+    const ry = a.y - lh * 0.60;
+    for(const g of r.glyphs){
+      g.x = rx; g.y = ry; g.line = -1; g.adv = charW(g.font, g.ch)*g.size + g.tracking;
+      rx += g.adv;
+    }
+    r.markX = (x0 + x1) / 2;
+    r.markY = a.y - lh * 0.30;   // sits in the gap, pointing down at the word
+    r.markSize = reprBase * 0.42;
+    r.wordX0 = x0; r.wordX1 = x1; r.wordY = a.y; r.wordLine = ln;
+    revItems.push(r);
+  }
+
+  /* --- pass 5: strike segments (one continuous hairline per run, per line) --- */
+  const strikes = [];
+  function collect(list){
+    let k = 0;
+    while(k < list.length){
+      const g = list[k];
+      // a struck newline is never the start of a hairline — it has no ink
+      if(!g.struck || g.ch === '\n'){ k++; continue; }
+      const rid = g.runId, ln = g.line;
+      let x0 = g.x, x1 = g.x + g.adv, sz = g.size, y = g.y, k2 = k+1;
+      while(k2 < list.length && list[k2].struck && list[k2].runId === rid && list[k2].line === ln){
+        x1 = list[k2].x + list[k2].adv; sz = Math.max(sz, list[k2].size); k2++;
+      }
+      strikes.push({ x0, x1, y: y - sz * 0.30, seed: rid * 7 + ln, w: Math.max(1.4, sz*0.07) });
+      k = k2;
+    }
+  }
+  collect(main);
+  for(const r of revItems) if(r.struck) collect(r.glyphs);
+
+  /* --- stats for the caption --- */
+  let unsaid = 0, prevStruck = false;
+  for(const g of main){
+    const s = g.struck && g.ch !== ' ' && g.ch !== '\n';
+    if(s && !prevStruck) unsaid++;
+    prevStruck = s;
+  }
+  for(const r of revItems) if(r.struck) unsaid++;
+
+  const lastLine = Math.max(line, ...revItems.map(r=>r.wordLine), 0);
+  const height = PAD_TOP + lh * (lastLine + 1) + PAD_BOT;
+
+  return {
+    font, lh, main, revisions:revItems, strikes, caret, all,
+    // representative face/size for page furniture that isn't "the writing"
+    // itself: placeholder, caption, revision caret mark.
+    reprFont, reprBase, reprMetrics: reprM, line0Y: PAD_TOP + ascPart,
+    height, lines: lastLine + 1,
+    stats: {
+      duration: events.length ? Math.round((Timeline.last() - Timeline.first())/1000) : 0,
+      hesitations, unsaid,
+    },
+  };
+}
+
+/* ============================== RENDERER ============================== */
+
+const elPage   = document.getElementById('page');
+const elGlyphs = document.getElementById('glyphs');
+const elSvg    = document.getElementById('strikes');
+const elCaret  = document.getElementById('caret');
+const elPh     = document.getElementById('placeholder');
+const elCap    = document.getElementById('caption');
+
+// The pen-stroke reveal's mask must persist WHILE the animation runs (so the
+// travelling gradient has something to reveal), but not a moment after: once
+// the stroke lands, this is finished ink and should carry no mask at all —
+// otherwise, since .reveal stays on the most-recently-rendered glyph until
+// the next re-render, only the newest letter would ever have full-height ink.
+// elGlyphs itself persists across re-renders (only its children are
+// replaced), so one delegated listener here covers every glyph ever drawn.
+elGlyphs.addEventListener('animationend', e => {
+  if(e.animationName === 'penstroke') e.target.classList.remove('reveal');
+});
+
+let model = null;
+let selection = null;   // {anchor} while a word is selected / being revised
+
+// The entrance is a property of the RENDER, not of the glyph: only a mark
+// that was just made gets drawn on. Re-layouts (font, resize, sliders) redraw
+// the same ink without re-performing it.
+let pendingEntrance = false;
+
+// the one glyph the live pool loop is allowed to touch, and its two elements
+let poolTargetG = null, poolTargetEl = null, poolTargetBlot = null;
+
+// This styles the OUTER (.g) span: a real box (width = advance, top at
+// TOP_K above the baseline, bottom DESC_K below) so transform-origin
+// 50% 100% keeps meaning what the export mirrors. Color and opacity live
+// here; the ink inside is SVG filled with currentColor, so the live pool
+// loop can darken a glyph by restyling this span alone. No font, no mask,
+// no filter - the lifted-pen fade is stroke-taper geometry in handGlyph().
+function glyphStyle(g){
+  return 'left:'+g.x.toFixed(2)+'px;'+
+    'top:'+(g.y - g.size*TOP_K).toFixed(2)+'px;'+
+    'width:'+g.adv.toFixed(2)+'px;height:'+(g.size*(TOP_K+DESC_K)).toFixed(2)+'px;'+
+    'color:'+g.color+';opacity:'+g.opacity.toFixed(3)+';'+
+    'transform:translateY('+g.jitter.toFixed(2)+'px) skewX('+g.skew.toFixed(2)+'deg) '+
+      'rotate('+g.rot.toFixed(2)+'deg);';
+}
+// Real ink gathers where the pen STOPS, not over the whole letter: at the
+// stroke's exit (the right end of the glyph's advance), sitting on the
+// baseline. A small seeded jitter keeps repeated pools from looking stamped
+// in the same spot every time. Shared by the DOM renderer, the live
+// pool-growth loop, and the canvas export, so all three agree exactly.
+function blotCenter(g){
+  const jx = rnd(g.seq, 41) * g.size * 0.05;
+  const jy = rnd(g.seq, 42) * g.size * 0.05;
+  // 0.55 of the advance, lifted into the x-height: a resting pen pools ON
+  // the stroke. Parked at the end of the advance on the baseline (0.9 / 0.05,
+  // as it was) the blot lands exactly where a full stop goes, and every pause
+  // read as punctuation - "one. two. three." instead of hesitation.
+  return {
+    cx: g.x + g.adv * 0.55 + jx,
+    cy: g.y - g.size * 0.20 + jy,
+  };
+}
+function blotStyle(g){
+  // POOL_CORE is the alpha at the centre. Pooled ink is DARKER than the
+  // stroke that fed it, never lighter - the old 0.30 peak read as a soft grey
+  // shadow beside near-opaque strokes, so pauses were computed but invisible.
+  // The tight inner stops carry the wet core; the outer two do the bleed.
+  const r = g.size * (0.10 + g.pool * 0.34 * S.poolBleed);
+  const c = blotCenter(g);
+  const a = v => 'rgba(28,26,23,'+(v*S.poolDark).toFixed(3)+')';
+  return 'left:'+c.cx+'px;top:'+c.cy+'px;'+
+    'width:'+(r*2)+'px;height:'+(r*2)+'px;'+
+    'opacity:'+poolFade(g.pool).toFixed(3)+';'+
+    (g.pool > 0 ? '' : 'display:none;')+
+    'background:radial-gradient(circle, '+a(POOL_CORE)+' 0%, '+a(POOL_CORE*0.95)+' 22%, '+
+      a(POOL_CORE*0.46)+' 40%, '+a(POOL_CORE*0.16)+' 60%, rgba(28,26,23,0) 82%);';
+}
+
+// which glyph a trailing pause would settle on — mirrors the pool loop above
+function trailingTarget(m){
+  let k = m.all.length - 1;
+  while(k > 0 && (m.all[k].ch === ' ' || m.all[k].ch === '\n')) k--;
+  const g = m.all[k];
+  if(!g || g.ch === ' ' || g.ch === '\n' || g.struck) return null;
+  return g;
+}
+
+function wobblyPath(s){
+  // a hairline that remembers it was drawn by a hand
+  const len = Math.max(6, s.x1 - s.x0);
+  const steps = Math.max(3, Math.round(len / 14));
+  const amp = 0.9;
+  let d = '';
+  for(let i=0;i<=steps;i++){
+    const t = i/steps;
+    const x = s.x0 + len*t;
+    const y = s.y + Math.sin(t*Math.PI*1.7 + s.seed) * amp * (0.35 + 0.65*Math.sin(t*Math.PI))
+                  + rnd(s.seed*31 + i, 5) * 0.35;
+    d += (i ? 'L' : 'M') + x.toFixed(2) + ' ' + y.toFixed(2);
+  }
+  return d;
+}
+
+function render(m){
+  model = m;
+  elPage.style.height = m.height + 'px';
+
+  // the newest mark — the only one that gets performed rather than just drawn
+  const fresh = (pendingEntrance && m.all.length) ? m.all[m.all.length-1] : null;
+  pendingEntrance = false;
+
+  poolTargetG = trailingTarget(m);
+  poolTargetEl = poolTargetBlot = null;
+
+  // --- glyphs ---
+  const frag = document.createDocumentFragment();
+  const emit = (g, idx, revAnchor, list, li) => {
+    const isRev = revAnchor !== undefined;
+    if(g.ch === ' ' || g.ch === '\n') return;
+    // the pool target always gets a blot, even an empty one: the live growth
+    // loop needs something to grow, and must never add a second one.
+    if(g.pool > 0 || g === poolTargetG){
+      const blot = document.createElement('div');
+      blot.className = 'blot';
+      blot.style.cssText = blotStyle(g);
+      if(g === poolTargetG) poolTargetBlot = blot;
+      frag.appendChild(blot);
+    }
+    // The outer span (.g) is positioned and carries the lifted-pen fade
+    // mask; the inner span (.gi) carries the character and the entrance
+    // reveal mask/animation. Nested rather than layered on one element so
+    // the two masks intersect instead of fighting (see the .gi CSS comment).
+    const outer = document.createElement('span');
+    // A committed revision is itself clickable — that's how you revise the
+    // revision (which strikes it and drops you back in-line: the two-layer cap).
+    const live = isRev && !g.struck && revAnchor >= 0;
+    outer.className = 'g' + (g.struck ? '' : (isRev ? (live ? ' click' : '') : ' click'));
+    if(isRev){ if(live) outer.dataset.rev = revAnchor; }
+    else if(!g.struck && idx !== undefined) outer.dataset.i = idx;
+    outer.style.cssText = glyphStyle(g);
+
+    // is this glyph joined to its neighbours? (drives both the connector
+    // and the blunt seams - a joined end must not taper to a point)
+    const jIn  = list ? joinInfo(list[li - 1], g) : null;
+    const jOut = list ? joinInfo(g, list[li + 1]) : null;
+
+    // the ink: skeleton -> paths, drawn fresh for this glyph's own speed.
+    // Deterministic off g.seq, so replay/resize/re-layout redraw identical ink.
+    const paths = handGlyph(g.ch, {
+      size: g.size, scrap: g.scrap, seed: g.seq, cursive: g.cursive,
+      wobble: S.wobbleOn ? S.wobbleAmt : 0, weight: S.weight,
+      joinIn: !!jIn, joinOut: !!jOut,
+    });
+    let inkHTML = '';
+    for(const p of paths) inkHTML += '<path d="' + p.d + '" fill="currentColor"/>';
+
+    // the connector from the previous letter: a real upstroke in solid ink,
+    // dipping toward the baseline like a cursive underturn. Drawn in THIS
+    // glyph's local space: word-uniform skew/jitter/size mean the previous
+    // letter's ink sits at a plain x offset in this frame.
+    if(jIn){
+      inkHTML += '<path d="' + joinPath(jIn.ax, jIn.ay, jIn.bx, jIn.by, jIn.sag, g.seq) +
+        '" fill="none" stroke="currentColor" stroke-opacity="' + joinAlpha(jIn.w).toFixed(2) +
+        '" stroke-width="' + joinWidth(g.size, jIn.w).toFixed(2) + '" stroke-linecap="round"/>';
+    }
+
+    const inner = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    inner.setAttribute('class', 'gi' + (g === fresh ? ' reveal' : ''));
+    inner.innerHTML = '<g transform="translate(0,' + (g.size*TOP_K).toFixed(2) + ')">' + inkHTML + '</g>';
+    if(g === fresh) inner.style.setProperty('--rd', g.revealMs + 'ms');
+    outer.appendChild(inner);
+
+    if(g === poolTargetG) poolTargetEl = outer;
+    frag.appendChild(outer);
+  };
+
+  m.main.forEach((g,i)=> emit(g, i, undefined, m.main, i));
+  for(const r of m.revisions){
+    r.glyphs.forEach((g,i) => emit(g, undefined, r.live ? -1 : r.anchor, r.glyphs, i));
+    const mark = document.createElement('span');
+    mark.className = 'g';
+    mark.innerHTML = handTextSVG('^', r.markSize, 0.2, 9000 + r.anchor,
+      mixColor(0.8)).svg;
+    mark.style.cssText =
+      'left:'+(r.markX - r.markSize*0.20)+'px;top:'+(r.markY - r.markSize*m.reprMetrics.top)+'px;'+
+      'opacity:'+(0.72 * (r.struck ? S.ghostOp : 1)).toFixed(3)+';';
+    frag.appendChild(mark);
+  }
+
+  // selection feedback: a quiet graphite underline
+  if(selection){
+    const a = m.main[selection.anchor];
+    if(a){
+      let x1 = a.x;
+      for(let k = selection.anchor; k < m.main.length; k++){
+        if(m.main[k].ch === ' ' || m.main[k].ch === '\n' || m.main[k].line !== a.line) break;
+        x1 = m.main[k].x + m.main[k].adv;
+      }
+      const u = document.createElement('div');
+      u.className = 'selunder';
+      u.style.cssText = 'left:'+a.x+'px;top:'+(a.y + a.size*0.16)+'px;width:'+(x1-a.x)+'px;';
+      frag.appendChild(u);
+    }
+  }
+
+  elGlyphs.replaceChildren(frag);
+
+  // --- strikes ---
+  elSvg.setAttribute('width', COL_W);
+  elSvg.setAttribute('height', m.height);
+  let svg = '';
+  for(const s of m.strikes){
+    svg += '<path d="'+wobblyPath(s)+'" fill="none" stroke="'+mixColor(1)+
+           '" stroke-opacity="'+STRIKE_OP+
+           '" stroke-width="'+s.w.toFixed(2)+'" stroke-linecap="round"/>';
+  }
+  elSvg.innerHTML = svg;
+
+  // --- caret ---
+  let cx = m.caret.x, cy = m.caret.y, ch = m.caret.h;
+  if(selection && selection.pending){
+    const r = m.revisions.find(r => r.anchor === selection.anchor && r.live);
+    if(r && r.glyphs.length){
+      const last = r.glyphs[r.glyphs.length-1];
+      cx = last.x + last.adv; cy = last.y; ch = last.size * 1.1;
+    }else{
+      const a = m.main[selection.anchor];
+      if(a){ cx = (a.x + (a.x + a.adv))/2; cy = a.y - m.lh*0.60; ch = a.size*0.75; }
+    }
+  }
+  elCaret.style.cssText = 'left:'+cx+'px;top:'+(cy-ch*0.82)+'px;height:'+ch+'px;';
+
+  // --- placeholder ---
+  if(m.main.length === 0 && !replaying){
+    elPh.style.display = 'block';
+    elPh.style.left = '0px';
+    elPh.style.top  = (m.line0Y - m.reprBase*m.reprMetrics.top) + 'px';
+    if(!elPh.dataset.drawn || +elPh.dataset.size !== m.reprBase){
+      elPh.innerHTML = handTextSVG('start writing', m.reprBase, 0.15, 7001).svg;
+      elPh.dataset.drawn = '1'; elPh.dataset.size = m.reprBase;
+    }
+  }else{
+    elPh.style.display = 'none';
+  }
+
+  // --- caption position ---
+  elCap.style.top = (m.height - PAD_BOT + m.lh * 1.2) + 'px';
+  elCap.innerHTML = captionHTML(m);
+
+  // the DOM was just rebuilt, so the growth loop needs its new handles
+  if(!replaying) startLivePool();
+}
+
+function captionText(m){
+  const st = m.stats;
+  return st.duration + 's · ' + st.hesitations + ' hesitation' + (st.hesitations===1?'':'s') +
+         ' · ' + st.unsaid + ' word' + (st.unsaid===1?'':'s') + ' unsaid';
+}
+function dateText(){
+  const d = new Date();
+  return d.toLocaleDateString(undefined, {year:'numeric', month:'long', day:'numeric'});
+}
+function captionHTML(m){
+  const cs = m.reprBase * 0.42;
+  const l1 = handTextSVG(captionText(m), cs, 0.25, 7100, 'currentColor');
+  const l2 = handTextSVG(dateText(), cs * 0.78, 0.25, 7200, 'currentColor', 0.75);
+  return '<span style="display:inline-block">' + l1.svg + '</span><br>' +
+         '<span style="display:inline-block">' + l2.svg + '</span>';
+}
+
+/* ============================== INPUT ================================= */
+
+let firstKeyDone = false;
+let idleTimer = null;
+let replaying = false;
+
+function relayout(opts){
+  render(layout(Timeline.events, opts));
+}
+
+/* --------------------------- live ink pooling --------------------------
+   While the writer sits still, the pen keeps bleeding into the paper. This
+   loop touches exactly two elements — the resting glyph and its blot — and
+   never re-runs layout. It computes the pool through the same poolPhase /
+   applyPool the tape does, so when typing resumes and layout freezes the
+   pool from the recorded gap, nothing jumps.
+   ----------------------------------------------------------------------- */
+let liveRAF = null, liveTimer = null;
+
+function stopLivePool(){
+  if(liveRAF){ cancelAnimationFrame(liveRAF); liveRAF = null; }
+  clearTimeout(liveTimer); liveTimer = null;
+}
+
+function startLivePool(){
+  stopLivePool();
+  if(!model || !poolTargetG || !poolTargetEl) return;
+  const evs = Timeline.events;
+  if(!evs.length) return;
+
+  const g0 = poolTargetG, el = poolTargetEl, blot = poolTargetBlot;
+  const lastT = evs[evs.length-1].t;
+  let shown = -1;
+
+  const step = () => {
+    const p = poolPhase(Date.now() - lastT) * TRAIL_POOL;   // live = trailing
+    if(p - shown > 0.002){
+      shown = p;
+      // pg keeps g0's own resolved face (font/topK/faceScale/x/adv/y) —
+      // Object.assign copies those straight through, so applyPool/glyphStyle/
+      // blotStyle read the same face and rest-point the live loop as layout().
+      const pg = Object.assign({}, g0);
+      applyPool(pg, p, S.baseSize * g0.faceScale);
+      el.style.cssText = glyphStyle(pg);
+      if(blot) blot.style.cssText = blotStyle(pg);
+    }
+    liveRAF = p < 1 ? requestAnimationFrame(step) : null;
+  };
+
+  // nothing to do until the pause threshold is crossed
+  const wait = S.pauseThresh*1000 - (Date.now() - lastT);
+  if(wait > 0) liveTimer = setTimeout(()=>{ liveRAF = requestAnimationFrame(step); }, wait + 16);
+  else liveRAF = requestAnimationFrame(step);
+}
+
+function scheduleIdleCaption(){
+  clearTimeout(idleTimer);
+  elCap.classList.remove('show');
+  idleTimer = setTimeout(()=>{
+    if(!replaying && Timeline.events.length){ relayout(); elCap.classList.add('show'); }
+  }, IDLE_CAP);
+}
+function touched(){ scheduleIdleCaption(); }   // render() restarts the pool loop
+
+function commitRevision(){
+  if(!selection || !selection.pending) return;
+  Timeline.push({ type:'revcommit', t: Date.now() });
+  selection = null;
+  relayout(); touched();
+}
+/* ----------------------------- zero state -----------------------------
+   Most people meet this piece through a link, with nobody there to explain
+   it. The card carries the whole idea, then gets out of the way the instant
+   they start writing — folding to a corner tab they can reopen. */
+const elIntro = document.getElementById('intro');
+let introFolded = false;
+
+function foldIntro(){
+  if(introFolded || !elIntro) return;
+  introFolded = true;
+  elIntro.classList.add('folded');
+  elIntro.title = 'what is this?';
+}
+function unfoldIntro(){
+  if(!elIntro) return;
+  introFolded = false;
+  elIntro.classList.remove('folded');
+  elIntro.title = '';
+}
+if(elIntro){
+  elIntro.addEventListener('mousedown', e => {
+    e.stopPropagation();               // never steal focus from the page
+    if(e.target.classList.contains('x')){ foldIntro(); return; }
+    if(introFolded) unfoldIntro();
+  });
+}
+
+function cancelRevision(){
+  if(!selection) return;
+  if(selection.pending) Timeline.push({ type:'revcancel', t: Date.now() });
+  selection = null;
+  relayout();
+}
+
+function typeChar(ch){
+  const t = Date.now();
+  if(!firstKeyDone){ firstKeyDone = true; elPh.style.opacity = '0'; foldIntro(); }
+  if(selection){
+    if(ch === ' ' || ch === '\n'){
+      if(selection.pending){ commitRevision(); return; }
+      cancelRevision();
+      // fall through and write the space in-line
+    }else{
+      if(!selection.pending){
+        Timeline.push({ type:'revstart', anchor: selection.anchor, t });
+        selection.pending = true;
+      }
+      Timeline.push({ type:'char', ch, t });
+      pendingEntrance = true;
+      relayout(); touched(); return;
+    }
+  }
+  Timeline.push({ type:'char', ch, t });
+  pendingEntrance = true;
+  relayout(); touched();
+}
+
+function backspace(){
+  Timeline.push({ type:'back', t: Date.now() });
+  if(selection && selection.pending){
+    // nothing more to erase in the pending revision? leave revision mode open
+  }
+  relayout(); touched();
+}
+
+window.addEventListener('keydown', e => {
+  if((e.metaKey || e.ctrlKey) && (e.key === '/' || e.code === 'Slash')){
+    e.preventDefault(); togglePanel(); return;
+  }
+  if(e.target && e.target.closest && e.target.closest('#panel')) return;
+  if(e.metaKey || e.ctrlKey || e.altKey) return;
+  if(replaying) return;
+
+  if(e.key === 'Escape'){ e.preventDefault(); cancelRevision(); return; }
+  if(e.key === 'Backspace'){ e.preventDefault(); backspace(); return; }
+  if(e.key === 'Enter'){ e.preventDefault(); typeChar('\n'); return; }
+  if(e.key.length === 1){ e.preventDefault(); typeChar(e.key); return; }
+});
+
+// click a written word to revise it above the line
+elPage.addEventListener('mousedown', e => {
+  if(replaying) return;
+  if(e.target.closest('#panel')) return;
+  const span = e.target.closest('.g.click');
+  if(!span){
+    if(selection){ if(selection.pending) commitRevision(); else cancelRevision(); }
+    return;
+  }
+  // two-layer cap: clicking a committed revision strikes it, and writing
+  // simply resumes in-line rather than stacking a third layer above the page.
+  if(span.dataset.rev !== undefined){
+    e.preventDefault();
+    if(selection){ if(selection.pending) commitRevision(); else cancelRevision(); }
+    Timeline.push({ type:'revstrike', anchor:+span.dataset.rev, t:Date.now() });
+    selection = null; relayout(); touched();
+    return;
+  }
+  if(span.dataset.i === undefined){
+    if(selection){ if(selection.pending) commitRevision(); else cancelRevision(); }
+    return;
+  }
+  e.preventDefault();
+  const idx = +span.dataset.i;
+  // walk left to the start of the word
+  let a = idx;
+  while(a > 0){
+    const p = model.main[a-1];
+    if(p.ch === ' ' || p.ch === '\n' || p.struck) break;
+    a--;
+  }
+  if(selection){ if(selection.pending) commitRevision(); else cancelRevision(); }
+
+  // two-layer cap: a word revised once can't be revised again — strike the
+  // floating word instead, and let writing continue in-line.
+  const existing = model.revisions.find(r => r.anchor === a && !r.live);
+  if(existing){
+    if(!existing.struck) Timeline.push({ type:'revstrike', anchor:a, t:Date.now() });
+    selection = null; relayout(); touched(); return;
+  }
+  selection = { anchor:a, pending:false };
+  relayout();
+});
+
+window.addEventListener('resize', () => { if(model) relayout(); });
+
+/* =============================== VOICE ================================ */
+/* Dictation is just a second hand on the same pen. Interim results from
+   SpeechRecognition stream in as you speak: a word is written the moment
+   the recognizer is confident in it (everything but the still-volatile
+   trailing word), so ink trails the voice by roughly a word. When the
+   recognizer revises a word it already gave us, the correction happens the
+   only way this page allows — the old word is struck and rewritten. The
+   machine has second thoughts too. And silence between phrases is a real
+   gap in Timeline timestamps, which is exactly what pools ink. */
+
+const elMic = document.getElementById('mic');
+const SRCls = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+let rec = null;
+let micOn = false;
+let voiceQueue = [];   // pen ops: chars to write, '\b' to strike one glyph back
+let voiceTimer = null;
+let uttWords = [];     // words of the current utterance already queued
+// The pen keeps the speaker's pace. Words arrive from the recognizer in
+// bursts that mirror speech rate, so ms-per-char between arrivals IS the
+// voice's tempo — fast talk drives dt toward FAST_MS and the hand goes
+// scrappy, slow deliberate speech keeps it neat.
+let voicePace = 90;    // ms per char, smoothed from arrival rate
+let lastArrival = 0;
+
+function updateMic(){
+  elMic.classList.toggle('on', micOn);
+  elMic.querySelector('.lbl').innerHTML =
+    '<span style="display:inline-block;vertical-align:middle">' +
+    handTextSVG(micOn ? 'listening' : 'listen', 19, 0.3, 7300).svg + '</span>';
+}
+
+function penPace(tok){
+  if(tok === '\b') return 55 + Math.random()*35;
+  const base = tok === ' ' ? voicePace * 1.6 : voicePace;
+  return base * (0.75 + Math.random()*0.5);
+}
+
+function voiceTick(){
+  voiceTimer = null;
+  if(!voiceQueue.length) return;
+  if(replaying){ voiceTimer = setTimeout(voiceTick, 400); return; }
+  const tok = voiceQueue.shift();
+  if(tok === '\b') backspace(); else typeChar(tok);
+  if(voiceQueue.length) voiceTimer = setTimeout(voiceTick, penPace(voiceQueue[0]));
+}
+
+function queueOps(str){
+  if(str.length && str[0] !== '\b'){
+    const now = performance.now();
+    if(lastArrival){
+      const gap = now - lastArrival;
+      if(gap < 4000){
+        const per = Math.max(38, Math.min(220, gap / str.length));
+        voicePace = voicePace * 0.35 + per * 0.65;
+      }
+    }
+    lastArrival = now;
+  }
+  voiceQueue.push(...str);
+  if(!voiceTimer) voiceTimer = setTimeout(voiceTick, 0);
+}
+
+function syncUtterance(text, done){
+  const words = text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  // the trailing word of an interim result is the volatile one — hold it
+  const stable = done ? words : words.slice(0, -1);
+  if(!stable.length){ if(done) uttWords = []; return; }
+  let i = 0;
+  while(i < uttWords.length && i < stable.length &&
+        uttWords[i].toLowerCase() === stable[i].toLowerCase()) i++;
+  // words the recognizer took back get struck, one glyph per back-op
+  if(i < uttWords.length){
+    let backs = 0;
+    for(let j = i; j < uttWords.length; j++) backs += uttWords[j].length + (j > i ? 1 : 0);
+    queueOps('\b'.repeat(backs));
+    uttWords = uttWords.slice(0, i);
+  }
+  const seg = stable.slice(i);
+  if(seg.length){
+    let pre = ' ';
+    if(!uttWords.length && !voiceQueue.length){
+      const last = (model && model.main.length) ? model.main[model.main.length-1].ch : '\n';
+      if(last === ' ' || last === '\n') pre = '';
+    }
+    queueOps(pre + seg.join(' '));
+    uttWords = uttWords.concat(seg);
+  }
+  if(done) uttWords = [];
+}
+
+function flushVoice(){
+  voiceQueue = []; uttWords = [];
+  voicePace = 90; lastArrival = 0;
+  if(voiceTimer){ clearTimeout(voiceTimer); voiceTimer = null; }
+}
+
+function startRec(){
+  rec = new SRCls();
+  rec.continuous = true;
+  rec.interimResults = true;
+  // fixed, not navigator.language — a zh/other system locale would make the
+  // recognizer sit silent through English speech
+  rec.lang = 'en-US';
+  rec.onstart      = () => console.debug('[voice] start');
+  rec.onaudiostart = () => console.debug('[voice] audio flowing');
+  rec.onspeechstart= () => console.debug('[voice] speech detected');
+  rec.onresult = e => {
+    console.debug('[voice] result', JSON.stringify([...e.results].map(r => r[0].transcript + (r.isFinal ? ' [final]' : ''))));
+    let interim = '';
+    for(let i = e.resultIndex; i < e.results.length; i++){
+      const r = e.results[i];
+      if(r.isFinal) syncUtterance(r[0].transcript, true);
+      else interim += r[0].transcript;
+    }
+    if(interim) syncUtterance(interim, false);
+  };
+  // Chrome ends recognition on its own after a stretch of silence;
+  // while the mic mark is on, silence is content, so start it back up.
+  rec.onend = () => { console.debug('[voice] end'); if(micOn){ try{ rec.start(); }catch(err){} } };
+  rec.onerror = e => {
+    console.debug('[voice] error:', e.error);
+    if(e.error === 'not-allowed' || e.error === 'service-not-allowed'){
+      micOn = false; updateMic();
+      elMic.classList.add('err');
+      elMic.querySelector('.lbl').textContent = 'mic blocked';
+    }else if(e.error === 'audio-capture'){
+      micOn = false; updateMic();
+      elMic.classList.add('err');
+      elMic.querySelector('.lbl').textContent = 'no microphone';
+    }else if(e.error === 'network'){
+      elMic.querySelector('.lbl').textContent = 'listening (no connection…)';
+    }
+    // no-speech / aborted fall through to onend's restart
+  };
+  try{ rec.start(); }catch(err){}
+}
+
+if(!SRCls){
+  elMic.style.display = 'none';
+}else{
+  elMic.addEventListener('click', () => {
+    if(elMic.classList.contains('err')) return;
+    micOn = !micOn;
+    if(micOn) startRec();
+    else if(rec) rec.stop();   // let the pen finish what was already said
+    updateMic();
+  });
+  updateMic();
+}
+
+/* ============================== REPLAY ================================ */
+
+let replayTimers = [];
+function stopReplay(){
+  replayTimers.forEach(clearTimeout);
+  replayTimers = [];
+  replaying = false;
+  stopLivePool();
+  document.getElementById('btnReplay').textContent = 'Replay';
+}
+function replay(){
+  if(replaying){ stopReplay(); relayout(); return; }
+  const evs = Timeline.events;
+  if(!evs.length) return;
+  replaying = true;
+  selection = null;
+  stopLivePool();
+  document.getElementById('btnReplay').textContent = 'Stop';
+  elCap.classList.remove('show');
+
+  // honour the original rhythm, but never make the viewer wait more than 3s
+  let acc = 0, prev = evs[0].t;
+  const schedule = [];
+  for(let i=0;i<evs.length;i++){
+    acc += Math.min(evs[i].t - prev, REPLAY_GAP_CAP);
+    prev = evs[i].t;
+    schedule.push(acc);
+  }
+  // Replay renders through CURRENT settings — that's the whole point of it.
+  // We pass a synthetic `nowT` so pools appear exactly as they will at rest.
+  render(layout([], {nowT:0}));
+  for(let i=0;i<evs.length;i++){
+    replayTimers.push(setTimeout(()=>{
+      // a replay re-performs the writing: each letter is drawn as it lands
+      pendingEntrance = (evs[i].type === 'char');
+      render(layout(evs.slice(0, i+1), { nowT: evs[i].t }));
+      if(i === evs.length-1){ stopReplay(); relayout(); touched(); }
+    }, schedule[i] + 220));
+  }
+}
+
+/* ============================== EXPORT ================================ */
+
+function makeGrainTile(){
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const img = g.createImageData(128,128);
+  for(let i=0;i<img.data.length;i+=4){
+    const v = 128 + (Math.random()-0.5)*255;
+    img.data[i] = img.data[i+1] = img.data[i+2] = v;
+    img.data[i+3] = 14;
+  }
+  g.putImageData(img,0,0);
+  return c;
+}
+
+async function savePage(){
+  await document.fonts.ready;
+  const m = layout(Timeline.events, {});
+  const DPR = 2;
+  const PADX = 68;
+  const W = COL_W + PADX*2;
+  const H = Math.max(m.height, 520);
+  const c = document.createElement('canvas');
+  c.width = W*DPR; c.height = H*DPR;
+  const x = c.getContext('2d');
+  x.scale(DPR, DPR);
+
+  // paper
+  x.fillStyle = '#f5f1e8'; x.fillRect(0,0,W,H);
+  const warm = x.createRadialGradient(W/2, 0, 0, W/2, 0, H*1.1);
+  warm.addColorStop(0,'rgba(255,253,247,0.55)');
+  warm.addColorStop(1,'rgba(224,216,200,0.45)');
+  x.fillStyle = warm; x.fillRect(0,0,W,H);
+  const pat = x.createPattern(makeGrainTile(), 'repeat');
+  x.globalAlpha = 0.5; x.fillStyle = pat; x.fillRect(0,0,W,H); x.globalAlpha = 1;
+
+  x.save();
+  x.translate(PADX, 0);
+  x.textBaseline = 'alphabetic';
+
+  const drawGlyph = (g, li, arr) => {
+    if(g.ch === ' ' || g.ch === '\n') return;
+    if(g.pool > 0){
+      // mirrors blotStyle() exactly - radius, stops and POOL_CORE. If you
+      // retune the pool there, retune it here or the PNG stops matching
+      // the page.
+      const r = g.size * (0.10 + g.pool * 0.34 * S.poolBleed);
+      const f = poolFade(g.pool);
+      const c = blotCenter(g);
+      const rg = x.createRadialGradient(c.cx, c.cy, 0, c.cx, c.cy, r);
+      const ca = v => 'rgba(28,26,23,'+(v*S.poolDark*f).toFixed(3)+')';
+      rg.addColorStop(0,    ca(POOL_CORE));
+      rg.addColorStop(0.22, ca(POOL_CORE*0.95));
+      rg.addColorStop(0.40, ca(POOL_CORE*0.46));
+      rg.addColorStop(0.60, ca(POOL_CORE*0.16));
+      rg.addColorStop(0.82, 'rgba(28,26,23,0)');
+      x.fillStyle = rg;
+      x.beginPath(); x.arc(c.cx, c.cy, r, 0, Math.PI*2); x.fill();
+    }
+    // The DOM shears each glyph about its box's bottom-centre
+    // (transform-origin:50% 100%): box bottom sits size*DESC_K below the
+    // baseline. Word-uniform lean means that offset is constant across a
+    // word. Mirror the origin exactly, then fill the same handGlyph paths
+    // the DOM drew - the ink is identical geometry, not a re-rendering.
+    const dy = g.size * DESC_K;
+    x.save();
+    x.translate(g.x + g.adv/2, g.y + g.jitter + dy);
+    if(g.skew) x.transform(1, 0, Math.tan(g.skew * Math.PI/180), 1, 0, 0);
+    if(g.rot) x.rotate(g.rot * Math.PI/180);
+    x.translate(-g.adv/2, -dy);
+    x.globalAlpha = g.opacity;
+    x.fillStyle = g.color;
+    const jIn  = arr ? joinInfo(arr[li - 1], g) : null;
+    const jOut = arr ? joinInfo(g, arr[li + 1]) : null;
+    const paths = handGlyph(g.ch, {
+      size: g.size, scrap: g.scrap, seed: g.seq, cursive: g.cursive,
+      wobble: S.wobbleOn ? S.wobbleAmt : 0, weight: S.weight,
+      joinIn: !!jIn, joinOut: !!jOut,
+    });
+    for(const p of paths) x.fill(new Path2D(p.d));
+    x.restore();
+  };
+  // connectors mirror render(): same joinInfo gate, same ink
+  const drawJoins = list => {
+    for(let li = 1; li < list.length; li++){
+      const g = list[li];
+      const jIn = joinInfo(list[li - 1], g);
+      if(!jIn) continue;
+      const dy = g.size * DESC_K;
+      x.save();
+      x.translate(g.x + g.adv/2, g.y + g.jitter + dy);
+      if(g.skew) x.transform(1, 0, Math.tan(g.skew * Math.PI/180), 1, 0, 0);
+      x.translate(-g.adv/2, -dy);
+      x.globalAlpha = joinAlpha(jIn.w) * g.opacity;
+      x.strokeStyle = g.color;
+      x.lineWidth = joinWidth(g.size, jIn.w);
+      x.lineCap = 'round';
+      x.stroke(new Path2D(joinPath(jIn.ax, jIn.ay, jIn.bx, jIn.by, jIn.sag, g.seq)));
+      x.restore();
+    }
+  };
+
+  m.main.forEach(drawGlyph);
+  drawJoins(m.main);
+  for(const r of m.revisions){
+    r.glyphs.forEach(drawGlyph);
+    drawJoins(r.glyphs);
+    x.save();
+    x.globalAlpha = 0.72 * (r.struck ? S.ghostOp : 1);
+    x.fillStyle = mixColor(0.8);
+    x.translate(r.markX - r.markSize*0.20, r.markY);
+    for(const pp of handTextParts('^', r.markSize, 0.2, 9000 + r.anchor).parts)
+      x.fill(new Path2D(pp.d));
+    x.restore();
+  }
+  // strikes
+  x.strokeStyle = mixColor(1);
+  x.globalAlpha = STRIKE_OP;
+  x.lineCap = 'round';
+  for(const s of m.strikes){
+    x.lineWidth = s.w;
+    const len = Math.max(6, s.x1 - s.x0);
+    const steps = Math.max(3, Math.round(len/14));
+    x.beginPath();
+    for(let i=0;i<=steps;i++){
+      const t = i/steps;
+      const px = s.x0 + len*t;
+      const py = s.y + Math.sin(t*Math.PI*1.7 + s.seed)*0.9*(0.35+0.65*Math.sin(t*Math.PI)) + rnd(s.seed*31+i,5)*0.35;
+      i ? x.lineTo(px,py) : x.moveTo(px,py);
+    }
+    x.stroke();
+  }
+  x.globalAlpha = 1;
+  x.restore();
+
+  // caption - same engine text as the page, centred by measured width
+  const cs = m.reprBase * 0.42;
+  const capL1 = handTextParts(captionText(m), cs, 0.25, 7100);
+  const capL2 = handTextParts(dateText(), cs * 0.78, 0.25, 7200);
+  x.fillStyle = mixColor(0.15);
+  x.globalAlpha = 0.62;
+  x.save(); x.translate(W/2 - capL1.w/2, H - 74);
+  for(const pp of capL1.parts){ x.save(); x.translate(pp.tx, 0); x.fill(new Path2D(pp.d)); x.restore(); }
+  x.restore();
+  x.globalAlpha = 0.45;
+  x.save(); x.translate(W/2 - capL2.w/2, H - 74 + cs*1.6);
+  for(const pp of capL2.parts){ x.save(); x.translate(pp.tx, 0); x.fill(new Path2D(pp.d)); x.restore(); }
+  x.restore();
+  x.globalAlpha = 1;
+
+  c.toBlob(b => {
+    const url = URL.createObjectURL(b);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'pen-and-paper-' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.png';
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  }, 'image/png');
+}
+
+/* ============================ CONTROL PANEL =========================== */
+
+const elPanel = document.getElementById('panel');
+// Open by default: people arrive from a link with no one to demo this, so the
+// controls should be visible as part of the piece rather than hidden behind a
+// shortcut. Cmd/Ctrl+/ still toggles it away.
+elPanel.classList.add('on');
+function togglePanel(){ elPanel.classList.toggle('on'); }
+
+(function buildPanel(){
+  const host = document.getElementById('controls');
+  for(const s of SPEC){
+    if(s.type === 'range'){
+      const row = document.createElement('div'); row.className = 'row';
+      const out = document.createElement('span'); out.className = 'val';
+      out.textContent = s.fmt(S[s.key]);
+      const lab = document.createElement('label');
+      lab.innerHTML = '<span>'+s.label+'</span>';
+      lab.appendChild(out);
+      const inp = document.createElement('input');
+      inp.type='range'; inp.min=s.min; inp.max=s.max; inp.step=s.step; inp.value=S[s.key];
+      inp.oninput = () => {
+        S[s.key] = parseFloat(inp.value);
+        out.textContent = s.fmt(S[s.key]);
+        saveSettings();
+        if(!replaying) relayout();
+      };
+      row.appendChild(lab); row.appendChild(inp); host.appendChild(row);
+    }
+    else if(s.type === 'toggle'){
+      const l = document.createElement('label'); l.className = 'tog';
+      const inp = document.createElement('input'); inp.type='checkbox'; inp.checked = !!S[s.key];
+      inp.onchange = () => { S[s.key] = inp.checked; saveSettings(); if(!replaying) relayout(); };
+      l.appendChild(inp);
+      l.appendChild(document.createTextNode(s.label));
+      host.appendChild(l);
+    }
+  }
+})();
+
+document.getElementById('btnReplay').onclick = replay;
+document.getElementById('btnSave').onclick   = savePage;
+document.getElementById('btnClear').onclick  = () => {
+  stopReplay();
+  stopLivePool();
+  flushVoice();
+  Timeline.clear();
+  selection = null; firstKeyDone = false;
+  elPh.style.opacity = '';
+  elCap.classList.remove('show');
+  relayout();
+};
+elPanel.addEventListener('mousedown', e => e.stopPropagation());
+
+/* ============================== BOOT ================================== */
+
+(function boot(){
+  // no webfonts to wait for anymore - the letterforms are ours
+  relayout();
+  scheduleIdleCaption();
+})();
+</script>
+</body>
+</html>
