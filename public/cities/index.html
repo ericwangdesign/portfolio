@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/png" href="/favicon-darkbg.png" />
+  <link rel="apple-touch-icon" href="/favicon-darkbg.png" />
+  <title>Cities, roughly</title>
+  <style>
+    :root {
+      --paper: #06060c;
+      --ink: #ece9e2;
+      --faint: #ece9e233;
+      --dim: #ece9e299;
+      --aspect: 1.1894;
+      --pad: 34px;
+    }
+    * { box-sizing: border-box; margin: 0; }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-size: 12.5px;
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ---- canvas side ------------------------------------------------------ */
+    main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--pad) 28px;
+      min-width: 0;
+    }
+    .canvas-col {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      align-items: center;
+      width: min(100%, calc(74vh * var(--aspect)));
+      max-height: 100%;
+    }
+    .stage { position: relative; width: 100%; }
+    .stage::before { content: ""; display: block; padding-top: calc(100% / var(--aspect)); }
+    .stage canvas {
+      position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+      transition: opacity 220ms ease;
+    }
+    .stage.loading canvas { opacity: 0.25; }
+    #border-layer { pointer-events: none; }
+
+    .transport { width: 100%; max-width: 540px; display: flex; flex-direction: column; gap: 14px; }
+    .clock { display: flex; align-items: baseline; justify-content: center; gap: 10px; }
+    .clock .time {
+      font-size: 25px; font-weight: 300; font-variant-numeric: tabular-nums;
+      letter-spacing: 0.01em;
+    }
+    .clock .phase { font-size: 12px; color: var(--dim); }
+    .playrow { display: flex; align-items: center; gap: 14px; }
+    .playrow button {
+      font: inherit; width: 30px; height: 24px; flex: none;
+      background: none; border: 1px solid var(--faint); color: var(--ink); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color 140ms ease;
+    }
+    .playrow button:hover { border-color: var(--ink); }
+    .playrow input[type="range"] { flex: 1; }
+
+    /* ---- sidebar ---------------------------------------------------------- */
+    aside {
+      width: 300px;
+      padding: var(--pad) 34px var(--pad) 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 30px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--faint) transparent;
+    }
+    .masthead h1 { font-size: 14.5px; font-weight: 500; letter-spacing: 0.005em; }
+    .masthead .kicker {
+      font-size: 10.5px; color: var(--dim); letter-spacing: 0.09em;
+      margin-bottom: 9px; opacity: 0.8;
+    }
+    .masthead .sub { font-size: 12px; line-height: 1.6; color: var(--dim); margin-top: 9px; }
+
+    /* a group of related controls: a quiet heading, then the controls */
+    .group { display: flex; flex-direction: column; gap: 18px; }
+    .group > h2 {
+      font-size: 11px; font-weight: 400; color: var(--ink);
+      opacity: 0.42; letter-spacing: 0.075em;
+    }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field > .name { color: var(--dim); }
+
+    .seg { display: flex; flex-wrap: wrap; gap: 7px 15px; }
+    .seg button {
+      font: inherit; padding: 0; background: none; border: none;
+      color: var(--dim); cursor: pointer; transition: color 140ms ease;
+    }
+    .seg button:hover { color: var(--ink); }
+    .seg button.active { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
+    .seg button[disabled] { opacity: 0.35; cursor: default; }
+    .seg button[disabled]:hover { color: var(--dim); }
+
+    .swatches { display: flex; gap: 10px; align-items: center; }
+    .swatches button {
+      width: 20px; height: 20px; padding: 0; border: 1px solid var(--faint);
+      cursor: pointer; transition: outline-color 140ms ease;
+    }
+    .swatches button.active { outline: 1px solid var(--ink); outline-offset: 2px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 6px 13px; color: var(--dim); }
+    .legend span { display: flex; align-items: center; gap: 6px; }
+    .legend i { width: 8px; height: 8px; display: inline-block; flex: none; }
+
+    .control label { display: flex; justify-content: space-between; color: var(--dim); margin-bottom: 6px; }
+    .control label:hover { color: var(--ink); }
+    .control output { font-variant-numeric: tabular-nums; color: var(--ink); opacity: 0.75; }
+    input[type="range"] {
+      display: block; width: 100%; appearance: none; height: 1px; outline: none;
+      background: linear-gradient(to right, var(--ink) 0 var(--fill, 0%), var(--faint) var(--fill, 0%) 100%);
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      appearance: none; width: 11px; height: 11px; border-radius: 50%;
+      background: var(--ink); cursor: pointer; border: none;
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 11px; height: 11px; border-radius: 50%; background: var(--ink);
+      cursor: pointer; border: none;
+    }
+    input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--faint); }
+    button:focus-visible { outline: 1px solid var(--ink); outline-offset: 3px; }
+
+    footer { color: var(--dim); font-size: 11px; opacity: 0.7; line-height: 1.7; margin-top: auto; padding-top: 26px; }
+    footer p + p { margin-top: 10px; }
+
+    @media (max-width: 860px) {
+      body { flex-direction: column; height: auto; min-height: 100dvh; overflow: auto; }
+      main { padding: 18px 16px 4px; }
+      .canvas-col { width: 100%; gap: 16px; }
+      .transport { max-width: none; }
+      aside { width: 100%; padding: 22px 20px 44px; gap: 26px; }
+      footer { margin-top: 10px; }
+    }
+    @media (pointer: coarse) {
+      input[type="range"] { height: 2px; }
+      input[type="range"]::-webkit-slider-thumb { width: 20px; height: 20px; }
+      input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; }
+      .seg { gap: 10px 16px; }
+    }
+  </style>
+  <script type="module" crossorigin src="/cities/assets/index-Sp9nJo_k.js"></script>
+</head>
+<body>
+  <main>
+    <div class="canvas-col">
+      <div class="stage" id="stage">
+        <canvas id="live"></canvas>
+        <canvas id="border-layer"></canvas>
+      </div>
+      <div class="transport">
+        <div class="clock">
+          <span class="time" id="clock-time">00:00</span>
+          <span class="phase" id="clock-phase">deep night</span>
+        </div>
+        <div class="playrow">
+          <button id="play" aria-label="Play"><svg width="9" height="11" viewBox="0 0 9 11" aria-hidden="true"><path d="M0 0 L9 5.5 L0 11 Z" fill="currentColor"/></svg></button>
+          <input type="range" id="hour" min="0" max="1440" step="1" value="480" aria-label="Hour of day" />
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <aside>
+    <div class="masthead">
+      <div class="kicker">Experiment</div>
+      <h1>Cities, roughly</h1>
+      <p class="sub">A map of where people are across one day, drawn as dither. Six cities, seven kinds of mark, on a loop.</p>
+    </div>
+
+    <div class="group">
+      <h2>Map</h2>
+      <div class="field">
+        <span class="name">city</span>
+        <div class="seg" id="cities"></div>
+      </div>
+      <div class="field">
+        <span class="name">day</span>
+        <div class="seg" id="daytype">
+          <button data-day="week" class="active">weekday</button>
+          <button data-day="weekend">weekend</button>
+        </div>
+      </div>
+      <div class="seg">
+        <button id="borders-toggle">show tract lines</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>Marks</h2>
+      <div class="field">
+        <span class="name">shape</span>
+        <div class="seg" id="marks">
+          <button data-style="0" class="active">dots</button>
+          <button data-style="1">ascii</button>
+          <button data-style="2">letters</button>
+          <button data-style="3">halftone</button>
+          <button data-style="4">hatch</button>
+          <button data-style="5">braille</button>
+          <button data-style="6">emoji</button>
+        </div>
+      </div>
+      <div class="field">
+        <span class="name">blend</span>
+        <div class="seg" id="blends">
+          <button data-blend="0" class="active">normal</button>
+          <button data-blend="1">add</button>
+          <button data-blend="2">screen</button>
+        </div>
+      </div>
+      <div class="control">
+        <label for="cell">size <output id="out-cell">6 px</output></label>
+        <input type="range" id="cell" min="3" max="14" step="1" value="6" />
+      </div>
+      <div class="control">
+        <label for="exposure">liveliness <output id="out-exposure">1.5</output></label>
+        <input type="range" id="exposure" min="0.3" max="3.5" step="0.05" value="1.5" />
+      </div>
+      <div class="control">
+        <label for="bleed">bleed <output id="out-bleed">0.00</output></label>
+        <input type="range" id="bleed" min="0" max="0.2" step="0.01" value="0" />
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>Color</h2>
+      <div class="swatches" id="swatches"></div>
+      <div class="legend" id="legend"></div>
+      <div class="control">
+        <label for="color-amount">hue <output id="out-color-amount">0.90</output></label>
+        <input type="range" id="color-amount" min="0" max="1" step="0.05" value="0.9" />
+      </div>
+      <div class="control">
+        <label for="surge">surge <output id="out-surge">0.00</output></label>
+        <input type="range" id="surge" min="0" max="1" step="0.05" value="0" />
+      </div>
+      <div class="control">
+        <label for="photo">photo <output id="out-photo">0.00</output></label>
+        <input type="range" id="photo" min="0" max="1" step="0.05" value="0" />
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>Time</h2>
+      <div class="control">
+        <label for="speed">speed <output id="out-speed">1.5×</output></label>
+        <input type="range" id="speed" min="0.2" max="4" step="0.1" value="1.5" />
+      </div>
+    </div>
+
+    <footer>
+      <p id="sources"></p>
+      <p>© 2026 Eric Wang</p>
+    </footer>
+  </aside>
+</body>
+</html>
