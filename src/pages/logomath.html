@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logo Math — parametric mark canvas</title>
+<style>
+  :root{
+    --bg:#0b0b0c; --panel:#111113; --line:#232326; --txt:#e8e8ea;
+    --dim:#8a8a92; --accent:#e8e8ea; --radius:6px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--bg); color:var(--txt);
+    font:12px/1.4 ui-sans-serif,-apple-system,"SF Pro Text",Inter,system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased; overflow:hidden;
+  }
+  #app{display:flex; height:100vh}
+  main{flex:1; display:grid; place-items:center; position:relative; min-width:0}
+  #stageWrap{width:min(92vh,92%); aspect-ratio:1/1; position:relative}
+  svg#stage{width:100%; height:100%; display:block; border-radius:2px}
+
+  #hud{position:absolute; left:18px; bottom:14px; display:flex; gap:14px;
+       color:var(--dim); font:10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
+       letter-spacing:.06em; text-transform:uppercase; pointer-events:none}
+
+  aside{
+    width:308px; flex:none; background:var(--panel); border-left:1px solid var(--line);
+    overflow-y:auto; overscroll-behavior:contain;
+  }
+  aside::-webkit-scrollbar{width:8px}
+  aside::-webkit-scrollbar-thumb{background:#2a2a2e;border-radius:8px}
+
+  .head{padding:16px 16px 12px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--panel); z-index:5}
+  .head h1{margin:0; font-size:12px; letter-spacing:.14em; text-transform:uppercase; font-weight:600;
+           display:flex; align-items:baseline; gap:8px}
+  .head h1 .fig{font:10px/1 ui-monospace,Menlo,monospace; letter-spacing:.04em; color:var(--dim);
+                border:1px solid var(--line); border-radius:3px; padding:3px 5px}
+  .head p{margin:5px 0 0; color:var(--dim); font-size:11px}
+
+  .sect{border-bottom:1px solid var(--line); padding:12px 16px 14px}
+  .sect > h2{
+    margin:0 0 10px; font:10px/1 ui-monospace,Menlo,monospace; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--dim); font-weight:500;
+    display:flex; align-items:center; gap:8px;
+  }
+  .sect.fold > h2{cursor:pointer; user-select:none; margin:0}
+  .sect.fold.open > h2{margin:0 0 10px}
+  .sect.fold > h2::before{
+    content:''; width:5px; height:5px; flex:none; margin-bottom:2px;
+    border-right:1px solid currentColor; border-bottom:1px solid currentColor;
+    transform:rotate(-45deg); transition:transform .14s;
+  }
+  .sect.fold.open > h2::before{transform:rotate(45deg)}
+  .sect.fold > h2:hover{color:var(--txt)}
+  .sect > h2 .n{margin-left:auto; color:#4a4a52; letter-spacing:.08em; font-size:9px}
+  .sect.fold:not(.open) .rows{display:none}
+
+  .row{display:grid; grid-template-columns:1fr auto; align-items:center; gap:6px; margin-bottom:9px;
+       transition:opacity .15s}
+  .row.mute{opacity:.32}
+  .row.mute input[type=range]{pointer-events:none}
+  .row label{color:var(--txt); font-size:11.5px; cursor:default; user-select:none}
+  .row .val{font:10.5px/1 ui-monospace,Menlo,monospace; color:var(--dim); min-width:44px; text-align:right; cursor:ew-resize}
+  .row input[type=range]{grid-column:1/-1; -webkit-appearance:none; appearance:none; width:100%; height:14px; background:transparent; margin:-2px 0 0}
+  input[type=range]::-webkit-slider-runnable-track{height:2px; background:#2c2c31; border-radius:2px}
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:11px; height:11px; margin-top:-4.5px; border-radius:50%;
+    background:var(--accent); border:none; cursor:pointer; transition:transform .1s;
+  }
+  input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.18)}
+  input[type=range]:active::-webkit-slider-thumb{transform:scale(1.3)}
+  /* discrete axes get a ticked track — the value is a count, not a continuum */
+  /* Ticks live on the input, not the track pseudo-element — the track is only
+     2px tall and WebKit will not paint a background image on it. The track then
+     covers the middle of each tick, leaving a mark above and below. Spacing is
+     inset by half a thumb so ticks land where the thumb actually stops. */
+  input[type=range].disc{
+    background-image:linear-gradient(90deg,#55555f 0 1.5px,transparent 1.5px);
+    background-size:calc((100% - 11px)/var(--steps)) 6px;
+    background-position:5.5px center;
+    background-repeat:repeat-x;
+  }
+
+  .btns{display:flex; flex-wrap:wrap; gap:6px}
+  button{
+    font:11px/1 inherit; color:var(--txt); background:#1a1a1e; border:1px solid #2a2a2f;
+    padding:7px 10px; border-radius:var(--radius); cursor:pointer; transition:.12s;
+  }
+  button:hover{background:#232329; border-color:#3a3a42}
+  button:active{transform:translateY(1px)}
+  button.on{background:var(--txt); color:#0b0b0c; border-color:var(--txt)}
+  #presetBtns button{padding:6px 8px; font-size:10.5px}
+  .rule{flex:0 0 100%; height:1px; background:var(--line); margin:4px 0 3px; border:0}
+  button.wide{flex:1 1 calc(50% - 3px)}
+
+  .swatches{display:flex; gap:8px; align-items:center}
+  .sw{display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dim)}
+  input[type=color]{width:26px;height:22px;padding:0;border:1px solid #2a2a2f;border-radius:4px;background:#1a1a1e;cursor:pointer}
+
+  .hint{color:#63636b; font-size:10.5px; line-height:1.5; margin:8px 0 0}
+  kbd{font:10px ui-monospace,Menlo,monospace; background:#1d1d21; border:1px solid #2c2c32;
+      border-radius:3px; padding:1px 4px; color:var(--dim)}
+</style>
+</head>
+<body>
+<div id="app">
+  <main>
+    <div id="stageWrap">
+      <svg id="stage" xmlns="http://www.w3.org/2000/svg" viewBox="-500 -500 1000 1000"></svg>
+    </div>
+    <div id="hud">
+      <span id="hudPaths">—</span>
+      <span id="hudTime">t 0.00s</span>
+      <span id="hudState">playing</span>
+    </div>
+  </main>
+
+  <aside>
+    <div class="head">
+      <h1>Logo Math <span class="fig" id="figure">{4}</span></h1>
+      <p>Parametric mark canvas · live SVG</p>
+    </div>
+    <div id="panel"></div>
+  </aside>
+</div>
+
+<script>
+/* ------------------------------------------------------------------
+   MODEL
+   N lobes with N-fold rotational symmetry. Each lobe is a family of
+   nested cubic-Bezier arcs that share two vertices and bow inward.
+     lobes   = how many vertices sit on the circle
+     span    = how many sectors a chord jumps. 1 = polygon, >1 = star
+               polygon {N/span}, so the arcs weave through each other.
+     depth   = how far an arc bows toward the centre. The outer bow is set
+               directly; the inner one is derived from Hole size, since the
+               hole is simply the void the innermost arc encloses.
+     sweep   = asymmetry between the two control handles (the "lean")
+     twist   = each successive arc's tips rotate, producing the crossover
+   Brightness is three multiplied terms: across the band (glare), along
+   each path (falloff toward the tips), and a per-lobe light response of
+   fold m — at m=2 opposite lobes match and adjacent ones differ, so the
+   mark never reads as flatly symmetrical. See lobeLit().
+-------------------------------------------------------------------*/
+
+const CTRL = [
+  {g:'Symmetry', items:[
+    {k:'lobes',    n:'Lobes',         min:2,   max:12,  step:1,    v:4,   f:0},
+    {k:'span',     n:'Chord span',    min:1,   max:6,   step:1,    v:1,   f:0},
+    {k:'altAmt',   n:'Radial wobble', min:-.5, max:.5,  step:.005, v:0,   f:3},
+    {k:'altFold',  n:'· harmonic',    min:1,   max:6,   step:1,    v:2,   f:0},
+    {k:'squash',   n:'Squash',        min:.35, max:1.9, step:.005, v:1,   f:3},
+  ]},
+  {g:'Form', items:[
+    {k:'radius',   n:'Radius',        min:120, max:490, step:1,    v:434, f:0},
+    {k:'rotation', n:'Rotation',      min:-180,max:180, step:.5,   v:31,  f:1, u:'°'},
+    {k:'tipSharp', n:'Tip sharpness', min:.02, max:.50, step:.005, v:.28, f:3},
+    {k:'tipBias',  n:'Tip bias',      min:-1,  max:1,   step:.01,  v:0,   f:2},
+    {k:'cornerR',  n:'Corner radius', min:0,   max:.45, step:.005, v:.10, f:3},
+    {k:'cornerT',  n:'Corner tension',min:.1,  max:1,   step:.01,  v:.50, f:2},
+    {k:'sweep',    n:'Sweep',         min:-2,  max:2,   step:.01,  v:.16, f:2},
+    {k:'twist',    n:'Twist',         min:-90, max:90,  step:.5,   v:8.5, f:1, u:'°'},
+    {k:'taper',    n:'Taper',         min:0,   max:.6,  step:.005, v:.035,f:3},
+  ]},
+  {g:'Band', items:[
+    {k:'count',      n:'Lines / lobe', min:2, max:80,  step:1,    v:22,  f:0},
+    {k:'depthOuter', n:'Outer bow',    min:0, max:.75, step:.005, v:.230,f:3},
+    {k:'hole',       n:'Hole size',    min:0, max:.95, step:.005, v:.201,f:3},
+    {k:'bowSpread',  n:'Bow spread',   min:0, max:1,   step:.005, v:0,   f:3},
+    {k:'depthCurve', n:'Bow easing',   min:.25,max:4,  step:.01,  v:1,   f:2},
+    {k:'gamma',      n:'Distribution', min:.3,max:3,   step:.02,  v:1.30,f:2},
+  ]},
+  {g:'Light', items:[
+    {k:'weight',    n:'Stroke weight', min:.2, max:6,  step:.05, v:2.60,f:2},
+    {k:'opMin',     n:'Floor',         min:0,  max:1,  step:.01, v:.30, f:2},
+    {k:'opMax',     n:'Peak',          min:0,  max:1,  step:.01, v:1,   f:2},
+    {k:'glarePos',  n:'Glare position',min:0,  max:1,  step:.005,v:.545,f:3},
+    {k:'glareWide', n:'Glare width',   min:.03,max:1.2,step:.005,v:.305,f:3},
+    {k:'tipFade',   n:'Tip falloff',   min:0,  max:1,  step:.01, v:.51, f:2},
+    {k:'tipFadePos',n:'Falloff centre',min:0,  max:1,  step:.005,v:.5,  f:3},
+    {k:'bloom',     n:'Bloom',         min:0,  max:2,  step:.01, v:.81, f:2},
+  ]},
+  {g:'Facets', items:[
+    {k:'lightAngle',n:'Light angle',   min:0,  max:180,step:.5,  v:30,  f:1, u:'°'},
+    {k:'lightFold', n:'Light fold',    min:1,  max:6,  step:1,   v:2,   f:0},
+    {k:'altDepth',  n:'Contrast',      min:0,  max:1,  step:.01, v:.70, f:2},
+    {k:'altGlare',  n:'Glare offset',  min:-.5,max:.5, step:.005,v:.300,f:3},
+  ]},
+  {g:'Motion', items:[
+    {k:'spin',        n:'Spin',          min:-60,max:60, step:.5,  v:5,  f:1, u:'°/s'},
+    {k:'twistAmp',    n:'Twist wobble',  min:0,  max:60, step:.5,  v:0,  f:1, u:'°'},
+    {k:'twistRate',   n:'· rate',        min:.01,max:1.5,step:.01, v:.14,f:2, u:'hz'},
+    {k:'breatheAmp',  n:'Breathe',       min:0,  max:.4, step:.005,v:0,  f:3},
+    {k:'breatheRate', n:'· rate',        min:.01,max:1.5,step:.01, v:.1, f:2, u:'hz'},
+    {k:'glareDrift',  n:'Glare drift',   min:-1, max:1,  step:.01, v:0,  f:2, u:'/s'},
+    {k:'lightDrift',  n:'Light drift',   min:-40,max:40, step:.5,  v:0,  f:1, u:'°/s'},
+  ]},
+];
+
+const P = {};
+CTRL.forEach(s => s.items.forEach(i => P[i.k] = i.v));
+
+const PRESETS = {
+  Reference:{radius:434,rotation:31,tipSharp:.28,cornerR:.10,cornerT:.50,sweep:.16,
+             twist:8.5,taper:.035,count:22,depthOuter:.230,hole:.201,gamma:1.30,
+             weight:2.60,opMin:.30,opMax:1,glarePos:.545,glareWide:.305,
+             tipFade:.51,tipFadePos:.5,bloom:.81,
+             lightAngle:30,altDepth:.70,altGlare:.300},
+  Flat:     {altDepth:0,altGlare:0},
+  Point:    {radius:430,cornerR:0,tipSharp:.28,sweep:.45,twist:9,count:24,
+             depthOuter:.215,hole:.228,gamma:1.45,weight:1.3,bloom:.40},
+  Pillow:   {radius:470,cornerR:.30,cornerT:.62,tipSharp:.34,sweep:.38,twist:7,
+             count:24,depthOuter:.20,hole:.262,gamma:1.45,weight:1.3,bloom:.5},
+  Wire:     {count:44,weight:.55,depthOuter:.17,hole:.071,twist:0,sweep:0,
+             cornerR:.12,cornerT:.45,gamma:1,bloom:.15,opMin:.4,glareWide:.5},
+  Ribbon:   {count:26,twist:44,sweep:.72,depthOuter:.24,hole:.092,tipSharp:.22,
+             cornerR:.20,cornerT:.5,weight:1.3,bloom:.6,glarePos:.3},
+  Blade:    {count:16,tipSharp:.07,cornerR:.07,cornerT:.35,depthOuter:.30,
+             hole:.02,twist:8,sweep:.5,weight:2.2,bloom:.9,glarePos:.12,glareWide:.25},
+  Halo:     {count:60,weight:.8,depthOuter:.08,hole:.389,twist:-26,sweep:-.4,
+             cornerR:.28,cornerT:.6,gamma:1.9,bloom:1.2,opMin:.15,glarePos:.55,glareWide:.45},
+
+  /* --- the wider space: symmetry order, star-polygon span, wobble, squash --- */
+  Trine:    {lobes:3,span:1,radius:452,rotation:-90,tipSharp:.26,cornerR:.20,cornerT:.55,
+             sweep:.12,twist:7,taper:.04,count:26,depthOuter:.11,hole:.19,gamma:1.25,
+             weight:2.2,bloom:.75,lightFold:2},
+  Pentangle:{lobes:5,span:2,radius:452,rotation:-90,tipSharp:.20,cornerR:.14,cornerT:.50,
+             sweep:.10,twist:9,taper:.03,count:26,depthOuter:.012,hole:0,bowSpread:.055,
+             gamma:1.2,weight:1.5,bloom:.60,lightFold:2},
+  Bloom:    {lobes:7,span:3,radius:462,rotation:-90,tipSharp:.16,cornerR:.11,cornerT:.45,
+             sweep:.08,twist:3.5,taper:.02,count:34,depthOuter:.012,hole:0,bowSpread:.145,
+             gamma:1.2,weight:1.2,bloom:.50,lightFold:3},
+  Gear:     {lobes:10,span:1,altAmt:.155,altFold:5,radius:415,rotation:0,tipSharp:.20,
+             cornerR:.20,cornerT:.50,sweep:0,twist:0,taper:0,count:20,depthOuter:.10,
+             hole:.52,gamma:1,weight:1.2,bloom:.40,lightFold:5},
+  Comma:    {lobes:4,span:1,tipBias:.70,sweep:1.45,tipSharp:.40,cornerR:.05,cornerT:.40,
+             twist:24,taper:.08,count:26,depthOuter:.28,hole:.06,gamma:1.4,
+             weight:1.4,bloom:.85,lightFold:2},
+  Lens:     {lobes:2,span:1,radius:452,rotation:0,tipSharp:.17,cornerR:.24,cornerT:.70,
+             sweep:0,twist:0,taper:.06,count:30,depthOuter:.06,hole:0,bowSpread:.46,
+             gamma:1.25,weight:1.6,bloom:.65,lightFold:1},
+  Oblate:   {lobes:6,span:2,squash:.60,radius:472,rotation:0,tipSharp:.22,cornerR:.17,
+             cornerT:.55,sweep:.20,twist:9,taper:.04,count:28,depthOuter:.03,hole:0,
+             bowSpread:.24,gamma:1.25,weight:1.5,bloom:.7,lightFold:3},
+};
+
+/* The axes added after the original 4-fold model. Partial presets written
+   against that model say nothing about them, so applyPreset resets them to
+   neutral first — otherwise clicking Flat after Heptagram would silently
+   keep 7 lobes. */
+const NEUTRAL = {lobes:4, span:1, altAmt:0, altFold:2, squash:1,
+                 tipBias:0, depthCurve:1, bowSpread:0, lightFold:2};
+
+let bgColor = '#000000', inkColor = '#ffffff';
+let playing = true, t = 0, speed = 1, lastMs = null;
+
+/* ------------------------------ geometry ------------------------------ */
+const lerp = (a,b,x) => a + (b-a)*x;
+
+/* vector + cubic-Bezier helpers (de Casteljau) */
+const vAdd = (a,b) => [a[0]+b[0], a[1]+b[1]];
+const vSub = (a,b) => [a[0]-b[0], a[1]-b[1]];
+const vMul = (a,s) => [a[0]*s, a[1]*s];
+const vLen = a => Math.hypot(a[0], a[1]);
+const vUnit = a => { const l = vLen(a) || 1; return [a[0]/l, a[1]/l]; };
+const vLerp = (a,b,t) => [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t];
+
+function bezLeft(p, t){                       // control points of [0, t]
+  const a=vLerp(p[0],p[1],t), b=vLerp(p[1],p[2],t), c=vLerp(p[2],p[3],t);
+  const d=vLerp(a,b,t), e=vLerp(b,c,t);
+  return [p[0], a, d, vLerp(d,e,t)];
+}
+function bezRight(p, t){                      // control points of [t, 1]
+  const a=vLerp(p[0],p[1],t), b=vLerp(p[1],p[2],t), c=vLerp(p[2],p[3],t);
+  const d=vLerp(a,b,t), e=vLerp(b,c,t);
+  return [vLerp(d,e,t), e, c, p[3]];
+}
+const bezSub = (p,t0,t1) => bezLeft(bezRight(p,t0), (t1-t0)/(1-t0));
+
+const clamp = (v,a,b) => v < a ? a : v > b ? b : v;
+
+/* Symmetry. N vertices sit on a circle; a chord jumps `span` sectors, so the
+   closed figure is the star polygon {N/span}. span is capped at N/2 — beyond
+   that the chord subtends more than a half turn and the inward normal flips. */
+const lobeCount = e => Math.max(2, Math.round(e.lobes));
+const spanOf    = e => clamp(Math.round(e.span), 1, Math.max(1, Math.floor(lobeCount(e)/2)));
+const stepOf    = e => spanOf(e) * 2*Math.PI / lobeCount(e);
+
+function lobeCubic(lobe, u, e){
+  const step  = stepOf(e);
+  const twist = e.twist * u * Math.PI/180;
+  const base  = e.rotation*Math.PI/180 + twist;
+  const R = e.radius * (1 - e.taper*u);
+
+  /* Radial harmonic. Measured on the traversed angle, so any integer
+     harmonic closes on itself after N steps — no seam. */
+  const rFac = j => 1 + e.altAmt * Math.cos(e.altFold * j * step);
+  const a = base + lobe*step, b = base + (lobe+1)*step;
+  const Ra = R*rFac(lobe), Rb = R*rFac(lobe+1);
+  const A = [Ra*Math.cos(a), Ra*Math.sin(a)];
+  const B = [Rb*Math.cos(b), Rb*Math.sin(b)];
+
+  const dx = B[0]-A[0], dy = B[1]-A[1];
+  const len = Math.hypot(dx,dy) || 1;
+  const tx = dx/len, ty = dy/len;
+
+  /* Inward normal: perpendicular to the chord, turned to face the origin.
+     Taken off the tangent rather than the midpoint so it stays well-defined
+     when the chord passes through the centre (N=2, or span = N/2). */
+  let nx = -ty, ny = tx;
+  if (nx*(A[0]+B[0])/2 + ny*(A[1]+B[1])/2 > 0){ nx = -nx; ny = -ny; }
+
+  const h  = lerp(e.depthOuter, e.depthInner, Math.pow(u, e.depthCurve)) * len;
+  const s1 = h * (1 + e.sweep), s2 = h * (1 - e.sweep);
+  /* |sweep| > 1 flips one handle's sign: the arc gains an inflection and
+     reads as an S rather than a bow. */
+  const f1 = clamp(e.tipSharp * (1 + e.tipBias), .005, .49);
+  const f2 = 1 - clamp(e.tipSharp * (1 - e.tipBias), .005, .49);
+
+  /* Squash is a pure affine map, and affine maps commute with Bezier control
+     points — so scaling the four points scales the curve exactly. Everything
+     downstream (trimming, folds, gradients) inherits it for free. */
+  const q = e.squash;
+  const c1 = [A[0] + tx*f1*len + nx*s1, (A[1] + ty*f1*len + ny*s1)*q];
+  const c2 = [A[0] + tx*f2*len + nx*s2, (A[1] + ty*f2*len + ny*s2)*q];
+  return [[A[0], A[1]*q], c1, c2, [B[0], B[1]*q]];
+}
+
+/* One nested loop at band-position u, returned as N lobe pieces.
+   Each piece runs corner-midpoint → arc → corner-midpoint, so the pieces
+   still tile a closed figure but every tip is a smooth G1 fold. */
+function buildLoop(u, e){
+  const N = lobeCount(e);
+  const idx = Array.from({length:N}, (_,i) => i);
+  const arcs = idx.map(i => lobeCubic(i, u, e));
+  const tc = Math.min(.45, e.cornerR);
+  if (tc < .002) return arcs.map(a => ({seg:[a], A:a[0], B:a[3]}));
+
+  const trim = arcs.map(a => bezSub(a, tc, 1-tc));
+  const fill = [];
+  for (let i=0;i<N;i++){
+    const prev = trim[(i+N-1)%N], cur = trim[i];
+    const E = prev[3], Te = vUnit(vSub(prev[3], prev[2]));
+    const S = cur[0],  Ts = vUnit(vSub(cur[1], cur[0]));
+    const k = e.cornerT * vLen(vSub(S, E));
+    fill[i] = [E, vAdd(E, vMul(Te,k)), vSub(S, vMul(Ts,k)), S];
+  }
+  return idx.map(i => {
+    const inHalf  = bezRight(fill[i], .5);        // back half of this tip's fold
+    const outHalf = bezLeft(fill[(i+1)%N], .5);   // front half of the next tip's fold
+    return {seg:[inHalf, trim[i], outHalf], A:inHalf[0], B:outHalf[3]};
+  });
+}
+
+function pathD(segs){
+  const r = n => Math.round(n*100)/100;
+  let d = `M${r(segs[0][0][0])} ${r(segs[0][0][1])}`;
+  for (const s of segs)
+    d += `C${r(s[1][0])} ${r(s[1][1])} ${r(s[2][0])} ${r(s[2][1])} ${r(s[3][0])} ${r(s[3][1])}`;
+  return d;
+}
+
+const wrap01 = x => ((x % 1) + 1) % 1;
+
+/* Hole size ⇄ inner bow.
+   The hole is bounded by the innermost arc, so its size IS that arc's depth —
+   just inside-out and in an unreadable unit. These convert between the two so
+   the slider can read as "how big is the hole", measured as a fraction of Radius.
+   A cubic's midpoint sits 3/4 of the way to its handles. For a chord spanning
+   angle s the midpoint is at R·cos(s/2) and the chord is 2R·sin(s/2) long, so
+     waist = R(1-taper)·( cos(s/2) − (3/2)·sin(s/2)·depth ).
+   At s = 90° that is the original 1/√2 and (3/4)√2. As s → 180° the chord runs
+   through the centre, cos → 0, and there is no hole to speak of.            */
+function chordK(e){
+  const h = stepOf(e)/2;
+  return {kc: Math.cos(h), kb: 1.5*Math.sin(h)};
+}
+function holeToDepth(hole, e){
+  const {kc, kb} = chordK(e);
+  const d = (kc - hole/Math.max(1-e.taper, .001)) / Math.max(kb, 1e-6);
+  return Math.max(e.depthOuter, d);  // inner arc can never bow less than the outer one
+}
+function depthToHole(depth, e){
+  const {kc, kb} = chordK(e);
+  return Math.max(0, (1-e.taper) * (kc - kb*depth));
+}
+const maxHole = e => depthToHole(e.depthOuter, e);
+
+/* Per-lobe light response, at fold m. cos(m·Δ) is the whole idea: the lighting
+   has its OWN symmetry order, independent of the geometry's. m=2 over 4 lobes
+   makes opposite lobes match and adjacent ones differ — the 2-fold lighting on
+   4-fold geometry that a twisted band shows under a fixed light. m = N flattens
+   it (every lobe identical); m coprime with N never repeats, so no two lobes are
+   lit alike. The angle is measured in world space, so when the mark spins the
+   light stays put and each arm swings through the highlight. */
+function lobeLit(i, e){
+  const stepDeg = stepOf(e) * 180/Math.PI;
+  const th = (e.rotation + (i + .5)*stepDeg) * Math.PI/180;   // the lobe's bisector
+  const L  = e.lightAngle * Math.PI/180;
+  const m  = Math.max(1, Math.round(e.lightFold));
+  const s  = (1 - Math.cos(m*(th - L))) / 2;   // 0 = facing the light, 1 = turned away
+  return {mul: 1 - e.altDepth*s, shift: e.altGlare*s};
+}
+
+function brightness(u, e, lit){
+  const d = (u - (e.glarePos + lit.shift)) / Math.max(e.glareWide, .001);
+  return (e.opMin + (e.opMax - e.opMin) * Math.exp(-d*d)) * lit.mul;
+}
+
+/* ------------------------------ rendering ------------------------------ */
+const stage = document.getElementById('stage');
+let built = '', groups = [];
+
+function build(n, N){
+  stage.innerHTML = '';
+  groups = [];
+  const NS = 'http://www.w3.org/2000/svg';
+  const mk = (tag, attrs={}) => { const el = document.createElementNS(NS, tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]); return el; };
+
+  const defs = mk('defs');
+  const filt = mk('filter', {id:'bloom', x:'-40%', y:'-40%', width:'180%', height:'180%'});
+  const blur = mk('feGaussianBlur', {stdDeviation:'8', id:'bloomBlur'});
+  filt.appendChild(blur); defs.appendChild(filt);
+
+  for (let i=0;i<N;i++){
+    const grad = mk('linearGradient', {id:'lg'+i, gradientUnits:'userSpaceOnUse'});
+    const st = [mk('stop',{offset:'0'}), mk('stop',{offset:'.5'}), mk('stop',{offset:'1'})];
+    st.forEach(s=>grad.appendChild(s));
+    defs.appendChild(grad);
+  }
+  stage.appendChild(defs);
+
+  const bg = mk('rect', {id:'bg', x:-500, y:-500, width:1000, height:1000, fill:bgColor});
+  stage.appendChild(bg);
+
+  const lines = mk('g', {id:'lines', fill:'none', 'stroke-linecap':'round'});
+  for (let i=0;i<N;i++){
+    const g = mk('g', {id:'lobe'+i, stroke:`url(#lg${i})`});
+    const paths = [];
+    for (let k=0;k<n;k++){ const p = mk('path'); g.appendChild(p); paths.push(p); }
+    lines.appendChild(g); groups.push({g, paths});
+  }
+  const glow = mk('use', {href:'#lines', 'xlink:href':'#lines', filter:'url(#bloom)', id:'glow'});
+  stage.appendChild(glow);
+  stage.appendChild(lines);
+  built = n + ':' + N;
+}
+
+function effective(){
+  const e = Object.assign({}, P);
+  e.rotation   += P.spin * t;
+  e.twist      += P.twistAmp * Math.sin(2*Math.PI*P.twistRate*t);
+  e.hole        = Math.max(0, e.hole + P.breatheAmp * Math.sin(2*Math.PI*P.breatheRate*t));
+  /* Hole is the natural dial for a polygon, but once the chord swings past
+     the centre (span → N/2, or N=2) cos(s/2) → 0, the hole vanishes, and every
+     arc collapses onto the same bow — a band with no spread. bowSpread adds
+     the inner bow back explicitly so those figures still read as a band. */
+  e.depthInner  = holeToDepth(e.hole, e) + e.bowSpread;
+  e.glarePos    = wrap01(e.glarePos + P.glareDrift * t);
+  e.lightAngle += P.lightDrift * t;
+  return e;
+}
+
+function render(){
+  const e = effective();
+  const n = Math.round(e.count);
+  const N = lobeCount(e);
+  const idx = Array.from({length:N}, (_,i) => i);
+  if (n + ':' + N !== built) build(n, N);
+
+  document.getElementById('bg').setAttribute('fill', bgColor);
+  document.getElementById('bloomBlur').setAttribute('stdDeviation', (e.bloom*9).toFixed(2));
+  document.getElementById('glow').setAttribute('opacity', Math.min(1, e.bloom).toFixed(3));
+  document.getElementById('glow').setAttribute('display', e.bloom > .001 ? 'inline' : 'none');
+
+  const midK = Math.floor(n/2), ends = [];
+  const lits = idx.map(i => lobeLit(i, e));
+  for (let k=0;k<n;k++){
+    const u = n === 1 ? 0 : Math.pow(k/(n-1), e.gamma);
+    const lobes = buildLoop(u, e);
+    const w = e.weight.toFixed(2);
+    for (let i=0;i<N;i++){
+      const p = groups[i].paths[k];
+      p.setAttribute('d', pathD(lobes[i].seg));
+      p.setAttribute('stroke-width', w);
+      p.setAttribute('stroke-opacity', brightness(u, e, lits[i]).toFixed(3));
+      if (k === midK) ends[i] = lobes[i];
+    }
+  }
+
+  for (let i=0;i<N;i++){
+    const grad = document.getElementById('lg'+i);
+    const {A,B} = ends[i] || buildLoop(.5, e)[i];
+    grad.setAttribute('x1',A[0].toFixed(1)); grad.setAttribute('y1',A[1].toFixed(1));
+    grad.setAttribute('x2',B[0].toFixed(1)); grad.setAttribute('y2',B[1].toFixed(1));
+    const edge = (1 - e.tipFade).toFixed(3);
+    const stops = grad.children;
+    stops[0].setAttribute('offset','0');
+    stops[1].setAttribute('offset', e.tipFadePos.toFixed(3));
+    stops[2].setAttribute('offset','1');
+    for (const s of stops) s.setAttribute('stop-color', inkColor);
+    stops[0].setAttribute('stop-opacity', edge);
+    stops[1].setAttribute('stop-opacity','1');
+    stops[2].setAttribute('stop-opacity', edge);
+  }
+
+  const fig = '{' + N + (spanOf(e) > 1 ? '/' + spanOf(e) : '') + '}';
+  document.getElementById('hudPaths').textContent = (n*N) + ' paths · ' + fig;
+  const badge = document.getElementById('figure');
+  if (badge && badge.textContent !== fig) badge.textContent = fig;
+  affordances();
+  document.getElementById('hudTime').textContent  = 't ' + t.toFixed(2) + 's';
+}
+
+function tick(ms){
+  if (lastMs === null) lastMs = ms;
+  const dt = Math.min(.05, (ms - lastMs)/1000);
+  lastMs = ms;
+  if (playing) t += dt * speed;
+  render();
+  requestAnimationFrame(tick);
+}
+
+/* ------------------------------ panel ------------------------------ */
+const panel = document.getElementById('panel');
+const inputs = {}, readouts = {};
+
+const rows = {};
+/* Sections fold. 39 controls in one column is a scroll, not an instrument —
+   the ones you reach for while shaping stay open, the finishing passes don't. */
+const OPEN = {Symmetry:1, Form:1, Band:1};
+let openState = {};
+try { openState = JSON.parse(localStorage.getItem('logoMathFolds') || '{}'); } catch(e){}
+
+CTRL.forEach(sec => {
+  const s = document.createElement('div');
+  const open = sec.g in openState ? openState[sec.g] : !!OPEN[sec.g];
+  s.className = 'sect fold' + (open ? ' open' : '');
+  s.innerHTML = `<h2>${sec.g}<span class="n">${sec.items.length}</span></h2><div class="rows"></div>`;
+  const body = s.querySelector('.rows');
+  s.querySelector('h2').addEventListener('click', () => {
+    s.classList.toggle('open');
+    openState[sec.g] = s.classList.contains('open');
+    try { localStorage.setItem('logoMathFolds', JSON.stringify(openState)); } catch(e){}
+  });
+  sec.items.forEach(it => {
+    const row = document.createElement('div'); row.className = 'row';
+    /* Ticked only when the value is a small count you can actually aim at.
+       Radius and Lines/lobe step by 1 too, but over ranges wide enough that
+       ticks would fill the track solid — those stay continuous. */
+    const steps = Math.max(1, Math.round((it.max - it.min)/it.step));
+    const disc = it.step >= 1 && steps <= 24;
+    row.innerHTML =
+      `<label for="c_${it.k}">${it.n}</label><span class="val" id="v_${it.k}"></span>` +
+      `<input type="range" id="c_${it.k}" min="${it.min}" max="${it.max}" step="${it.step}" ` +
+      `value="${it.v}"${disc ? ` class="disc" style="--steps:${steps}"` : ''}>`;
+    body.appendChild(row);
+    rows[it.k] = row;
+    const inp = row.querySelector('input'), out = row.querySelector('.val');
+    inputs[it.k] = inp; readouts[it.k] = {el:out, it};
+    const show = () => out.textContent = P[it.k].toFixed(it.f) + (it.u || '');
+    inp.addEventListener('input', () => { P[it.k] = parseFloat(inp.value); show(); markDirty(); });
+    // drag the number to scrub
+    out.addEventListener('pointerdown', ev => {
+      ev.preventDefault(); out.setPointerCapture(ev.pointerId);
+      const x0 = ev.clientX, v0 = P[it.k], span = it.max - it.min;
+      const move = m => {
+        const v = Math.min(it.max, Math.max(it.min, v0 + (m.clientX - x0)/220 * span));
+        P[it.k] = Math.round(v/it.step)*it.step; inp.value = P[it.k]; show(); markDirty();
+      };
+      const up = () => { out.removeEventListener('pointermove',move); out.removeEventListener('pointerup',up); };
+      out.addEventListener('pointermove', move); out.addEventListener('pointerup', up);
+    });
+    show();
+  });
+  panel.appendChild(s);
+});
+
+function syncUI(){
+  for (const k in inputs){ inputs[k].value = P[k];
+    const {el,it} = readouts[k]; el.textContent = P[k].toFixed(it.f) + (it.u||''); }
+}
+
+/* Which preset (if any) the canvas is still sitting on. Touching any slider
+   leaves it, so the highlight never lies about what you are looking at. */
+let presetBtns = null;
+let activePreset = 'Reference';
+function markDirty(){ if (activePreset){ activePreset = null; paintPresets(); } }
+function paintPresets(){
+  if (!presetBtns) return;
+  presetBtns.querySelectorAll('[data-preset]')
+    .forEach(b => b.classList.toggle('on', b.dataset.preset === activePreset));
+}
+function applyPreset(name){
+  Object.assign(P, NEUTRAL, PRESETS[name]); syncUI();
+  activePreset = name; paintPresets();
+}
+
+/* Two of the new axes have dead zones, and a slider that silently does nothing
+   is worse than one that isn't there. Grey them out and say why on hover. */
+function affordances(){
+  const N = lobeCount(P), cap = Math.max(1, Math.floor(N/2));
+  const spanInp = inputs.span, spanRow = rows.span;
+  if (+spanInp.max !== cap){
+    spanInp.max = cap;
+    spanInp.style.setProperty('--steps', String(Math.max(1, cap - 1)));
+  }
+  if (P.span > cap){ P.span = cap; spanInp.value = cap;
+    readouts.span.el.textContent = cap.toFixed(0); }
+  spanRow.classList.toggle('mute', cap === 1);
+  spanRow.title = cap === 1
+    ? 'Needs at least 4 lobes — a chord cannot jump more than half the ring.'
+    : `Star polygon {${N}/s}. ${N % P.span === 0 && P.span > 1
+        ? `${N} and ${P.span} share a factor, so this retraces a smaller figure.` : ''}`;
+
+  const {kc} = chordK(P);
+  const holeDead = kc < .2;
+  rows.hole.classList.toggle('mute', holeDead);
+  rows.hole.title = holeDead
+    ? 'The chord passes too near the centre for a hole to exist here — use Bow spread.'
+    : 'Void enclosed by the innermost arc, as a fraction of Radius.';
+  rows.bowSpread.title = holeDead
+    ? 'Drives the band directly. The only inner-bow control that works at this span.'
+    : 'Extra inner bow on top of Hole size.';
+
+  rows.altFold.classList.toggle('mute', Math.abs(P.altAmt) < .002);
+  rows.twistRate.classList.toggle('mute', P.twistAmp < .01);
+  rows.breatheRate.classList.toggle('mute', P.breatheAmp < .001);
+  rows.altGlare.classList.toggle('mute', P.altDepth < .005);
+}
+
+/* Presets sit at the top: you pick a starting point, then shape it. Having to
+   scroll past 39 sliders to reach them had the instrument backwards. */
+const ps = document.createElement('div'); ps.className='sect';
+ps.innerHTML = `<h2>Presets</h2><div class="btns" id="presetBtns"></div>`;
+panel.insertBefore(ps, panel.firstChild);
+presetBtns = ps.querySelector('#presetBtns');
+const FOURFOLD = ['Reference','Flat','Point','Pillow','Wire','Ribbon','Blade','Halo'];
+Object.keys(PRESETS).forEach((name, i) => {
+  if (i === FOURFOLD.length) presetBtns.appendChild(document.createElement('hr')).className = 'rule';
+  const b = document.createElement('button');
+  b.textContent = name; b.dataset.preset = name;
+  b.onclick = () => applyPreset(name);
+  presetBtns.appendChild(b);
+});
+paintPresets();
+const rnd = document.createElement('button'); rnd.textContent='Randomize';
+rnd.style.flex = '0 0 100%';
+const pick = a => a[Math.floor(Math.random()*a.length)];
+rnd.onclick = () => {
+  CTRL.forEach(s => { if (s.g === 'Motion') return;
+    s.items.forEach(it => {
+      if (it.step >= 1) return;                    // discrete axes handled below
+      P[it.k] = it.min + Math.random()*(it.max-it.min);
+    });
+  });
+  /* Discrete axes deserve real choices, not a rounded uniform draw. Low lobe
+     counts read as marks; high ones read as ornament, so bias toward the low
+     end. Span is capped at N/2 and only means anything above 3 lobes. */
+  P.lobes = pick([3,4,4,4,5,5,6,6,7,8,10,12]);
+  P.span  = Math.random() < .35
+          ? 1 + Math.floor(Math.random()*Math.max(1, Math.floor(P.lobes/2)))
+          : 1;
+  P.altFold  = pick([1,2,2,3,4,5,6].filter(m => m <= Math.max(1, P.lobes/2)).concat([1]));
+  P.lightFold = pick([1,2,2,2,3,4]);
+  P.count  = 8 + Math.floor(Math.random()*40);
+  P.radius = 380 + Math.random()*110;
+  P.altAmt = Math.random() < .5 ? 0 : (Math.random()-.5)*.4;
+  P.squash = Math.random() < .6 ? 1 : .55 + Math.random()*1.1;
+  P.hole   = Math.min(P.hole, Math.max(0, maxHole(P) - .04));
+  P.bowSpread = P.hole > .05 ? 0 : Math.random()*.5;   // hole and spread are alternates
+
+  P.weight = .4 + Math.random()*1.8;
+  syncUI(); activePreset = null; paintPresets();
+};
+presetBtns.appendChild(rnd);
+
+/* transport */
+const tr = document.createElement('div'); tr.className='sect';
+tr.innerHTML = `<h2>Transport</h2>
+  <div class="btns">
+    <button id="play" class="on wide">Pause</button>
+    <button data-sp=".25">.25×</button><button data-sp="1" class="on">1×</button><button data-sp="3">3×</button>
+    <button id="reset" class="wide">Reset time</button>
+  </div>
+  <p class="hint"><kbd>space</kbd> play / pause · <kbd>R</kbd> randomize · drag any number to scrub</p>`;
+panel.appendChild(tr);
+const playBtn = tr.querySelector('#play');
+playBtn.onclick = () => { playing = !playing; playBtn.textContent = playing?'Pause':'Play';
+  playBtn.classList.toggle('on', playing); document.getElementById('hudState').textContent = playing?'playing':'paused'; };
+tr.querySelector('#reset').onclick = () => { t = 0; };
+tr.querySelectorAll('[data-sp]').forEach(b => b.onclick = () => {
+  speed = parseFloat(b.dataset.sp);
+  tr.querySelectorAll('[data-sp]').forEach(x => x.classList.toggle('on', x===b));
+});
+
+/* output */
+const out = document.createElement('div'); out.className='sect';
+out.innerHTML = `<h2>Output</h2>
+  <div class="swatches" style="margin-bottom:10px">
+    <span class="sw"><input type="color" id="bgc" value="#000000">Ground</span>
+    <span class="sw"><input type="color" id="inkc" value="#ffffff">Ink</span>
+    <button id="invert">Invert</button>
+  </div>
+  <div class="btns">
+    <button id="dlsvg" class="wide">Download SVG</button>
+    <button id="dlpng" class="wide">Download PNG</button>
+    <button id="dlanim" class="wide">SVG + spin loop</button>
+    <button id="cpjson" class="wide">Copy params</button>
+  </div>
+  <p class="hint">Exported SVG keeps one group per lobe (<code>#lobe0…</code>) so each arm can be
+  animated separately. Set Bloom to 0 for a pure-vector file — bloom is a blur filter and
+  rasterizes on import.<br><br>
+  Note: lighting is baked per stroke at export. The spin-loop export rotates the whole mark,
+  so the highlights turn with it rather than staying fixed the way they do here.</p>`;
+panel.appendChild(out);
+
+const bgc = out.querySelector('#bgc'), inkc = out.querySelector('#inkc');
+bgc.oninput = e => bgColor = e.target.value;
+inkc.oninput = e => inkColor = e.target.value;
+out.querySelector('#invert').onclick = () => {
+  const a = bgColor; bgColor = inkColor; inkColor = a;
+  bgc.value = bgColor; inkc.value = inkColor;
+};
+
+function svgString(spin){
+  render(); // guarantee the exported frame matches the current params
+  const clone = stage.cloneNode(true);
+  clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  clone.setAttribute('xmlns:xlink','http://www.w3.org/1999/xlink');
+  clone.setAttribute('width','1000'); clone.setAttribute('height','1000');
+  if (spin){
+    const dur = Math.abs(P.spin) > .01 ? (360/Math.abs(P.spin)) : 20;
+    const dir = P.spin < 0 ? '-360' : '360';
+    const wrapG = clone.ownerDocument.createElementNS('http://www.w3.org/2000/svg','g');
+    const anim = clone.ownerDocument.createElementNS('http://www.w3.org/2000/svg','animateTransform');
+    anim.setAttribute('attributeName','transform'); anim.setAttribute('type','rotate');
+    anim.setAttribute('from','0 0 0'); anim.setAttribute('to',`${dir} 0 0`);
+    anim.setAttribute('dur', dur.toFixed(2)+'s'); anim.setAttribute('repeatCount','indefinite');
+    const lines = clone.querySelector('#lines'), glow = clone.querySelector('#glow');
+    wrapG.appendChild(anim);
+    if (glow) wrapG.appendChild(glow);
+    wrapG.appendChild(lines);
+    clone.appendChild(wrapG);
+  }
+  return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
+}
+function download(name, blob){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+}
+out.querySelector('#dlsvg').onclick  = () => download('mark.svg', new Blob([svgString(false)],{type:'image/svg+xml'}));
+out.querySelector('#dlanim').onclick = () => download('mark-spin.svg', new Blob([svgString(true)],{type:'image/svg+xml'}));
+out.querySelector('#dlpng').onclick  = () => {
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement('canvas'); c.width = c.height = 2000;
+    const g = c.getContext('2d'); g.drawImage(img,0,0,2000,2000);
+    c.toBlob(b => download('mark.png', b));
+  };
+  img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString(false))));
+};
+out.querySelector('#cpjson').onclick = e => {
+  navigator.clipboard.writeText(JSON.stringify(Object.assign({}, P, {bg:bgColor, ink:inkColor}), null, 2));
+  e.target.textContent = 'Copied'; setTimeout(()=>e.target.textContent='Copy params', 1100);
+};
+
+addEventListener('keydown', ev => {
+  if (ev.target.tagName === 'INPUT') return;
+  if (ev.code === 'Space'){ ev.preventDefault(); playBtn.click(); }
+  if (ev.key === 'r' || ev.key === 'R') rnd.click();
+});
+
+build(Math.round(P.count));
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
