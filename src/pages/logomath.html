@@ -4,8 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Logo Math — parametric mark canvas</title>
-<link rel="icon" type="image/png" href="/favicon-darkbg.png">
-<link rel="apple-touch-icon" href="/favicon-darkbg.png">
 <style>
   :root{
     --bg:#0A0A0A; --panel:#0A0A0A; --line:#232326; --txt:#e8e8ea;
@@ -488,22 +486,57 @@ const MORPH_KEYS = CTRL
 const POSE_NAMES = Object.keys(PRESETS);
 const rndPick = a => a[(Math.random() * a.length) | 0];
 
-function samplePose(prev){
-  const a = PRESETS[rndPick(POSE_NAMES)], b = PRESETS[rndPick(POSE_NAMES)];
-  const w = .25 + Math.random() * .5;
+/* How far apart two poses read, as the RMS of their per-axis difference in
+   units of each axis's own range. Rotation is left out: it is unbounded and
+   always advancing, so it would swamp everything else. */
+const DIST_KEYS = MORPH_KEYS.filter(k => k !== 'rotation');
+function poseDist(a, b){
+  let s = 0;
+  for (const k of DIST_KEYS){
+    const d = (a[k] - b[k]) / (AXIS[k].max - AXIS[k].min);
+    s += d*d;
+  }
+  return Math.sqrt(s / DIST_KEYS.length);
+}
+
+function drawPose(){
+  const a = rndPick(POSE_NAMES);
+  const b = rndPick(POSE_NAMES.filter(x => x !== a));   // never blend a preset with itself
+  /* Pushed away from the middle: a 50/50 blend of two presets is the average
+     of both and reads as neither. Landing near one end keeps a pose in
+     character. */
+  const r = Math.random();
+  const w = r < .5 ? r*r*.9 : 1 - (1-r)*(1-r)*.9;
   const out = {};
   for (const k of MORPH_KEYS){
     const it = AXIS[k];
-    let v = lerp(a[k], b[k], w);
+    let v = lerp(PRESETS[a][k], PRESETS[b][k], w);
     /* Jitter scaled by each control's own range, so a 0-to-1 axis and a
        120-to-490 axis wander by comparable amounts. */
     v += (Math.random() * 2 - 1) * P.variety * (it.max - it.min) * .16;
     out[k] = Math.max(it.min, Math.min(it.max, v));
   }
+  return out;
+}
+
+/* Draw several candidates and keep whichever sits furthest from where we
+   are. Sampling once let roughly one journey in ten land almost on top of
+   the pose it left, which read as the motion going nowhere. Choosing the
+   furthest of a handful lifts that floor without widening the vocabulary at
+   all — the candidates all come from the same hull, so the biggest changes
+   are no bigger, the forgettable ones just stop happening. */
+const POSE_CANDIDATES = 6;
+function samplePose(prev){
+  let best = null, bestD = -1;
+  for (let i = 0; i < POSE_CANDIDATES; i++){
+    const c = drawPose();
+    const d = prev ? poseDist(c, prev) : 1;
+    if (d > bestD){ bestD = d; best = c; }
+  }
   /* Rotation is the one axis that must not be clamped or reversed — it keeps
      advancing so the mark never turns back through an angle it already held. */
-  out.rotation = (prev ? prev.rotation : P.rotation) + 25 + Math.random() * 80;
-  return out;
+  best.rotation = (prev ? prev.rotation : P.rotation) + 25 + Math.random() * 80;
+  return best;
 }
 
 /* A Catmull-Rom spline through the poses rather than eased hops between
