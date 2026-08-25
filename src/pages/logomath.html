@@ -23,17 +23,26 @@
 
   #hud{position:absolute; left:18px; bottom:14px; display:flex; gap:14px;
        color:var(--dim); font:10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
-       letter-spacing:.06em; text-transform:uppercase; pointer-events:none}
+       letter-spacing:.04em; pointer-events:none}
 
   aside{
     width:308px; flex:none; background:var(--panel); border-left:1px solid var(--line);
     overflow-y:auto; overscroll-behavior:contain;
+    transition:opacity .5s ease, transform .5s ease;
   }
+  /* The mark is the piece; the instrument is not. Chrome fades out when the
+     pointer goes still and returns the moment it moves. Pinned open while the
+     pointer is inside the panel, so a slow drag never dismisses the control
+     being dragged. */
+  body.idle aside{opacity:0; transform:translateX(16px); pointer-events:none}
+  body.idle #hud{opacity:0}
+  #hud{transition:opacity .5s ease}
+  body.idle{cursor:none}
   aside::-webkit-scrollbar{width:8px}
   aside::-webkit-scrollbar-thumb{background:#2a2a2e;border-radius:8px}
 
   .head{padding:16px 16px 12px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--panel); z-index:5}
-  .head h1{margin:0; font-size:12px; letter-spacing:.14em; text-transform:uppercase; font-weight:600;
+  .head h1{margin:0; font-size:13px; letter-spacing:.01em; font-weight:600;
            display:flex; align-items:baseline; gap:8px}
   .head h1 .fig{font:10px/1 ui-monospace,Menlo,monospace; letter-spacing:.04em; color:var(--dim);
                 border:1px solid var(--line); border-radius:3px; padding:3px 5px}
@@ -41,8 +50,8 @@
 
   .sect{border-bottom:1px solid var(--line); padding:12px 16px 14px}
   .sect > h2{
-    margin:0 0 10px; font:10px/1 ui-monospace,Menlo,monospace; letter-spacing:.16em;
-    text-transform:uppercase; color:var(--dim); font-weight:500;
+    margin:0 0 10px; font:10.5px/1 ui-monospace,Menlo,monospace; letter-spacing:.09em;
+    color:var(--dim); font-weight:500;
     display:flex; align-items:center; gap:8px;
   }
   .sect.fold > h2{cursor:pointer; user-select:none; margin:0}
@@ -202,54 +211,40 @@ const CTRL = [
 const P = {};
 CTRL.forEach(s => s.items.forEach(i => P[i.k] = i.v));
 
-const PRESETS = {
-  Reference:{radius:434,rotation:31,tipSharp:.28,cornerR:.10,cornerT:.50,sweep:.16,
-             twist:8.5,taper:.035,count:22,depthOuter:.230,hole:.201,gamma:1.30,
-             weight:2.60,opMin:.30,opMax:1,glarePos:.545,glareWide:.305,
-             tipFade:.51,tipFadePos:.5,bloom:.81,
-             lightAngle:30,altDepth:.70,altGlare:.300},
-  Flat:     {altDepth:0,altGlare:0},
-  Point:    {radius:430,cornerR:0,tipSharp:.28,sweep:.45,twist:9,count:24,
-             depthOuter:.215,hole:.228,gamma:1.45,weight:1.3,bloom:.40},
-  Pillow:   {radius:470,cornerR:.30,cornerT:.62,tipSharp:.34,sweep:.38,twist:7,
-             count:24,depthOuter:.20,hole:.262,gamma:1.45,weight:1.3,bloom:.5},
-  Wire:     {count:44,weight:.55,depthOuter:.17,hole:.071,twist:0,sweep:0,
-             cornerR:.12,cornerT:.45,gamma:1,bloom:.15,opMin:.4,glareWide:.5},
-  Ribbon:   {count:26,twist:44,sweep:.72,depthOuter:.24,hole:.092,tipSharp:.22,
-             cornerR:.20,cornerT:.5,weight:1.3,bloom:.6,glarePos:.3},
-  Blade:    {count:16,tipSharp:.07,cornerR:.07,cornerT:.35,depthOuter:.30,
-             hole:.02,twist:8,sweep:.5,weight:2.2,bloom:.9,glarePos:.12,glareWide:.25},
-  Halo:     {count:60,weight:.8,depthOuter:.08,hole:.389,twist:-26,sweep:-.4,
-             cornerR:.28,cornerT:.6,gamma:1.9,bloom:1.2,opMin:.15,glarePos:.55,glareWide:.45},
-
-  /* --- the wider space: symmetry order, star-polygon span, wobble, squash --- */
-  Trine:    {lobes:3,span:1,radius:452,rotation:-90,tipSharp:.26,cornerR:.20,cornerT:.55,
-             sweep:.12,twist:7,taper:.04,count:26,depthOuter:.11,hole:.19,gamma:1.25,
-             weight:2.2,bloom:.75,lightFold:2},
-  Pentangle:{lobes:5,span:2,radius:452,rotation:-90,tipSharp:.20,cornerR:.14,cornerT:.50,
-             sweep:.10,twist:9,taper:.03,count:26,depthOuter:.012,hole:0,bowSpread:.055,
-             gamma:1.2,weight:1.5,bloom:.60,lightFold:2},
-  Bloom:    {lobes:7,span:3,radius:462,rotation:-90,tipSharp:.16,cornerR:.11,cornerT:.45,
-             sweep:.08,twist:3.5,taper:.02,count:34,depthOuter:.012,hole:0,bowSpread:.145,
-             gamma:1.2,weight:1.2,bloom:.50,lightFold:3},
-  Gear:     {lobes:10,span:1,altAmt:.155,altFold:5,radius:415,rotation:0,tipSharp:.20,
-             cornerR:.20,cornerT:.50,sweep:0,twist:0,taper:0,count:20,depthOuter:.10,
-             hole:.52,gamma:1,weight:1.2,bloom:.40,lightFold:5},
-  Comma:    {lobes:4,span:1,tipBias:.70,sweep:1.45,tipSharp:.40,cornerR:.05,cornerT:.40,
-             twist:24,taper:.08,count:26,depthOuter:.28,hole:.06,gamma:1.4,
-             weight:1.4,bloom:.85,lightFold:2},
-  Lens:     {lobes:2,span:1,radius:452,rotation:0,tipSharp:.17,cornerR:.24,cornerT:.70,
-             sweep:0,twist:0,taper:.06,count:30,depthOuter:.06,hole:0,bowSpread:.46,
-             gamma:1.25,weight:1.6,bloom:.65,lightFold:1},
-  Oblate:   {lobes:6,span:2,squash:.60,radius:472,rotation:0,tipSharp:.22,cornerR:.17,
-             cornerT:.55,sweep:.20,twist:9,taper:.04,count:28,depthOuter:.03,hole:0,
-             bowSpread:.24,gamma:1.25,weight:1.5,bloom:.7,lightFold:3},
+/* Every preset is complete. Flat/Point/Ribbon/Blade/Halo were written as
+   partial overrides on a "Reference" preset, so deleting that button would
+   have left them inheriting whatever was on screen. BASE keeps the shared
+   values in one place and each preset is expanded against it below, so a
+   preset always lands on exactly the same mark whatever preceded it. */
+const BASE = {
+  lobes:4, span:1, altAmt:0, altFold:2, squash:1,
+  radius:434, rotation:31, tipSharp:.28, tipBias:0, cornerR:.10, cornerT:.50,
+  sweep:.16, twist:8.5, taper:.035,
+  count:22, depthOuter:.230, hole:.201, bowSpread:0, depthCurve:1, gamma:1.30,
+  weight:2.60, opMin:.30, opMax:1, glarePos:.545, glareWide:.305,
+  tipFade:.51, tipFadePos:.5, bloom:.81,
+  lightAngle:30, lightFold:2, altDepth:.70, altGlare:.300,
 };
 
-/* The axes added after the original 4-fold model. Partial presets written
-   against that model say nothing about them, so applyPreset resets them to
-   neutral first — otherwise clicking Flat after Heptagram would silently
-   keep 7 lobes. */
+const PRESETS = {
+  Flat:   {altDepth:0, altGlare:0},
+  Point:  {radius:430,count:24,tipSharp:.28,cornerR:0,sweep:.45,twist:9,
+           depthOuter:.215,hole:.228,gamma:1.45,weight:1.3,bloom:.40},
+  Ribbon: {count:26,tipSharp:.22,cornerR:.20,cornerT:.5,sweep:.72,twist:44,
+           depthOuter:.24,hole:.092,weight:1.3,bloom:.6,glarePos:.3},
+  Blade:  {count:16,tipSharp:.07,cornerR:.07,cornerT:.35,sweep:.5,twist:8,
+           depthOuter:.30,hole:.02,weight:2.2,bloom:.9,glarePos:.12,glareWide:.25},
+  Halo:   {count:60,tipSharp:.28,cornerR:.28,cornerT:.6,sweep:-.4,twist:-26,
+           depthOuter:.08,hole:.389,gamma:1.9,weight:.8,bloom:1.2,
+           opMin:.15,glarePos:.55,glareWide:.45},
+};
+for (const k in PRESETS) PRESETS[k] = Object.assign({}, BASE, PRESETS[k]);
+
+const DEFAULT_PRESET = 'Halo';
+
+/* Backstop: if a preset is ever written without one of the axes added after
+   the original 4-fold model, it lands on neutral rather than on whatever
+   happened to be on screen. BASE already covers all of them. */
 const NEUTRAL = {lobes:4, span:1, altAmt:0, altFold:2, squash:1,
                  tipBias:0, depthCurve:1, bowSpread:0, lightFold:2};
 
@@ -591,7 +586,7 @@ function syncUI(){
 /* Which preset (if any) the canvas is still sitting on. Touching any slider
    leaves it, so the highlight never lies about what you are looking at. */
 let presetBtns = null;
-let activePreset = 'Reference';
+let activePreset = DEFAULT_PRESET;
 function markDirty(){ if (activePreset){ activePreset = null; paintPresets(); } }
 function paintPresets(){
   if (!presetBtns) return;
@@ -642,15 +637,13 @@ const ps = document.createElement('div'); ps.className='sect';
 ps.innerHTML = `<h2>Presets</h2><div class="btns" id="presetBtns"></div>`;
 panel.insertBefore(ps, panel.firstChild);
 presetBtns = ps.querySelector('#presetBtns');
-const FOURFOLD = ['Reference','Flat','Point','Pillow','Wire','Ribbon','Blade','Halo'];
-Object.keys(PRESETS).forEach((name, i) => {
-  if (i === FOURFOLD.length) presetBtns.appendChild(document.createElement('hr')).className = 'rule';
+Object.keys(PRESETS).forEach(name => {
   const b = document.createElement('button');
   b.textContent = name; b.dataset.preset = name;
   b.onclick = () => applyPreset(name);
   presetBtns.appendChild(b);
 });
-paintPresets();
+applyPreset(DEFAULT_PRESET);
 const rnd = document.createElement('button'); rnd.textContent='Randomize';
 rnd.style.flex = '0 0 100%';
 const pick = a => a[Math.floor(Math.random()*a.length)];
@@ -690,7 +683,8 @@ tr.innerHTML = `<h2>Transport</h2>
     <button data-sp=".25">.25×</button><button data-sp="1" class="on">1×</button><button data-sp="3">3×</button>
     <button id="reset" class="wide">Reset time</button>
   </div>
-  <p class="hint"><kbd>space</kbd> play / pause · <kbd>R</kbd> randomize · drag any number to scrub</p>`;
+  <p class="hint"><kbd>space</kbd> play / pause · <kbd>R</kbd> randomize · drag any number to scrub<br>
+  Controls fade when the pointer rests — move it to bring them back.</p>`;
 panel.appendChild(tr);
 const playBtn = tr.querySelector('#play');
 playBtn.onclick = () => { playing = !playing; playBtn.textContent = playing?'Pause':'Play';
@@ -778,6 +772,21 @@ addEventListener('keydown', ev => {
   if (ev.code === 'Space'){ ev.preventDefault(); playBtn.click(); }
   if (ev.key === 'r' || ev.key === 'R') rnd.click();
 });
+
+/* ---------------------------- auto-hide ---------------------------- */
+const asideEl = document.querySelector('aside');
+let idleTimer = null, pinned = false;
+function wake(){
+  document.body.classList.remove('idle');
+  clearTimeout(idleTimer);
+  if (!pinned) idleTimer = setTimeout(() => document.body.classList.add('idle'), 2400);
+}
+['pointermove','pointerdown','wheel','keydown','touchstart']
+  .forEach(ev => addEventListener(ev, wake, {passive:true}));
+asideEl.addEventListener('pointerenter', () => { pinned = true;  wake(); });
+asideEl.addEventListener('pointerleave', () => { pinned = false; wake(); });
+addEventListener('blur', () => { pinned = false; wake(); });
+wake();
 
 build(Math.round(P.count));
 requestAnimationFrame(tick);
