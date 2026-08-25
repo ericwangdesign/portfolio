@@ -105,9 +105,7 @@
   button:active{transform:translateY(1px)}
   button.on{background:var(--txt); color:#0b0b0c; border-color:var(--txt)}
   #presetBtns button{padding:6px 8px; font-size:10.5px}
-  [data-morph]{padding:5px 7px; font-size:10px}
-  .mlab{flex:0 0 100%; color:var(--dim); font:9.5px/1 ui-monospace,Menlo,monospace;
-        margin-bottom:1px}
+  .sect .hint:first-child{margin-top:0}
   .rule{flex:0 0 100%; height:1px; background:var(--line); margin:4px 0 3px; border:0}
   button.wide{flex:1 1 calc(50% - 3px)}
 
@@ -204,10 +202,11 @@ const CTRL = [
     {k:'altDepth',  n:'Contrast',      min:0,  max:1,  step:.01, v:.70, f:2},
     {k:'altGlare',  n:'Glare offset',  min:-.5,max:.5, step:.005,v:.300,f:3},
   ]},
-  {g:'Morph', items:[
-    {k:'morphAmt',    n:'Travel',        min:0,  max:1,  step:.01, v:1,  f:2},
-    {k:'morphRate',   n:'· rate',        min:0,  max:.4, step:.005,v:.05,f:3, u:'hz'},
-    {k:'morphHold',   n:'· dwell',       min:0,  max:.9, step:.01, v:.35,f:2},
+  {g:'Flow', items:[
+    {k:'flow',        n:'Flow',          min:0,  max:1,  step:.01, v:1,  f:2},
+    {k:'dwell',       n:'· dwell',       min:0,  max:8,  step:.1,  v:3,  f:1, u:'s'},
+    {k:'travel',      n:'· travel',      min:.5, max:12, step:.1,  v:4.5,f:1, u:'s'},
+    {k:'variety',     n:'· variety',     min:0,  max:1,  step:.01, v:.45,f:2},
   ]},
   {g:'Motion', items:[
     {k:'spin',        n:'Spin',          min:-60,max:60, step:.5,  v:0,  f:1, u:'°/s'},
@@ -461,43 +460,83 @@ function build(n, N){
   built = n + ':' + N;
 }
 
-/* ------------------------------- morph -------------------------------
-   The motion is a journey between two poses, not a rotation. Pose A is
-   whatever the sliders hold; pose B is a preset. Every continuous axis is
-   interpolated between them, so the mark genuinely becomes a different
-   figure and comes back — the geometry transforms rather than turning.
+/* -------------------------------- flow --------------------------------
+   The mark settles on a pose, sits there, then leaves for a pose it has
+   never held before. It never returns and never repeats — a walk, not a
+   ping-pong, so there is nothing to recognise as a loop.
 
-   The discrete axes are held at pose A: lobe count, chord span and the two
+   New poses are drawn from inside the hull of the presets: a blend of two
+   of them, then jittered. Sampling the raw slider ranges instead produces
+   mush most of the time, because most of that volume is ugly; blending
+   known-good poses is what keeps every stop worth looking at.
+
+   The discrete axes never move: lobe count, chord span and the two
    harmonics are integers, and a figure cannot grow half a lobe. Line count
-   is held too — it is an integer that forces a DOM rebuild, so morphing it
-   would stutter the transition it is meant to smooth.                   */
+   is held for the same reason, plus it forces a DOM rebuild that would
+   stutter the very transition it is meant to smooth.                    */
 const NO_MORPH = new Set(['lobes','span','altFold','lightFold','count']);
+const AXIS = {};
+CTRL.forEach(s => s.items.forEach(i => AXIS[i.k] = i));
 const MORPH_KEYS = CTRL
-  .filter(s => s.g !== 'Motion' && s.g !== 'Morph')
+  .filter(s => s.g !== 'Motion' && s.g !== 'Flow')
   .flatMap(s => s.items.map(i => i.k))
   .filter(k => !NO_MORPH.has(k));
 
-let morphTarget = 'Blade';
+const POSE_NAMES = Object.keys(PRESETS);
+const rndPick = a => a[(Math.random() * a.length) | 0];
 
-/* Ping-pong with a dwell at each end. Without the dwell the mark is never
-   actually either pose, it is permanently mid-transition — the hold is what
-   makes it read as "this shape, then that shape". */
-function morphPhase(){
-  if (P.morphRate <= 0) return 1;
-  const x = wrap01(t * P.morphRate);
-  const tri = x < .5 ? x*2 : 2 - x*2;
-  const h = Math.min(.95, P.morphHold);
-  const c = Math.max(0, Math.min(1, (tri - h*.5) / (1 - h)));
-  return c*c*(3 - 2*c);
+function samplePose(prev){
+  const a = PRESETS[rndPick(POSE_NAMES)], b = PRESETS[rndPick(POSE_NAMES)];
+  const w = .25 + Math.random() * .5;
+  const out = {};
+  for (const k of MORPH_KEYS){
+    const it = AXIS[k];
+    let v = lerp(a[k], b[k], w);
+    /* Jitter scaled by each control's own range, so a 0-to-1 axis and a
+       120-to-490 axis wander by comparable amounts. */
+    v += (Math.random() * 2 - 1) * P.variety * (it.max - it.min) * .16;
+    out[k] = Math.max(it.min, Math.min(it.max, v));
+  }
+  /* Rotation is the one axis that must not be clamped or reversed — it keeps
+     advancing so the mark never turns back through an angle it already held. */
+  out.rotation = (prev ? prev.rotation : P.rotation) + 25 + Math.random() * 80;
+  return out;
+}
+
+let poseFrom = null, poseTo = null, stepAt = 0, moving = false;
+function flowInit(){
+  poseFrom = poseTo = null; stepAt = 0; moving = false;
+}
+/* Advanced from the animation loop, not from effective(), so rendering a
+   frame never mutates the walk — export and slider redraws stay put. */
+function flowStep(){
+  if (!poseTo){                      // first pose is the one on the sliders
+    poseTo = {}; for (const k of MORPH_KEYS) poseTo[k] = P[k];
+    poseFrom = poseTo; stepAt = t; moving = false; return;
+  }
+  if (t < stepAt) stepAt = t;        // time was reset under us
+  const dur = moving ? Math.max(.2, P.travel) : Math.max(0, P.dwell);
+  if (t - stepAt < dur) return;
+  stepAt = t;
+  if (moving) moving = false;                                   // arrived, sit
+  else { poseFrom = poseTo; poseTo = samplePose(poseFrom); moving = true; }
+}
+function flowMix(){
+  if (!moving) return 1;
+  const x = Math.min(1, (t - stepAt) / Math.max(.2, P.travel));
+  return x*x*(3 - 2*x);
 }
 
 function effective(){
   const e = Object.assign({}, P);
 
-  const B = PRESETS[morphTarget];
-  if (B && P.morphAmt > .001){
-    const m = P.morphAmt * morphPhase();
-    for (const k of MORPH_KEYS) if (k in B) e[k] = lerp(P[k], B[k], m);
+  if (poseTo && P.flow > .001){
+    const m = flowMix();
+    for (const k of MORPH_KEYS){
+      /* Anchored to the sliders: at flow 0 you get exactly what you set, and
+         editing an axis still bites while the walk is running. */
+      e[k] = lerp(P[k], lerp(poseFrom[k], poseTo[k], m), P.flow);
+    }
   }
 
   e.rotation   += P.spin * t;
@@ -565,6 +604,7 @@ function render(){
 }
 
 function tick(ms){
+  flowStep();
   if (lastMs === null) lastMs = ms;
   const dt = Math.min(.05, (ms - lastMs)/1000);
   lastMs = ms;
@@ -591,7 +631,7 @@ CTRL.forEach(sec => {
   s.className = 'sect fold' + (open ? ' open' : '');
   s.innerHTML = `<h2>${sec.g}<span class="n">${sec.items.length}</span></h2><div class="rows"></div>`;
   const body = s.querySelector('.rows');
-  if (sec.g === 'Morph') morphSect = body;
+  if (sec.g === 'Flow') morphSect = body;
   s.querySelector('h2').addEventListener('click', () => {
     s.classList.toggle('open');
     openState[sec.g] = s.classList.contains('open');
@@ -613,7 +653,7 @@ CTRL.forEach(sec => {
     const inp = row.querySelector('input'), out = row.querySelector('.val');
     inputs[it.k] = inp; readouts[it.k] = {el:out, it};
     const show = () => out.textContent = P[it.k].toFixed(it.f) + (it.u || '');
-    const poseAxis = sec.g !== 'Motion' && sec.g !== 'Morph';
+    const poseAxis = sec.g !== 'Motion' && sec.g !== 'Flow';
     inp.addEventListener('input', () => {
       P[it.k] = parseFloat(inp.value); show(); if (poseAxis) markDirty();
     });
@@ -652,6 +692,7 @@ function paintPresets(){
 function applyPreset(name){
   Object.assign(P, NEUTRAL, PRESETS[name]); syncUI();
   activePreset = name; paintPresets();
+  flowInit();          // start the walk again from the pose you just chose
 }
 
 /* Two of the new axes have dead zones, and a slider that silently does nothing
@@ -699,32 +740,19 @@ Object.keys(PRESETS).forEach(name => {
   b.onclick = () => applyPreset(name);
   presetBtns.appendChild(b);
 });
-/* Pose B picker. Reuses the presets, so any two of them can be travelled
-   between — the second half of the motion is chosen, not hard-coded. */
 if (morphSect){
-  const pick = document.createElement('div');
-  pick.className = 'btns'; pick.style.margin = '0 0 11px';
-  pick.innerHTML = '<span class="mlab">toward</span>';
-  Object.keys(PRESETS).forEach(name => {
-    const b = document.createElement('button');
-    b.textContent = name; b.dataset.morph = name;
-    b.onclick = () => { morphTarget = name; paintMorph(); };
-    pick.appendChild(b);
-  });
-  morphSect.insertBefore(pick, morphSect.firstChild);
+  const note = document.createElement('p');
+  note.className = 'hint'; note.style.margin = '0 0 11px';
+  note.textContent = 'Settles, sits, then leaves for a pose it has not held before. It does not repeat.';
+  morphSect.insertBefore(note, morphSect.firstChild);
 }
-function paintMorph(){
-  document.querySelectorAll('[data-morph]')
-    .forEach(b => b.classList.toggle('on', b.dataset.morph === morphTarget));
-}
-paintMorph();
 
 applyPreset(DEFAULT_PRESET);
 const rnd = document.createElement('button'); rnd.textContent='Randomize';
 rnd.style.flex = '0 0 100%';
 const pick = a => a[Math.floor(Math.random()*a.length)];
 rnd.onclick = () => {
-  CTRL.forEach(s => { if (s.g === 'Motion') return;
+  CTRL.forEach(s => { if (s.g === 'Motion' || s.g === 'Flow') return;   // pose, not choreography
     s.items.forEach(it => {
       if (it.step >= 1) return;                    // discrete axes handled below
       P[it.k] = it.min + Math.random()*(it.max-it.min);
