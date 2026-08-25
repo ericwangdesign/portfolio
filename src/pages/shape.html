@@ -515,9 +515,19 @@ function poseDist(a, b){
   return Math.sqrt(s / DIST_KEYS.length);
 }
 
+/* The pose the page opened on, kept so the walk can be steered away from it. */
+let homePose = null;
+
 function drawPose(){
-  const a = rndPick(POSE_NAMES);
-  const b = rndPick(POSE_NAMES.filter(x => x !== a));   // never blend a preset with itself
+  /* The opening preset is dropped from the vocabulary. It was one of five, so
+     it turned up in most blends and the walk kept coming home — a third of
+     the running time sat within 0.10 of the pose it started on, which read as
+     morph, back to the default, morph, back to the default. */
+  const pool = POSE_NAMES.length > 2 && activePreset
+             ? POSE_NAMES.filter(x => x !== activePreset)
+             : POSE_NAMES;
+  const a = rndPick(pool);
+  const b = rndPick(pool.filter(x => x !== a));         // never blend a preset with itself
   /* Pushed away from the middle: a 50/50 blend of two presets is the average
      of both and reads as neither. Landing near one end keeps a pose in
      character. */
@@ -546,7 +556,11 @@ function samplePose(prev){
   let best = null, bestD = -1;
   for (let i = 0; i < POSE_CANDIDATES; i++){
     const c = drawPose();
-    const d = prev ? poseDist(c, prev) : 1;
+    /* Judged on whichever it is closer to — where it came from, or where it
+       started. Maximising the smaller of the two pushes it away from both, so
+       a pose is only chosen if it is new in both senses. */
+    let d = prev ? poseDist(c, prev) : 1;
+    if (homePose) d = Math.min(d, poseDist(c, homePose));
     if (d > bestD){ bestD = d; best = c; }
   }
   /* Rotation is the one axis that must not be clamped or reversed — it keeps
@@ -574,7 +588,7 @@ const catmull = (p0,p1,p2,p3,u) => {
    without changing its shape, then walk. segN counts them: -2 holding,
    -1 turning, 0 and up are spline segments. */
 let queue = [], segAt = 0, segN = -2, turned = 0;
-function flowInit(){ queue = []; segAt = 0; segN = -2; turned = 0; }
+function flowInit(){ queue = []; segAt = 0; segN = -2; turned = 0; homePose = null; }
 
 /* Half the rate the walk's own first segment would turn at. Not a chosen
    number: with the first pose doubled at the start of the spline, the
@@ -591,6 +605,7 @@ function turnRate(){
 function flowStep(){
   if (!queue.length){
     const home = {}; for (const k of MORPH_KEYS) home[k] = P[k];
+    homePose = home;                       // there is the opening, and everything else
     queue = [home, home, samplePose(home)];
     queue.push(samplePose(queue[2]));
     segAt = t; segN = -2; turned = 0;
@@ -862,7 +877,7 @@ Object.keys(PRESETS).forEach(name => {
 if (morphSect){
   const note = document.createElement('p');
   note.className = 'hint'; note.style.margin = '0 0 11px';
-  note.textContent = 'Holds, turns, then walks and never stops. Poses are passed through, not rested on, and none repeats.';
+  note.textContent = 'Holds, turns, then walks and never stops. It does not return to the opening pose, and no pose repeats.';
   morphSect.insertBefore(note, morphSect.firstChild);
 }
 
