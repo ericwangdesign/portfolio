@@ -80,7 +80,7 @@ void main() {
     vec2 sub = fract(px / uCell);
     glyph = texture2D(uAtlas, vec2((idx + clamp(sub.x, 0.05, 0.95)) / 16.0, clamp(sub.y, 0.05, 0.95))).r * step(0.5, tier);
   } else if (uStyle < 3.5) {
-    float r = uCell * 0.62 * sqrt(fill);
+    float r = uCell * 0.465 * sqrt(fill); // 0.62 * 0.75
     glyph = (1.0 - smoothstep(r - e, r + e, length(q))) * step(0.5, tier);
   } else {
     vec2 sub = fract(px / uCell);
@@ -88,7 +88,7 @@ void main() {
     float thr = fract((g2.x + g2.y * 2.0) * 0.38 + 0.03);
     vec2 c2 = (g2 + 0.5) / vec2(2.0, 3.0);
     float dd = length((sub - c2) * uCell);
-    float rr = uCell * 0.115;
+    float rr = uCell * 0.1725; // 0.115 * 1.5
     glyph = (1.0 - smoothstep(rr - e, rr + e, dd)) * step(thr, fill) * step(0.5, tier);
   }
 
