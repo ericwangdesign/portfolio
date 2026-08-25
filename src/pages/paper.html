@@ -1928,12 +1928,27 @@ let uttWords = [];     // words of the current utterance already queued
 // scrappy, slow deliberate speech keeps it neat.
 let voicePace = 90;    // ms per char, smoothed from arrival rate
 let lastArrival = 0;
+let micWatchdog = null;  // says something when the recognizer never speaks up
+let heardAudio = false;  // has this session ever seen audio start?
 
+// The label is engine-drawn when it says the two normal things, and plain
+// text for faults - a fault has to be READABLE, and the hand at 19px is
+// deliberately small. micNote(null) returns to the normal label.
+function micNote(msg){
+  const lbl = elMic.querySelector('.lbl');
+  if(msg){
+    lbl.textContent = msg;
+    lbl.style.font = '11px/1 "Inter", sans-serif';
+    lbl.style.letterSpacing = '.04em';
+  }else{
+    lbl.style.font = ''; lbl.style.letterSpacing = '';
+    lbl.innerHTML = '<span style="display:inline-block;vertical-align:middle">' +
+      handTextSVG(micOn ? 'listening' : 'listen', 19, 0.3, 7300).svg + '</span>';
+  }
+}
 function updateMic(){
   elMic.classList.toggle('on', micOn);
-  elMic.querySelector('.lbl').innerHTML =
-    '<span style="display:inline-block;vertical-align:middle">' +
-    handTextSVG(micOn ? 'listening' : 'listen', 19, 0.3, 7300).svg + '</span>';
+  micNote(null);
 }
 
 function penPace(tok){
@@ -2002,6 +2017,7 @@ function flushVoice(){
 }
 
 function startRec(){
+  heardAudio = false;
   rec = new SRCls();
   rec.continuous = true;
   rec.interimResults = true;
@@ -2009,7 +2025,11 @@ function startRec(){
   // recognizer sit silent through English speech
   rec.lang = 'en-US';
   rec.onstart      = () => console.debug('[voice] start');
-  rec.onaudiostart = () => console.debug('[voice] audio flowing');
+  rec.onaudiostart = () => {
+    console.debug('[voice] audio flowing');
+    heardAudio = true; clearTimeout(micWatchdog);
+    if(micOn) updateMic();          // back to the normal 'listening' label
+  };
   rec.onspeechstart= () => console.debug('[voice] speech detected');
   rec.onresult = e => {
     console.debug('[voice] result', JSON.stringify([...e.results].map(r => r[0].transcript + (r.isFinal ? ' [final]' : ''))));
@@ -2026,16 +2046,20 @@ function startRec(){
   rec.onend = () => { console.debug('[voice] end'); if(micOn){ try{ rec.start(); }catch(err){} } };
   rec.onerror = e => {
     console.debug('[voice] error:', e.error);
+    // A fault must never be a DEAD END. Denying the permission prompt once
+    // used to latch .err forever and the click handler returned early on it,
+    // so the mic was bricked until a reload - with the reason in 7px type.
+    // Now every fault is a state you can click your way out of.
     if(e.error === 'not-allowed' || e.error === 'service-not-allowed'){
       micOn = false; updateMic();
       elMic.classList.add('err');
-      elMic.querySelector('.lbl').textContent = 'mic blocked';
+      micNote('mic blocked — allow it in the address bar, then click again');
     }else if(e.error === 'audio-capture'){
       micOn = false; updateMic();
       elMic.classList.add('err');
-      elMic.querySelector('.lbl').textContent = 'no microphone';
+      micNote('no microphone — click to try again');
     }else if(e.error === 'network'){
-      elMic.querySelector('.lbl').textContent = 'listening (no connection…)';
+      micNote('dictation needs a connection — click to retry');
     }
     // no-speech / aborted fall through to onend's restart
   };
@@ -2046,10 +2070,22 @@ if(!SRCls){
   elMic.style.display = 'none';
 }else{
   elMic.addEventListener('click', () => {
-    if(elMic.classList.contains('err')) return;
+    // a previous fault clears on click - the next click is always a retry,
+    // never a no-op (see onerror)
+    const wasErr = elMic.classList.contains('err');
+    if(wasErr){ elMic.classList.remove('err'); micOn = false; }
     micOn = !micOn;
-    if(micOn) startRec();
-    else if(rec) rec.stop();   // let the pen finish what was already said
+    if(micOn){
+      micNote('starting…');
+      startRec();
+      // if nothing came back at all, say so rather than sitting silent
+      clearTimeout(micWatchdog);
+      micWatchdog = setTimeout(() => {
+        if(micOn && !heardAudio) micNote('no audio yet — check the mic input');
+      }, 4000);
+    }else{
+      if(rec) rec.stop();      // let the pen finish what was already said
+    }
     updateMic();
   });
   updateMic();
