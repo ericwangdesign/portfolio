@@ -28,13 +28,17 @@
   aside{
     width:308px; flex:none; background:var(--panel); border-left:1px solid var(--line);
     overflow-y:auto; overscroll-behavior:contain;
-    transition:opacity .5s ease, transform .5s ease;
+    transition:opacity .5s ease, margin-right .5s ease;
   }
   /* The mark is the piece; the instrument is not. Chrome fades out when the
      pointer goes still and returns the moment it moves. Pinned open while the
      pointer is inside the panel, so a slow drag never dismisses the control
      being dragged. */
-  body.idle aside{opacity:0; transform:translateX(16px); pointer-events:none}
+  /* Collapse the panel's layout width too, not just its paint. Fading it alone
+     left the mark sitting half a panel left of centre — the composition has to
+     recentre, or hiding the instrument just makes the piece look misaligned.
+     The stage is sized on 92vh, so it recentres without resizing. */
+  body.idle aside{opacity:0; margin-right:-308px; pointer-events:none}
   body.idle #hud{opacity:0}
   #hud{transition:opacity .5s ease}
   body.idle{cursor:none}
