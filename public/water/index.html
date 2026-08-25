@@ -6,9 +6,12 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#f2f3f5">
-<title>Water — Eric Wang</title>
 <link rel="icon" type="image/png" href="/favicon-darkbg.png">
 <link rel="apple-touch-icon" href="/favicon-darkbg.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@300&display=swap" rel="stylesheet">
+<title>Water — Eric Wang</title>
 <meta name="description" content="What if an AI's memory of you were water on a countertop, and you could push it around. Size is how strongly you identify with a theme; the light inside is how hard the model weights it.">
 <link rel="canonical" href="https://www.ericwangdesign.com/water/">
 <meta property="og:type" content="website">
@@ -24,12 +27,88 @@
 <meta name="twitter:description" content="What if an AI's memory of you were water on a countertop, and you could push it around.">
 <meta name="twitter:image" content="https://www.ericwangdesign.com/water/og.jpg">
 <style>
-  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #f2f3f5; }
-  canvas { display: block; width: 100vw; height: 100vh; touch-action: none; cursor: crosshair; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    overflow: hidden;
+    background: #f2f3f5;                 /* mobile: the marble surface, edge to edge */
+    font-family: 'Spectral', Georgia, serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #stage {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+
+  #title { display: none; }
+  #links { display: none; }
+
+  /* mobile: the surface IS the screen */
+  #device {
+    position: relative;
+    width: 100vw; height: 100dvh;        /* dvh tracks the visible area in embedded browsers */
+    overflow: hidden;
+    background: #f2f3f5;
+  }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+
+  /* mobile / in-app browsers: pin to the visible top-left so a shorter
+     viewport never centres the canvas and offsets every touch */
+  @media (max-width: 699px) {
+    #stage { align-items: flex-start; justify-content: flex-start; }
+  }
+
+  /* desktop: a held object on a dark table, rather than a full-bleed wash.
+     the marble only makes sense with an edge — without one you cannot tell
+     a countertop from a background. */
+  @media (min-width: 700px) {
+    body { background: #0d0d0d; }
+
+    #title {
+      display: block;
+      color: #fff; font-size: 16px; font-weight: 300;
+      letter-spacing: -0.8px; line-height: 1.5; text-align: center;
+      margin-bottom: 8px;
+    }
+
+    #device {
+      width: auto;
+      height: min(78vh, 700px);
+      aspect-ratio: 320 / 680;
+      border: 8px solid #1a1a1a;
+      border-radius: 48px;
+      background: #f2f3f5;
+      box-shadow: 0 1px 20px 0 rgba(85,85,85,0.1), 0 2px 40px 0 rgba(255,255,255,0.1);
+    }
+    canvas { border-radius: 40px; }
+
+    #links {
+      display: flex; gap: 16px; align-items: center; justify-content: center;
+      position: fixed; left: 0; bottom: 24px; width: 100%;
+      color: #fff; font-size: 12px; font-weight: 300;
+      letter-spacing: -0.6px; line-height: 1.5; text-align: center;
+    }
+    #links a { color: #fff; text-decoration: none; }
+    #links a:hover { text-decoration: underline; }
+    #links .narrow { width: 44px; }
+  }
 </style>
+<script>
+(function(){var CLARITY_ID="xprgtw49pv";(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script",CLARITY_ID);})();
+</script>
 </head>
 <body>
-<canvas id="c"></canvas>
+<div id="stage">
+  <div id="title">water</div>
+  <div id="device"><canvas id="c"></canvas></div>
+</div>
+<nav id="links">
+  <a class="narrow" href="https://x.com/ericwangdesign" target="_blank" rel="noopener">X</a>
+  <a href="https://www.ericwangdesign.com" target="_blank" rel="noopener">ericwangdesign.com</a>
+  <a class="narrow" href="https://www.linkedin.com/in/ericwangdesign/" target="_blank" rel="noopener">Linkedin</a>
+</nav>
 <script>
 'use strict';
 
@@ -403,8 +482,25 @@ const glowData = new Float32Array(MAX_BALLS);
 // (0.55 ≈ 60°; the machinery still works if we ever go back to 3D)
 const SQUASH = 1.0;
 let W = 0, H = 0, HS = 0, DPR = 1;
+const mobileMode = () => window.innerWidth < 700;
 function resize() {
-  W = window.innerWidth; H = window.innerHeight;
+  // On mobile / embedded browsers pin the surface to the *visible* viewport
+  // (visualViewport excludes browser chrome and share sheets). Desktop keeps
+  // its CSS-driven frame, so clear any inline size there.
+  const device = canvas.parentElement;
+  if (mobileMode()) {
+    const vv = window.visualViewport;
+    device.style.width = Math.round(vv ? vv.width : window.innerWidth) + 'px';
+    device.style.height = Math.round(vv ? vv.height : window.innerHeight) + 'px';
+  } else {
+    device.style.width = '';
+    device.style.height = '';
+  }
+  // measure the box, never the window: sim space, GL buffer and pointer all
+  // have to agree, and inside the desktop frame the window is none of them
+  const rect = canvas.getBoundingClientRect();
+  W = Math.max(1, Math.round(rect.width));
+  H = Math.max(1, Math.round(rect.height));
   HS = H / SQUASH;       // table-space height
   // the render is all soft gradients — it survives a modest internal
   // resolution invisibly, and fill-rate is everything for weak GPUs
@@ -416,6 +512,12 @@ function resize() {
   gl.viewport(0, 0, canvas.width, canvas.height);
 }
 window.addEventListener('resize', () => { resize(); seedCast(); });
+window.addEventListener('orientationchange', () => { resize(); seedCast(); });
+if (window.visualViewport) {
+  // the address bar sliding away is a resize the window event never reports
+  visualViewport.addEventListener('resize', () => { resize(); seedCast(); });
+  visualViewport.addEventListener('scroll', () => { resize(); seedCast(); });
+}
 resize();
 
 let nextId = 1;
@@ -447,7 +549,7 @@ const droplets = [];
 // frame at 0x0, which would seed a corner pile of minimum-radius drops.
 let seeded = false;
 function seedCast() {
-  if (seeded || W < 320 || HS < 320) return;
+  if (seeded || W < 80 || HS < 80) return;   // only meant to catch a 0x0 first frame
   seeded = true;
   // scale the cast to the screen so small viewports can still fit everyone
   // without overlapping (overlapping seeds chain-merge into one big blob)
@@ -491,8 +593,11 @@ const P = { x: 0, y: 0, px: 0, py: 0, vx: 0, vy: 0, active: false, grab: null };
 let down = { t: 0, x: 0, y: 0, id: null };     // for tap / double-tap detection
 let lastTap = { t: -1e9, id: null };
 function setPos(e) {
-  // screen touch -> table space (undo the camera tilt)
-  P.x = e.clientX; P.y = e.clientY / SQUASH;
+  // pointer -> canvas-local css px -> table space (undo the camera tilt).
+  // inside the desktop frame the canvas no longer starts at the window origin
+  const rect = canvas.getBoundingClientRect();
+  P.x = e.clientX - rect.left;
+  P.y = (e.clientY - rect.top) / SQUASH;
 }
 canvas.addEventListener('pointerdown', e => {
   setPos(e); P.px = P.x; P.py = P.y; P.vx = P.vy = 0;
