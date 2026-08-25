@@ -13,7 +13,15 @@
        were equal, a label read as just another row and nothing grouped.
        Nothing is tracked out — at this size letter-spacing only makes short
        lowercase words look stretched. */
+    /* Registered so it can interpolate: switching city animates the frame's shape
+       instead of snapping to it. */
+    @property --aspect {
+      syntax: '<number>';
+      inherits: true;
+      initial-value: 1.1894;
+    }
     :root {
+      transition: --aspect 380ms cubic-bezier(0.4, 0, 0.2, 1);
       --paper: #06060c;
       --ink: #ece9e2;
       --faint: #ece9e233;
@@ -61,9 +69,9 @@
     .stage::before { content: ""; display: block; padding-top: calc(100% / var(--aspect)); }
     .stage canvas {
       position: absolute; inset: 0; width: 100%; height: 100%; display: block;
-      transition: opacity 200ms ease;
+      transition: opacity 260ms ease;
     }
-    .stage.loading canvas { opacity: 0.25; }
+    .stage.loading canvas { opacity: 0; }
 
     .transport { width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 16px; }
     .clock { display: flex; align-items: baseline; justify-content: center; gap: 10px; }
@@ -146,7 +154,7 @@
       .seg { gap: 14px 18px; }
     }
   </style>
-  <script type="module" crossorigin src="/cities/assets/index-Clh9hkyy.js"></script>
+  <script type="module" crossorigin src="/cities/assets/index-Be59TIgJ.js"></script>
 </head>
 <body>
   <main>
@@ -190,10 +198,10 @@
         </div>
       </div>
       <div class="field">
-        <span class="name">photo</span>
-        <div class="seg" id="photo-toggle">
-          <button data-photo="0" class="active">off</button>
-          <button data-photo="1">on</button>
+        <span class="name">satellite</span>
+        <div class="seg" id="satellite-toggle">
+          <button data-sat="0" class="active">off</button>
+          <button data-sat="1">on</button>
         </div>
       </div>
     </div>
