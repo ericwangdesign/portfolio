@@ -19,11 +19,11 @@ const HANDLE = "@ericwangdesign";
 const HANDLE_URL = "https://x.com/ericwangdesign";
 
 // The brush face for the 旭飞 in the footer. Swap this one string to change it:
-//   "Ma Shan Zheng"    马善政   brush 行楷, upright, most legible small  ← current
+//   "Ma Shan Zheng"    马善政   brush 行楷, upright, most legible small
 //   "Zhi Mang Xing"    智莽行书 true 行书, flowing, thinner
 //   "Long Cang"        龙藏     handwritten brush, loose
-//   "Liu Jian Mao Cao" 柳建毛草 草书, most cursive, hardest to read
-const CJK_FONT = "Ma Shan Zheng";
+//   "Liu Jian Mao Cao" 柳建毛草 草书, most cursive  ← current
+const CJK_FONT = "Liu Jian Mao Cao";
 // Only the glyphs actually used are fetched (&text=), so this costs ~2KB.
 const cjkInSignature = [...new Set(footerQuote.match(/[\u4e00-\u9fff]/g) ?? [])].join("");
 const CJK_HREF =
@@ -916,7 +916,7 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
         --sans: "Geist", system-ui, -apple-system, sans-serif;
         /* One typeface across the whole page — hierarchy comes from ink, not family. */
         --mono: ui-monospace, "SF Mono", Menlo, monospace;
-        --cjk: "Ma Shan Zheng";
+        --cjk: "Liu Jian Mao Cao";
 
         /* Signature entrance — tunable live from the dev panel. */
         --sig-name-dur: 420ms;

@@ -81,7 +81,7 @@ export type ExperimentCard = {
 export const experimentColumns: ExperimentCard[][] = [
   [
     { title: "Writing Surface", date: "Aug 2026", height: 324, href: "/paper" },
-    { title: "Curve Playground", date: "Aug 2026", height: 316, href: "/logomath" },
+    { title: "Curve Playground", date: "Aug 2026", height: 316, href: "/shape-exploration" },
   ],
   [
     { title: "Living Map", date: "Aug 2026", height: 240, href: "/cities/" },
