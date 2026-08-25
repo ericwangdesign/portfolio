@@ -61,11 +61,64 @@ const ANIMS = [
   { id: "type-settle", label: "Type settle", note: "tracking tightens in" },
 ];
 
-// Reveal bookkeeping: --i is document order, --t is hierarchy tier, --ci is card order.
+// Reveal bookkeeping: --i is document order, --t is hierarchy tier,
+// --ci is card order, --b is the beat the element lands on.
+//
+// The stagger used to be metronomic — one beat per element, so the 64px of air
+// before "Work" arrived on the same tick as the 12px between two bio lines, and
+// the page read as a single undifferentiated list. A beat is now a distance:
+// every element costs one beat for itself plus a beat for each PX_PER_BEAT of
+// blank space above it, so the reveal breathes wherever the layout does.
+const PX_PER_BEAT = 16;
+
+/** Mirrors the gaps in the CSS below — the two have to be changed together. */
+const GAP = {
+  tight: 0, // .rows — work rows sit flush against each other
+  line: 12, // .bio, .section, .group — one line of air
+  block: 20, // .intro, and label-to-company (12 + 8 of padding)
+  group: 28, // company to company (8 + 12 + 8)
+  section: 64, // .stack — intro, Work, Experiments, footer
+};
+
+// The masonry is a second axis: vertical distance across two columns, not the
+// rhythm of the flow. Read at the same rate it would swamp the section breaks,
+// so the grid is scaled to land as one settle rather than a fifth sequence.
+const PX_PER_CARD_BEAT = 96;
+const CARD_GAP = 8;
+
 let _i = 0;
 let _ci = 0;
-const rv = (tier: number) => `--i:${_i++};--t:${tier}`;
-const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
+let _beats = 0;
+let _started = false;
+let _gridStart: number | null = null;
+const beatsAttr = (b: number) => `--b:${Math.round(b * 100) / 100}`;
+
+/** The name and the handle carry their own timing; they sit outside the beat. */
+const rvHead = () => `--i:${_i++};--t:1`;
+
+const rv = (tier: number, gap: number = GAP.line) => {
+  if (_started) _beats += 1 + gap / PX_PER_BEAT;
+  _started = true;
+  return `--i:${_i++};--t:${tier};${beatsAttr(_beats)}`;
+};
+
+/** `top` is the card's own offset down its column, straight from the heights. */
+const rvCard = (top: number) => {
+  if (_gridStart === null) _gridStart = _beats + 1 + GAP.line / PX_PER_BEAT;
+  const b = _gridStart + top / PX_PER_CARD_BEAT;
+  _beats = Math.max(_beats, b);
+  return `--i:${_i++};--t:5;--ci:${_ci++};${beatsAttr(b)}`;
+};
+
+/** Where each card starts down its column, so the grid can land by eye level. */
+const cardTops = experimentColumns.map((column) => {
+  let y = 0;
+  return column.map((card) => {
+    const top = y;
+    y += card.height + CARD_GAP;
+    return top;
+  });
+});
 ---
 
 <!doctype html>
@@ -121,12 +174,12 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
         <!-- intro -->
         <section class="intro">
           <div class="namerow">
-            <p class="name rv" style={rv(1)}>Eric Wang</p>
-            <a class="handle rv" href={HANDLE_URL} target="_blank" rel="noreferrer" style={rv(1)}>{handleChars.map((ch, n) => <span class="ch" style={`--s:${stepOf[n]}`}>{ch === " " ? "\u00A0" : ch}</span>)}</a>
+            <p class="name rv" style={rvHead()}>Eric Wang</p>
+            <a class="handle rv" href={HANDLE_URL} target="_blank" rel="noreferrer" style={rvHead()}>{handleChars.map((ch, n) => <span class="ch" style={`--s:${stepOf[n]}`}>{ch === " " ? "\u00A0" : ch}</span>)}</a>
           </div>
 
           <div class="bio">
-            <p class="rv" style={rv(3)}>
+            <p class="rv" style={rv(3, GAP.block)}>
               I'm a designer at <a
                 class="u"
                 href="https://www.google.com/maps"
@@ -136,7 +189,7 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
               world gets drawn for billions of users, and in what order the
               information reaches them.
             </p>
-            <p class="rv" style={rv(3)}>
+            <p class="rv" style={rv(3, GAP.line)}>
               Before this, I worked on enterprise and customer-facing products
               at <a
                 class="u"
@@ -151,7 +204,7 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
                 rel="noreferrer">UC Berkeley</a
               >.
             </p>
-            <div class="loc rv" style={rv(3)}>
+            <div class="loc rv" style={rv(3, GAP.block)}>
               <img src="/pin.png" alt="" width="16" height="16" />
               <p id="loc-text"><a class="u" href="https://www.google.com/maps/search/?api=1&query=San+Francisco%2C+CA" target="_blank" rel="noreferrer">San Francisco</a></p>
             </div>
@@ -160,15 +213,15 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
 
         <!-- work -->
         <section class="section">
-          <p class="label rv" style={rv(2)}>Work</p>
+          <p class="label rv" style={rv(2, GAP.section)}>Work</p>
           {
-            workGroups.map((group) => (
+            workGroups.map((group, g) => (
               <div class="group">
-                <p class="company rv" style={rv(2)}>
+                <p class="company rv" style={rv(2, g === 0 ? GAP.block : GAP.group)}>
                   {group.company}
                 </p>
                 <div class="rows">
-                  {group.items.map((item) => {
+                  {group.items.map((item, n) => {
                     const Tag = item.href ? "a" : "div";
                     const external = item.href?.startsWith("http");
                     return (
@@ -181,7 +234,7 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
                         href={item.href}
                         target={external ? "_blank" : undefined}
                         rel={external ? "noreferrer" : undefined}
-                        style={rv(4)}
+                        style={rv(4, n === 0 ? GAP.line : GAP.tight)}
                       >
                         <span class="title">{item.title}</span>
                         {item.href && (
@@ -222,12 +275,12 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
 
         <!-- experiments -->
         <section class="section">
-          <p class="label rv" style={rv(2)}>Experiments</p>
+          <p class="label rv" style={rv(2, GAP.section)}>Experiments</p>
           <div class="grid">
             {
-              experimentColumns.map((column) => (
+              experimentColumns.map((column, c) => (
                 <div class="col">
-                  {column.map((card) => {
+                  {column.map((card, n) => {
                     const Tag = card.href ? "a" : "div";
                     const isVideo = !!card.media && /\.(mp4|webm)$/i.test(card.media);
                     const livePreview =
@@ -241,7 +294,7 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
                           { link: card.href, motion },
                         ]}
                         href={card.href}
-                        style={`--h:${card.height};${rvCard()}`}
+                        style={`--h:${card.height};${rvCard(cardTops[c][n])}`}
                         data-title={card.title}
                         data-src={card.href}
                       >
@@ -286,7 +339,7 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
         </section>
       </div>
 
-      <footer class="rv" style={rv(6)}>
+      <footer class="rv" style={rv(6, GAP.section)}>
         <p class="quote">{footerQuote.split(/([\u4e00-\u9fff]+)/).map((part) =>
             /[\u4e00-\u9fff]/.test(part) ? <span class="cjk">{part}</span> : part,
           )}</p>
@@ -835,8 +888,16 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
               var bl = parseFloat(readVar("--sig-body-lead"));
               var bg = parseFloat(readVar("--sig-body-stag"));
               var bd = parseFloat(readVar("--sig-body-dur"));
-              var count = document.querySelectorAll(".rv").length - 2;
-              var bEnd = bl + Math.max(0, count - 1) * bg + bd;
+              // Beats are no longer one-per-element, so read the last one
+              // off the page rather than counting nodes.
+              var last = 0;
+              Array.prototype.forEach.call(
+                document.querySelectorAll(".rv"), function (el) {
+                  var b = parseFloat(el.style.getPropertyValue("--b"));
+                  if (b > last) last = b;
+                },
+              );
+              var bEnd = bl + last * bg + bd;
               var gap = bl - dEnd;
               timeline.innerHTML =
                 "name <b>0–" + Math.round(n) + "</b><br>" +
@@ -1380,9 +1441,11 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
       /* 00 signature — name lands, handle dithers in, everything else blurs up */
       html[data-anim="signature"] .rv {
         animation-name: a-blurup;
-        /* --i 0 is the name, 1 is the handle; content starts counting at 2 */
+        /* --b is the beat this element lands on, and a beat is a distance:
+           see the reveal bookkeeping above. The name and the handle are timed
+           separately just below. */
         animation-delay: calc(
-          var(--sig-body-lead) + (var(--i, 2) - 2) * var(--sig-body-stag)
+          var(--sig-body-lead) + var(--b, 0) * var(--sig-body-stag)
         );
         animation-duration: var(--sig-body-dur);
         animation-timing-function: var(--sig-body-ease);
