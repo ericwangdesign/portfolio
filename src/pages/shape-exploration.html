@@ -41,7 +41,7 @@
   body.idle aside{opacity:0; margin-right:-308px; pointer-events:none}
   body.idle #hud{opacity:0}
   #hud{transition:opacity .5s ease}
-  body.idle{cursor:none}
+  body.resting{cursor:none}
   aside::-webkit-scrollbar{width:8px}
   aside::-webkit-scrollbar-thumb{background:#2a2a2e;border-radius:8px}
 
@@ -825,7 +825,7 @@ tr.innerHTML = `<h2>Transport</h2>
     <button id="reset" class="wide">Reset time</button>
   </div>
   <p class="hint"><kbd>space</kbd> play / pause · <kbd>R</kbd> randomize · drag any number to scrub<br>
-  Controls fade when the pointer rests — move it to bring them back.</p>`;
+  Withdraws after five seconds still. A sweep of the pointer, a click or a key calls it back.</p>`;
 panel.appendChild(tr);
 const playBtn = tr.querySelector('#play');
 playBtn.onclick = () => { playing = !playing; playBtn.textContent = playing?'Pause':'Play';
@@ -914,20 +914,60 @@ addEventListener('keydown', ev => {
   if (ev.key === 'r' || ev.key === 'R') rnd.click();
 });
 
-/* ---------------------------- auto-hide ---------------------------- */
+/* ---------------------------- auto-hide ----------------------------
+   The page opens as the piece alone — no panel, nothing to dismiss. The
+   instrument is summoned, not dismissed.
+
+   Waking on any pointermove made that useless: a mouse resting on a desk
+   drifts, a trackpad reports a pixel from a resting palm, and the panel
+   flew back in unasked. So a wake has to be deliberate — either an
+   unambiguous act (click, key, wheel, touch) or a continuous sweep of the
+   pointer far enough that nothing but intent explains it.
+
+   Distance only counts while the gesture is unbroken. Pause longer than a
+   moment and the tally resets, so a pixel of drift every few seconds never
+   accumulates into a summons.                                            */
 const asideEl = document.querySelector('aside');
+const IDLE_MS = 5000;      // stillness before the instrument withdraws
+const WAKE_PX = 56;        // deliberate sweep needed to call it back
+const GESTURE_GAP = 400;   // longer a pause than this and the sweep is over
+
 let idleTimer = null, pinned = false;
-function wake(){
-  document.body.classList.remove('idle');
+let swept = 0, lastPt = null, lastAt = 0;
+
+function show(){
+  document.body.classList.remove('idle', 'resting');
   clearTimeout(idleTimer);
-  if (!pinned) idleTimer = setTimeout(() => document.body.classList.add('idle'), 2400);
+  if (!pinned) idleTimer = setTimeout(hide, IDLE_MS);
 }
-['pointermove','pointerdown','wheel','keydown','touchstart']
-  .forEach(ev => addEventListener(ev, wake, {passive:true}));
-asideEl.addEventListener('pointerenter', () => { pinned = true;  wake(); });
-asideEl.addEventListener('pointerleave', () => { pinned = false; wake(); });
-addEventListener('blur', () => { pinned = false; wake(); });
-wake();
+function hide(){
+  document.body.classList.add('idle', 'resting');
+  swept = 0; lastPt = null;
+}
+
+addEventListener('pointermove', ev => {
+  /* The cursor itself comes straight back — hiding both it and the panel
+     behind the same threshold would leave you sweeping blind. */
+  document.body.classList.remove('resting');
+  const now = performance.now();
+  if (lastPt && now - lastAt < GESTURE_GAP)
+    swept += Math.hypot(ev.clientX - lastPt[0], ev.clientY - lastPt[1]);
+  else swept = 0;
+  lastPt = [ev.clientX, ev.clientY]; lastAt = now;
+  if (document.body.classList.contains('idle') && swept < WAKE_PX) return;
+  swept = 0;
+  show();
+}, {passive:true});
+
+['pointerdown','keydown','wheel','touchstart'].forEach(ev =>
+  addEventListener(ev, () => { document.body.classList.remove('resting'); show(); },
+                   {passive:true}));
+
+asideEl.addEventListener('pointerenter', () => { pinned = true;  show(); });
+asideEl.addEventListener('pointerleave', () => { pinned = false; show(); });
+addEventListener('blur', () => { pinned = false; hide(); });
+
+hide();          // opens as the piece, not the instrument
 
 build(Math.round(P.count));
 requestAnimationFrame(tick);
