@@ -387,7 +387,7 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
               <div class="dev-sect-h">timing</div>
               <label class="dev-slider">
                 <span>name dur</span>
-                <input type="range" min="120" max="900" step="10" data-var="--sig-name-dur" data-unit="ms" />
+                <input type="range" min="120" max="1200" step="10" data-var="--sig-name-dur" data-unit="ms" />
                 <em>420</em>
               </label>
               <label class="dev-slider">
@@ -407,7 +407,7 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
               </label>
               <label class="dev-slider">
                 <span>body lead</span>
-                <input type="range" min="200" max="1800" step="10" data-var="--sig-body-lead" data-unit="ms" />
+                <input type="range" min="200" max="2400" step="10" data-var="--sig-body-lead" data-unit="ms" />
                 <em>920</em>
               </label>
               <label class="dev-slider">
@@ -417,7 +417,7 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
               </label>
               <label class="dev-slider">
                 <span>body dur</span>
-                <input type="range" min="200" max="1400" step="10" data-var="--sig-body-dur" data-unit="ms" />
+                <input type="range" min="200" max="2000" step="10" data-var="--sig-body-dur" data-unit="ms" />
                 <em>600</em>
               </label>
               <div class="dev-timeline" id="dev-timeline">–</div>
@@ -689,16 +689,16 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
 
             /* ---------- signature tuner ---------- */
             var DEFAULTS = {
-              "--sig-name-dur": "420ms",
-              "--sig-name-ease": "cubic-bezier(0.2, 0.8, 0.2, 1)",
-              "--sig-dither-start": "280ms",
-              "--sig-dither-stag": "22ms",
-              "--sig-dither-dur": "260ms",
+              "--sig-name-dur": "640ms",
+              "--sig-name-ease": "cubic-bezier(0.4, 0, 0.2, 1)",
+              "--sig-dither-start": "380ms",
+              "--sig-dither-stag": "30ms",
+              "--sig-dither-dur": "380ms",
               "--sig-dither-steps": "4",
-              "--sig-body-lead": "920ms",
-              "--sig-body-stag": "27ms",
-              "--sig-body-dur": "900ms",
-              "--sig-body-ease": "cubic-bezier(0.2, 0.8, 0.2, 1)",
+              "--sig-body-lead": "1260ms",
+              "--sig-body-stag": "32ms",
+              "--sig-body-dur": "1200ms",
+              "--sig-body-ease": "cubic-bezier(0.4, 0, 0.2, 1)",
             };
             var EASE_VAR = { name: "--sig-name-ease", body: "--sig-body-ease" };
             var tune = {};
@@ -745,7 +745,10 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
             var toX = function (x) { return x * 100; };
             var toY = function (y) { return (1 - y) * 100; };
 
-            function drawCurve() {
+            /* persist=false during reset: drawCurve writes the curve back through
+               setVar, so resetting used to clear localStorage and then instantly
+               re-save the ease it had just cleared. */
+            function drawCurve(persist) {
               if (beat === "dither") return;
               var b = bez[beat];
               var x1 = toX(b[0]), y1 = toY(b[1]), x2 = toX(b[2]), y2 = toY(b[3]);
@@ -764,7 +767,7 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
                 b.map(function (n) { return Math.round(n * 100) / 100; }).join(", ") +
                 ")";
               bezVal.textContent = css;
-              setVar(EASE_VAR[beat], css);
+              setVar(EASE_VAR[beat], css, persist !== false);
             }
 
             var dragging = null;
@@ -884,7 +887,7 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
                   s.value = parseFloat(DEFAULTS[s.dataset.var]);
                   s.nextElementSibling.textContent = s.value;
                 });
-                drawCurve();
+                drawCurve(false);
                 syncTimeline();
                 play(current());
               });
@@ -919,16 +922,20 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
         --cjk: "Liu Jian Mao Cao";
 
         /* Signature entrance — tunable live from the dev panel. */
-        --sig-name-dur: 420ms;
-        --sig-name-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-        --sig-dither-start: 280ms;
-        --sig-dither-stag: 22ms;
-        --sig-dither-dur: 260ms;
+        --sig-name-dur: 640ms;
+        /* A gentler curve than the old (.2,.8,.2,1): that one rushed to nearly
+           full opacity and then crawled, which reads as fast however long it
+           runs. This spreads the change evenly, so things emerge instead of
+           snapping and then waiting. */
+        --sig-name-ease: cubic-bezier(0.4, 0, 0.2, 1);
+        --sig-dither-start: 380ms;
+        --sig-dither-stag: 30ms;
+        --sig-dither-dur: 380ms;
         --sig-dither-steps: 4;
-        --sig-body-lead: 920ms;
-        --sig-body-stag: 27ms;
-        --sig-body-dur: 900ms;
-        --sig-body-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+        --sig-body-lead: 1260ms;
+        --sig-body-stag: 32ms;
+        --sig-body-dur: 1200ms;
+        --sig-body-ease: cubic-bezier(0.4, 0, 0.2, 1);
       }
       * { box-sizing: border-box; }
       body {
