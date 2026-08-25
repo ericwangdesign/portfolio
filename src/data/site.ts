@@ -32,7 +32,7 @@ export const workGroups: WorkGroup[] = [
       {
         title: "Gemini in Maps",
         year: "2025-26",
-        href: "https://blog.google/products-and-platforms/products/maps/ask-maps-immersive-navigation/",
+        href: "https://blog.google/products-and-platforms/products/maps/order-food-in-ask-maps/",
       },
       {
         title: "Satellite Map",
@@ -80,15 +80,15 @@ export type ExperimentCard = {
 // Change one and its column-mate has to move to match.
 export const experimentColumns: ExperimentCard[][] = [
   [
-    { title: "Writing", date: "Aug 2026", height: 324, href: "/writing" },
+    { title: "Writing", date: "Jul 2026", height: 324, href: "/writing" },
     { title: "Shape", date: "Aug 2026", height: 316, href: "/shape" },
   ],
   [
-    { title: "Cities", date: "Aug 2026", height: 240, href: "/cities" },
+    { title: "Cities", date: "Jun 2026", height: 240, href: "/cities" },
     // Water absorbed the old "Liquid" card — same project, later milestone.
     // The June phone recording stands in for the live preview: it shows the
     // thing being *used*, which an iframe of the page cannot.
-    { title: "Water", date: "Apr–Aug 2026", height: 400, href: "/water",
+    { title: "Water", date: "Apr 2026", height: 400, href: "/water",
       media: "/water/card.mp4" },
   ],
 ];

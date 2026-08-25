@@ -97,7 +97,7 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
       rel="stylesheet"
     />
     {cjkInSignature && <link href={CJK_HREF} rel="stylesheet" />}
-    <Analytics />
+    <Analytics piece="home" />
     <script is:inline define:vars={{ DEFAULT_ANIM }}>
       // Runs before first paint so the page never flashes visible, then hides.
       (function () {
