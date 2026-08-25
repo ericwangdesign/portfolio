@@ -262,7 +262,7 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
                         {livePreview && (
                           <iframe
                             class="preview"
-                            data-preview={card.href}
+                            data-preview={`${card.href}${card.href?.includes("?") ? "&" : "?"}chrome=off`}
                             title=""
                             aria-hidden="true"
                             tabindex="-1"

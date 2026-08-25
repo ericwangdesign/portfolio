@@ -139,6 +139,15 @@
     footer { color: var(--dim); opacity: 0.7; font-size: 11px; line-height: 1.7; margin-top: auto; padding-top: var(--gap-block); }
     footer p + p { margin-top: 10px; }
 
+    /* ?chrome=off — the map alone, centred and given the whole frame. Used for the
+       homepage's card previews, where the controls would only be illegible clutter.
+       The expanded viewer loads the plain URL and keeps them. */
+    body.chromeless aside,
+    body.chromeless .transport { display: none; }
+    body.chromeless main { padding: 24px; }
+    body.chromeless .canvas-col,
+    body.chromeless .stage { width: min(100%, calc(92vh * var(--aspect))); }
+
     @media (max-width: 860px) {
       body { flex-direction: column; height: auto; min-height: 100dvh; overflow: auto; }
       main { padding: 20px 20px 4px; }
@@ -154,7 +163,7 @@
       .seg { gap: 14px 18px; }
     }
   </style>
-  <script type="module" crossorigin src="/cities/assets/index-Be59TIgJ.js"></script>
+  <script type="module" crossorigin src="/cities/assets/index-DF7dtwpB.js"></script>
 </head>
 <body>
   <main>
@@ -190,10 +199,10 @@
       <div class="field">
         <span class="name">shape</span>
         <div class="seg" id="marks">
-          <button data-style="0" class="active">dots</button>
+          <button data-style="3" class="active">halftone</button>
+          <button data-style="0">dots</button>
           <button data-style="1">ascii</button>
           <button data-style="2">letters</button>
-          <button data-style="3">halftone</button>
           <button data-style="4">braille</button>
         </div>
       </div>
