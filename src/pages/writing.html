@@ -54,6 +54,7 @@
     width:800px;                 /* keep in step with COL_W */
     max-width:100%;
     margin:0 auto;
+    /* set from COL_W at boot so thumbnail mode can widen it */
     min-height:100vh;
   }
   #glyphs{position:absolute; inset:0;}
@@ -121,6 +122,11 @@
     letter-spacing:-0.01em;
     z-index:5;
   }
+  /* thumbnail mode: the card shows the writing and nothing else */
+  body.thumb #hint,
+  body.thumb #panel,
+  body.thumb #caret{ display:none !important; }
+
   #hidden{
     position:fixed; left:-9999px; top:0; width:1px; height:1px;
     opacity:0; border:0; padding:0; resize:none;
@@ -226,8 +232,18 @@
 
 const GRAPHITE = [0x6b, 0x65, 0x60];
 const INK      = [0x1c, 0x1a, 0x17];
-const COL_W    = 800;          // writing column width
-const PAD_TOP  = 132;          // top of page padding
+/* ---------------------------- thumbnail mode ---------------------------
+   The portfolio embeds this page as a card preview: an iframe laid out at
+   400% and scaled to 0.25, so anything set at reading size arrives about a
+   quarter of it - illegible. `?chrome=off` asks for the demo instead: no
+   furniture, type several times larger, and the page writes a line to
+   itself on a loop, careful then hurried, so the card SHOWS what the piece
+   does instead of describing it.
+   ----------------------------------------------------------------------- */
+const THUMB = new URLSearchParams(location.search).get('chrome') === 'off';
+
+let   COL_W    = 800;          // writing column width
+let   PAD_TOP  = 132;          // top of page padding
 const PAD_BOT  = 180;
 const FAST_MS  = 70;           // dt considered "fast"
 const SLOW_MS  = 620;          // dt considered "deliberate"
@@ -1551,7 +1567,13 @@ window.addEventListener('keydown', e => {
   if(e.metaKey || e.ctrlKey || e.altKey) return;
   if(replaying) return;
 
-  if(e.key === 'Escape'){ e.preventDefault(); cancelRevision(); return; }
+  // Escape only belongs to us while a revision is actually open. Swallowing
+  // it unconditionally meant a host page (the portfolio's preview viewer)
+  // could never use Escape as its way out while this page had focus.
+  if(e.key === 'Escape'){
+    if(selection){ e.preventDefault(); cancelRevision(); }
+    return;
+  }
   if(e.key === 'Backspace'){ e.preventDefault(); backspace(); return; }
   if(e.key === 'Enter'){ e.preventDefault(); typeChar('\n'); return; }
   if(e.key.length === 1){ e.preventDefault(); typeChar(e.key); return; }
@@ -1820,8 +1842,87 @@ elPanel.addEventListener('mousedown', e => e.stopPropagation());
 
 /* ============================== BOOT ================================== */
 
+/* ------------------------------ the demo -------------------------------
+   Thumbnail mode writes one sentence to itself, forever. The sentence says
+   what the piece is, and the WAY it is written proves it: the first clause
+   is set down carefully and prints; the second is hurried and runs into
+   cursive. The tape is synthesised with exact intervals rather than typed
+   in real time, so the two hands come out identical on every loop no
+   matter how the browser throttles a background frame - only the reveal
+   is on a timer.
+   ----------------------------------------------------------------------- */
+const DEMO = [
+  { text: 'it documents how you think', ms: 235 },   // careful -> print
+  { text: ' and how you write',         ms: 52  },   // hurried -> cursive
+];
+
+function demoTape(){
+  const evs = [];
+  let t = Date.now() - 600000;
+  for(const seg of DEMO)
+    for(const ch of seg.text){ t += seg.ms; evs.push({ type:'char', ch, t }); }
+  return evs;
+}
+
+function runDemo(){
+  const evs = demoTape();
+  let i = 0, timer = null;
+  const step = () => {
+    if(i > evs.length){                      // held the finished line, start over
+      i = 0;
+      Timeline.clear(); relayout();
+      timer = setTimeout(step, 900);
+      return;
+    }
+    Timeline.events.length = 0;
+    Timeline.events.push(...evs.slice(0, i));
+    relayout();
+    const next = evs[i];
+    i++;
+    // reveal at the pace the tape records, so the eye sees the hand change gear
+    const wait = i > evs.length ? 2600 : (next ? Math.max(28, next.t - (evs[i-2]?.t ?? next.t)) : 2600);
+    timer = setTimeout(step, wait);
+  };
+  step();
+}
+
+/* The card that embeds this decides how big the frame is - four times its
+   own width, whatever that is - so the demo sizes itself to the frame it
+   lands in rather than assuming one. Re-run on resize so it survives a
+   column reflow. */
+function fitThumb(){
+  const w = window.innerWidth, h = window.innerHeight;
+  COL_W = Math.max(420, w - Math.round(w * 0.10));
+  elPage.style.width = COL_W + 'px';
+  PAD_TOP = 60;
+
+  // Set as large as will FIT. Start from the size we'd like and step down
+  // until the finished sentence clears the frame - card aspect ratios vary,
+  // and a clipped last line is worse than a slightly smaller hand. Measure
+  // the whole tape (not the current prefix) so the answer is stable.
+  const tape = demoTape();
+  const room = h * 0.86;
+  S.baseSize = clamp(Math.round(w / 6.5), 40, 260);
+  let m = layout(tape, {});
+  for(let guard = 0; guard < 12 && m.lines * m.lh > room && S.baseSize > 40; guard++){
+    S.baseSize = Math.max(40, Math.round(S.baseSize * 0.9));
+    m = layout(tape, {});
+  }
+  // Centre the FINISHED sentence, not the current one, so the block sits
+  // still while it is written instead of jumping each time a line wraps.
+  PAD_TOP = Math.max(24, Math.round((h - m.lines * m.lh) / 2));
+}
+
 (function boot(){
   // the only webfont left is Geist, and it dresses the standing hint alone
+  if(THUMB){
+    document.body.classList.add('thumb');
+    fitThumb();
+    window.addEventListener('resize', fitThumb);
+    relayout();
+    runDemo();
+    return;
+  }
   relayout();
 })();
 </script>
