@@ -6,7 +6,7 @@
 <title>Logo Math — parametric mark canvas</title>
 <style>
   :root{
-    --bg:#0b0b0c; --panel:#111113; --line:#232326; --txt:#e8e8ea;
+    --bg:#0A0A0A; --panel:#0A0A0A; --line:#232326; --txt:#e8e8ea;
     --dim:#8a8a92; --accent:#e8e8ea; --radius:6px;
   }
   *{box-sizing:border-box}
@@ -103,7 +103,7 @@
   }
   button:hover{background:#232329; border-color:#3a3a42}
   button:active{transform:translateY(1px)}
-  button.on{background:var(--txt); color:#0b0b0c; border-color:var(--txt)}
+  button.on{background:var(--txt); color:#0A0A0A; border-color:var(--txt)}
   #presetBtns button{padding:6px 8px; font-size:10.5px}
   .sect .hint:first-child{margin-top:0}
   .rule{flex:0 0 100%; height:1px; background:var(--line); margin:4px 0 3px; border:0}
@@ -204,8 +204,8 @@ const CTRL = [
   ]},
   {g:'Flow', items:[
     {k:'flow',        n:'Flow',          min:0,  max:1,  step:.01, v:1,  f:2},
-    {k:'dwell',       n:'· dwell',       min:0,  max:8,  step:.1,  v:3,  f:1, u:'s'},
-    {k:'travel',      n:'· travel',      min:.5, max:12, step:.1,  v:4.5,f:1, u:'s'},
+    {k:'dwell',       n:'· dwell',       min:0,  max:8,  step:.1,  v:2,  f:1, u:'s'},
+    {k:'travel',      n:'· travel',      min:.5, max:12, step:.1,  v:3,  f:1, u:'s'},
     {k:'variety',     n:'· variety',     min:0,  max:1,  step:.01, v:.45,f:2},
   ]},
   {g:'Motion', items:[
@@ -260,7 +260,7 @@ const DEFAULT_PRESET = 'Halo';
 const NEUTRAL = {lobes:4, span:1, altAmt:0, altFold:2, squash:1,
                  tipBias:0, depthCurve:1, bowSpread:0, lightFold:2};
 
-let bgColor = '#000000', inkColor = '#ffffff';
+let bgColor = '#0A0A0A', inkColor = '#ffffff';
 let playing = true, t = 0, speed = 1, lastMs = null;
 
 /* ------------------------------ geometry ------------------------------ */
@@ -803,7 +803,7 @@ tr.querySelectorAll('[data-sp]').forEach(b => b.onclick = () => {
 const out = document.createElement('div'); out.className='sect';
 out.innerHTML = `<h2>Output</h2>
   <div class="swatches" style="margin-bottom:10px">
-    <span class="sw"><input type="color" id="bgc" value="#000000">Ground</span>
+    <span class="sw"><input type="color" id="bgc" value="#0A0A0A">Ground</span>
     <span class="sw"><input type="color" id="inkc" value="#ffffff">Ink</span>
     <button id="invert">Invert</button>
   </div>
