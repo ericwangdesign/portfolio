@@ -1,14 +1,58 @@
 ---
-// Eric Wang Design — portfolio landing
+// Eric Wang — portfolio landing.
+// Built from Figma "Home" (file iowWbGxgrpryC9s62qGWGY, node 63:3):
+// 640px column, Geist 14/1.3 at -0.01em, #0f0f0f ground, #1a1a1a cards.
 import Analytics from "../components/Analytics.astro";
+import {
+  workGroups,
+  experimentColumns,
+  footerQuote,
+  footerLinks,
+} from "../data/site";
 
-const experience = [
-  { company: "Google", year: "2025+", desc: "Across Google Maps: AskMap's generative cartography, monetization, 3D abstract and satellite maps, and driving experiences." },
-  { company: "Tesla", year: "2025", desc: "Internal AI for finding what the company already knows, and finance dashboards for seeing where the money goes." },
-  { company: "Wayfair", year: "2025", desc: "Supply-chain tools behind the scenes, quiet workflows that make the part everyone sees feel effortless." },
-  { company: "Accenture", year: "2024", desc: "A vision for where a luxury automaker goes next, plus HMI and hardware concepts where heritage meets what's coming." },
-  { company: "Ditto.ai", year: "2023", desc: "An AI that nudges people off their screens and into real conversations." },
+// The entrance animation that ships. Change this one string to lock a choice in.
+const DEFAULT_ANIM = "signature";
+
+// The handle resolves letter by letter in dispersed order — the same
+// bit-reversal an ordered-dither matrix uses to decide what lands first.
+const HANDLE = "@ericwangdesign";
+const handleChars = [...HANDLE];
+const bitrev = (x: number, bits: number) => {
+  let r = 0;
+  for (let i = 0; i < bits; i++) r = (r << 1) | ((x >> i) & 1);
+  return r;
+};
+const bits = Math.max(1, Math.ceil(Math.log2(handleChars.length || 2)));
+const dispersed = handleChars
+  .map((_, i) => i)
+  .sort((a, b) => bitrev(a, bits) - bitrev(b, bits) || a - b);
+// stepOf[charIndex] = which beat of the sequence that letter arrives on
+const stepOf: number[] = [];
+dispersed.forEach((charIndex, beat) => (stepOf[charIndex] = beat));
+
+// The tuner is kept, but hidden. It only exists locally, and even there it stays
+// closed until you ask for it with ?dev in the URL or the ⌥D shortcut.
+const showPanel = import.meta.env.DEV;
+
+const ANIMS = [
+  { id: "signature", label: "Signature", note: "name, dither, then blur" },
+  { id: "fade-up", label: "Fade up", note: "rises 8px, staggered" },
+  { id: "blur-up", label: "Blur up", note: "blur 8px + rise" },
+  { id: "cascade", label: "Cascade", note: "line by line, fast" },
+  { id: "progressive", label: "Progressive", note: "by hierarchy, not order" },
+  { id: "map-settle", label: "Map settle", note: "column eases out of a zoom" },
+  { id: "ink-bleed", label: "Ink bleed", note: "wipes down like ink" },
+  { id: "dither", label: "Dither resolve", note: "quantized, 6 steps" },
+  { id: "hairline", label: "Hairline draw", note: "rules draw, then text" },
+  { id: "tiles-first", label: "Tiles first", note: "work lands before words" },
+  { id: "type-settle", label: "Type settle", note: "tracking tightens in" },
 ];
+
+// Reveal bookkeeping: --i is document order, --t is hierarchy tier, --ci is card order.
+let _i = 0;
+let _ci = 0;
+const rv = (tier: number) => `--i:${_i++};--t:${tier}`;
+const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
 ---
 
 <!doctype html>
@@ -17,136 +61,1230 @@ const experience = [
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Eric Wang Design</title>
-    <meta name="description" content="Design Portfolio of Eric (Xufei) Wang" />
+    <meta
+      name="description"
+      content="Eric Wang is a designer at Google Maps, working on navigation and cartography, thinking about how the world gets drawn for billions of users."
+    />
     <meta property="og:title" content="Eric Wang Design" />
-    <meta property="og:description" content="Design Portfolio of Eric (Xufei) Wang" />
+    <meta
+      property="og:description"
+      content="Designer at Google Maps, working on navigation and cartography."
+    />
     <meta property="og:image" content="/og-image.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:description" content="Design Portfolio of Eric (Xufei) Wang" />
+    <meta
+      name="twitter:description"
+      content="Designer at Google Maps, working on navigation and cartography."
+    />
     <link rel="icon" type="image/png" href="/favicon-darkbg.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Spectral:wght@300;400;500&display=swap"
-      rel="stylesheet"
-    />
-    <link
-      href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&display=swap"
       rel="stylesheet"
     />
     <Analytics />
+    <script is:inline define:vars={{ DEFAULT_ANIM }}>
+      // Runs before first paint so the page never flashes visible, then hides.
+      (function () {
+        try {
+          var url = new URL(window.location.href);
+          var fromUrl = url.searchParams.get("anim");
+          var stored = localStorage.getItem("ew.anim");
+          var choice = fromUrl || stored || DEFAULT_ANIM;
+          if (choice && choice !== "off") {
+            document.documentElement.setAttribute("data-anim", choice);
+          }
+        } catch (e) {
+          document.documentElement.setAttribute("data-anim", DEFAULT_ANIM);
+        }
+      })();
+    </script>
   </head>
   <body>
     <main>
-      <!-- top: headline + experience -->
-      <div class="top">
-        <h1 class="headline">
-          Eric is a designer at Google Map, based in San Francisco.
-        </h1>
+      <div class="stack">
+        <!-- intro -->
+        <section class="intro">
+          <div class="namerow">
+            <p class="name rv" style={rv(1)}>Eric Wang</p>
+            <p class="handle rv" style={rv(1)}>{handleChars.map((ch, n) => <span class="ch" style={`--s:${stepOf[n]}`}>{ch === " " ? "\u00A0" : ch}</span>)}</p>
+          </div>
 
-        <section class="work">
+          <div class="bio">
+            <p class="rv" style={rv(3)}>
+              I'm a designer at <a
+                class="u"
+                href="https://www.google.com/maps"
+                target="_blank"
+                rel="noreferrer">Google Maps</a
+              >, working on navigation and cartography, thinking about how the
+              world gets drawn for billions of users, and in what order the
+              information reaches them.
+            </p>
+            <p class="rv" style={rv(3)}>
+              Before this, I worked on enterprise and customer-facing products
+              at <a
+                class="u"
+                href="https://www.tesla.com"
+                target="_blank"
+                rel="noreferrer">Tesla</a
+              >, did independent agency work helping startups grow from 0 to 1,
+              and studied cognitive science at <a
+                class="u"
+                href="https://www.berkeley.edu"
+                target="_blank"
+                rel="noreferrer">UC Berkeley</a
+              >.
+            </p>
+            <div class="loc rv" style={rv(3)}>
+              <img src="/pin.png" alt="" width="16" height="16" />
+              <p id="loc-text">San Francisco.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- work -->
+        <section class="section">
+          <p class="label rv" style={rv(2)}>Work</p>
           {
-            experience.map((row) => (
-              <div class="row">
-                <div class="meta">
-                  <span class="company">{row.company}</span>
-                  <span class="year">{row.year}</span>
+            workGroups.map((group) => (
+              <div class="group">
+                <p class="company rv" style={rv(2)}>
+                  {group.company}
+                </p>
+                <div class="rows">
+                  {group.items.map((item) => {
+                    const Tag = item.href ? "a" : "div";
+                    const external = item.href?.startsWith("http");
+                    return (
+                      <Tag
+                        class:list={[
+                          "row",
+                          "rv",
+                          { link: item.href, locked: item.locked },
+                        ]}
+                        href={item.href}
+                        target={external ? "_blank" : undefined}
+                        rel={external ? "noreferrer" : undefined}
+                        style={rv(4)}
+                      >
+                        <span class="title">{item.title}</span>
+                        {item.href && (
+                          <span class="arrow" aria-hidden="true">↗</span>
+                        )}
+                        {item.locked && (
+                          <span class="lock" title="Not public yet">
+                            <svg viewBox="0 0 12 12" width="14" height="14" aria-hidden="true">
+                              <rect
+                                x="2.4"
+                                y="5.4"
+                                width="7.2"
+                                height="5.4"
+                                rx="1.1"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.1"
+                              />
+                              <path
+                                d="M4.2 5.4V3.9a1.8 1.8 0 0 1 3.6 0v1.5"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.1"
+                                stroke-linecap="round"
+                              />
+                            </svg>
+                          </span>
+                        )}
+                        <span class="year">{item.year}</span>
+                      </Tag>
+                    );
+                  })}
                 </div>
-                <p class="desc">{row.desc}</p>
               </div>
             ))
           }
         </section>
+
+        <!-- experiments -->
+        <section class="section">
+          <p class="label rv" style={rv(2)}>Experiments</p>
+          <div class="grid">
+            {
+              experimentColumns.map((column) => (
+                <div class="col">
+                  {column.map((card) => {
+                    const Tag = card.href ? "a" : "div";
+                    const isVideo = !!card.media && /\.(mp4|webm)$/i.test(card.media);
+                    const livePreview =
+                      !card.media && !!card.href && card.preview !== false;
+                    const motion = !!card.media || livePreview;
+                    return (
+                      <Tag
+                        class:list={[
+                          "card",
+                          "rv",
+                          { link: card.href, motion },
+                        ]}
+                        href={card.href}
+                        style={`--h:${card.height}px;${rvCard()}`}
+                        data-title={card.title}
+                        data-src={card.href}
+                      >
+                        {isVideo && (
+                          <video
+                            class="media"
+                            src={card.media}
+                            autoplay
+                            muted
+                            loop
+                            playsinline
+                            preload="metadata"
+                          />
+                        )}
+                        {card.media && !isVideo && (
+                          <img class="media" src={card.media} alt="" />
+                        )}
+                        {livePreview && (
+                          <iframe
+                            class="preview"
+                            data-preview={card.href}
+                            title=""
+                            aria-hidden="true"
+                            tabindex="-1"
+                            scrolling="no"
+                            loading="lazy"
+                          />
+                        )}
+                        <div class:list={["caption", { end: card.alignEnd }]}>
+                          <span class:list={[{ muted: card.muted }]}>
+                            {card.title}
+                          </span>
+                          {card.date && <span class="date">{card.date}</span>}
+                        </div>
+                      </Tag>
+                    );
+                  })}
+                </div>
+              ))
+            }
+          </div>
+        </section>
       </div>
 
-      <!-- bottom: footer -->
-      <footer>
+      <footer class="rv" style={rv(6)}>
+        <p class="quote">
+          “{footerQuote.text}” <span class="cite">{footerQuote.by}</span>
+        </p>
         <div class="links">
-          <a href="https://x.com/home" target="_blank" rel="noreferrer">X</a>
-          <a href="https://www.linkedin.com/in/ericwangdesign/" target="_blank" rel="noreferrer">Linkedin</a>
+          {
+            footerLinks.map((link) => (
+              <a href={link.href} target="_blank" rel="noreferrer">
+                {link.label}
+              </a>
+            ))
+          }
         </div>
-        <p class="tag">built with curiosity about the world and its people.</p>
       </footer>
     </main>
 
+    <div class="viewer" id="viewer" hidden>
+      <div class="viewer-scrim" data-close></div>
+      <div class="viewer-win" role="dialog" aria-modal="true" aria-labelledby="viewer-title">
+        <div class="viewer-bar">
+          <button class="viewer-btn" id="viewer-close" type="button" aria-label="Close">
+            <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+              <path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+          </button>
+          <div class="viewer-name">
+            <span id="viewer-title">Experiment</span>
+            <a class="viewer-btn" id="viewer-open" href="#" target="_blank" rel="noreferrer" aria-label="Open full page">
+              <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                <path d="M6 3h7v7M13 3L4.5 11.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M11 12.5v1H3v-8h1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </a>
+          </div>
+          <span class="viewer-url" id="viewer-url"></span>
+        </div>
+        <iframe class="viewer-frame" id="viewer-frame" title="Experiment preview" />
+      </div>
+    </div>
+
+    {
+      showPanel && (
+        <aside class="dev" id="dev-panel" aria-label="Entrance animation preview" hidden>
+          <div class="dev-head">
+            <span>entrance</span>
+            <button class="dev-collapse" id="dev-collapse" type="button" aria-expanded="true">
+              –
+            </button>
+          </div>
+          <div class="dev-body" id="dev-body">
+            {ANIMS.map((a, n) => (
+              <button class="dev-opt" type="button" data-anim={a.id}>
+                <span class="dev-n">{String(n + 1).padStart(2, "0")}</span>
+                <span class="dev-l">
+                  {a.label}
+                  <em>{a.note}</em>
+                </span>
+              </button>
+            ))}
+            <button class="dev-opt" type="button" data-anim="off">
+              <span class="dev-n">––</span>
+              <span class="dev-l">
+                Off<em>no animation</em>
+              </span>
+            </button>
+            <div class="dev-sect" id="dev-tuner">
+              <div class="dev-sect-h">curve</div>
+              <div class="dev-tabs" id="dev-tabs">
+                <button type="button" data-beat="name" aria-current="true">Name</button>
+                <button type="button" data-beat="dither">Dither</button>
+                <button type="button" data-beat="body">Body</button>
+              </div>
+
+              <div id="dev-bez">
+                <svg class="dev-curve" id="dev-curve" viewBox="0 0 100 100" width="100%">
+                  <rect x="0" y="0" width="100" height="100" class="c-box" />
+                  <line x1="0" y1="100" x2="100" y2="0" class="c-diag" />
+                  <line id="c-l1" class="c-hl" />
+                  <line id="c-l2" class="c-hl" />
+                  <path id="c-path" class="c-path" />
+                  <circle id="c-p1" class="c-pt" r="5" />
+                  <circle id="c-p2" class="c-pt" r="5" />
+                </svg>
+                <div class="dev-val" id="dev-bez-val">cubic-bezier(0.2, 0.8, 0.2, 1)</div>
+                <div class="dev-presets" id="dev-presets">
+                  <button type="button" data-bez="0,0,1,1">linear</button>
+                  <button type="button" data-bez="0.2,0.8,0.2,1">smooth</button>
+                  <button type="button" data-bez="0.16,1,0.3,1">expo</button>
+                  <button type="button" data-bez="0.25,1,0.5,1">quart</button>
+                  <button type="button" data-bez="0.34,1.56,0.64,1">back</button>
+                  <button type="button" data-bez="0.4,0,0.2,1">soft</button>
+                </div>
+              </div>
+
+              <div id="dev-steps" hidden>
+                <label class="dev-slider">
+                  <span>steps</span>
+                  <input type="range" min="1" max="12" step="1" data-var="--sig-dither-steps" data-unit="" />
+                  <em>4</em>
+                </label>
+                <p class="dev-hint">dither quantizes — no curve, just how many levels it lands on.</p>
+              </div>
+
+              <div class="dev-sect-h">timing</div>
+              <label class="dev-slider">
+                <span>name dur</span>
+                <input type="range" min="120" max="900" step="10" data-var="--sig-name-dur" data-unit="ms" />
+                <em>420</em>
+              </label>
+              <label class="dev-slider">
+                <span>dith start</span>
+                <input type="range" min="0" max="800" step="10" data-var="--sig-dither-start" data-unit="ms" />
+                <em>280</em>
+              </label>
+              <label class="dev-slider">
+                <span>dith stag</span>
+                <input type="range" min="4" max="60" step="1" data-var="--sig-dither-stag" data-unit="ms" />
+                <em>22</em>
+              </label>
+              <label class="dev-slider">
+                <span>dith dur</span>
+                <input type="range" min="80" max="700" step="10" data-var="--sig-dither-dur" data-unit="ms" />
+                <em>260</em>
+              </label>
+              <label class="dev-slider">
+                <span>body lead</span>
+                <input type="range" min="200" max="1800" step="10" data-var="--sig-body-lead" data-unit="ms" />
+                <em>920</em>
+              </label>
+              <label class="dev-slider">
+                <span>body stag</span>
+                <input type="range" min="2" max="60" step="1" data-var="--sig-body-stag" data-unit="ms" />
+                <em>18</em>
+              </label>
+              <label class="dev-slider">
+                <span>body dur</span>
+                <input type="range" min="200" max="1400" step="10" data-var="--sig-body-dur" data-unit="ms" />
+                <em>600</em>
+              </label>
+              <div class="dev-timeline" id="dev-timeline">–</div>
+            </div>
+
+            <div class="dev-actions">
+              <button class="dev-replay" id="dev-replay" type="button">Replay ⏎</button>
+              <button class="dev-mini" id="dev-copy" type="button" title="Copy CSS">Copy</button>
+              <button class="dev-mini" id="dev-reset" type="button" title="Reset to defaults">↺</button>
+            </div>
+          </div>
+        </aside>
+        <style is:inline>
+    /* ---------- dev panel (local only) ---------- */
+    .dev {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 50;
+      width: 208px;
+      background: #141414;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0;
+      color: var(--ink-4);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      max-height: calc(100svh - 32px);
+    }
+    /* `display: flex` above outranks the hidden attribute's default of none */
+    .dev[hidden] { display: none; }
+    .dev-body { overflow-y: auto; overscroll-behavior: contain; }
+    .dev-head {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 8px 7px 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #6e6e6e;
+    }
+    .dev-collapse {
+      appearance: none;
+      background: none;
+      border: 0;
+      color: #6e6e6e;
+      font: inherit;
+      font-size: 13px;
+      line-height: 1;
+      padding: 2px 4px;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+    .dev-collapse:hover { color: var(--ink); }
+    .dev-body { display: flex; flex-direction: column; padding: 4px; }
+    .dev.collapsed .dev-body { display: none; }
+    .dev-opt {
+      appearance: none;
+      background: none;
+      border: 0;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      width: 100%;
+      padding: 5px 6px;
+      border-radius: 4px;
+      font: inherit;
+      color: var(--ink-4);
+      text-align: left;
+      cursor: pointer;
+    }
+    .dev-opt:hover { background: rgba(255, 255, 255, 0.05); color: var(--ink-2); }
+    .dev-opt[aria-current="true"] { background: rgba(255, 255, 255, 0.09); color: var(--ink); }
+    .dev-n { color: #5c5c5c; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+    .dev-opt[aria-current="true"] .dev-n { color: var(--ink-3); }
+    .dev-l { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .dev-l em { font-style: normal; color: #5c5c5c; font-size: 10px; }
+    .dev-actions { display: flex; gap: 4px; margin: 6px 2px 2px; }
+    .dev-replay {
+      appearance: none;
+      flex: 1;
+      padding: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 0;
+      border-radius: 4px;
+      font: inherit;
+      color: var(--ink-3);
+      cursor: pointer;
+    }
+    .dev-replay:hover { background: rgba(255, 255, 255, 0.12); color: var(--ink); }
+    .dev-mini {
+      appearance: none;
+      padding: 6px 8px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 0;
+      border-radius: 4px;
+      font: inherit;
+      color: var(--ink-4);
+      cursor: pointer;
+    }
+    .dev-mini:hover { background: rgba(255, 255, 255, 0.12); color: var(--ink); }
+    .dev button:focus-visible { outline: 1px solid var(--ink-4); outline-offset: 1px; }
+
+    /* tuner */
+    .dev-sect { border-top: 1px solid rgba(255, 255, 255, 0.08); margin-top: 4px; padding-top: 6px; }
+    .dev-sect-h {
+      padding: 4px 6px 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #5c5c5c;
+    }
+    .dev-tabs { display: flex; gap: 3px; padding: 0 4px 6px; }
+    .dev-tabs button {
+      appearance: none;
+      flex: 1;
+      padding: 4px 0;
+      background: rgba(255, 255, 255, 0.04);
+      border: 0;
+      border-radius: 3px;
+      font: inherit;
+      color: var(--ink-4);
+      cursor: pointer;
+    }
+    .dev-tabs button:hover { color: var(--ink-2); }
+    .dev-tabs button[aria-current="true"] { background: rgba(255, 255, 255, 0.12); color: var(--ink); }
+    .dev-curve {
+      display: block;
+      width: calc(100% - 12px);
+      margin: 0 6px;
+      aspect-ratio: 1;
+      overflow: visible;
+      touch-action: none;
+    }
+    .c-box { fill: rgba(255, 255, 255, 0.03); stroke: rgba(255, 255, 255, 0.1); stroke-width: 1; }
+    .c-diag { stroke: rgba(255, 255, 255, 0.08); stroke-width: 1; stroke-dasharray: 3 3; }
+    .c-hl { stroke: rgba(255, 255, 255, 0.22); stroke-width: 1; }
+    .c-path { fill: none; stroke: #e6e6e6; stroke-width: 2; }
+    .c-pt { fill: #0f0f0f; stroke: #e6e6e6; stroke-width: 2; cursor: grab; }
+    .c-pt:active { cursor: grabbing; }
+    .dev-val {
+      padding: 6px 6px 4px;
+      color: var(--ink-3);
+      font-size: 10px;
+      text-align: center;
+      word-break: break-all;
+    }
+    .dev-presets { display: flex; flex-wrap: wrap; gap: 3px; padding: 0 4px 4px; }
+    .dev-presets button {
+      appearance: none;
+      flex: 1 0 30%;
+      padding: 3px 0;
+      background: rgba(255, 255, 255, 0.04);
+      border: 0;
+      border-radius: 3px;
+      font: inherit;
+      font-size: 10px;
+      color: var(--ink-4);
+      cursor: pointer;
+    }
+    .dev-presets button:hover { background: rgba(255, 255, 255, 0.1); color: var(--ink-2); }
+    .dev-slider {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 6px;
+      font-size: 10px;
+    }
+    .dev-slider span { width: 52px; flex-shrink: 0; color: #5c5c5c; }
+    .dev-slider em { width: 26px; flex-shrink: 0; font-style: normal; text-align: right; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+    .dev-slider input {
+      flex: 1;
+      min-width: 0;
+      appearance: none;
+      height: 2px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.18);
+      cursor: pointer;
+    }
+    .dev-slider input::-webkit-slider-thumb {
+      appearance: none;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--ink-2);
+    }
+    .dev-slider input::-moz-range-thumb {
+      width: 9px; height: 9px; border: 0; border-radius: 50%; background: var(--ink-2);
+    }
+    .dev-hint { margin: 2px 8px 6px; font-size: 10px; line-height: 1.4; color: #4d4d4d; }
+    .dev-timeline {
+      margin: 6px 6px 2px;
+      padding: 5px 6px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.04);
+      font-size: 10px;
+      line-height: 1.5;
+      color: #5c5c5c;
+    }
+    .dev-timeline b { color: var(--ink-3); font-weight: 400; }
+    @media (max-width: 680px) { .dev { display: none; } }
+        </style>
+        <script is:inline>
+          (function () {
+            var panel = document.getElementById("dev-panel");
+            if (!panel) return;
+            var root = document.documentElement;
+
+            // Stays hidden until asked for: ?dev in the URL, or ⌥D.
+            try {
+              if (
+                new URL(location.href).searchParams.has("dev") ||
+                localStorage.getItem("ew.dev") === "1"
+              )
+                panel.hidden = false;
+            } catch (e) {}
+            document.addEventListener("keydown", function (e) {
+              if (!e.altKey || String(e.key).toLowerCase() !== "d") return;
+              panel.hidden = !panel.hidden;
+              try {
+                localStorage.setItem("ew.dev", panel.hidden ? "0" : "1");
+              } catch (err) {}
+            });
+            var options = Array.prototype.slice.call(
+              panel.querySelectorAll(".dev-opt"),
+            );
+            function current() {
+              return root.getAttribute("data-anim") || "off";
+            }
+            function mark() {
+              var now = current();
+              options.forEach(function (b) {
+                b.setAttribute("aria-current", String(b.dataset.anim === now));
+              });
+            }
+            function play(name) {
+              root.removeAttribute("data-anim");
+              void root.offsetWidth; // force reflow so the animation restarts
+              if (name !== "off") root.setAttribute("data-anim", name);
+              mark();
+            }
+            function choose(name) {
+              try {
+                localStorage.setItem("ew.anim", name);
+              } catch (e) {}
+              play(name);
+            }
+            options.forEach(function (b) {
+              b.addEventListener("click", function () {
+                choose(b.dataset.anim);
+              });
+            });
+            var replay = document.getElementById("dev-replay");
+            if (replay)
+              replay.addEventListener("click", function () {
+                play(current());
+              });
+            var collapse = document.getElementById("dev-collapse");
+            if (collapse)
+              collapse.addEventListener("click", function () {
+                var closed = panel.classList.toggle("collapsed");
+                collapse.setAttribute("aria-expanded", String(!closed));
+                collapse.textContent = closed ? "+" : "–";
+              });
+
+            /* ---------- signature tuner ---------- */
+            var DEFAULTS = {
+              "--sig-name-dur": "420ms",
+              "--sig-name-ease": "cubic-bezier(0.2, 0.8, 0.2, 1)",
+              "--sig-dither-start": "280ms",
+              "--sig-dither-stag": "22ms",
+              "--sig-dither-dur": "260ms",
+              "--sig-dither-steps": "4",
+              "--sig-body-lead": "920ms",
+              "--sig-body-stag": "18ms",
+              "--sig-body-dur": "600ms",
+              "--sig-body-ease": "cubic-bezier(0.2, 0.8, 0.2, 1)",
+            };
+            var EASE_VAR = { name: "--sig-name-ease", body: "--sig-body-ease" };
+            var tune = {};
+            try {
+              tune = JSON.parse(localStorage.getItem("ew.sig") || "{}");
+            } catch (e) {}
+
+            function readVar(k) {
+              if (tune[k]) return tune[k];
+              return DEFAULTS[k];
+            }
+            function setVar(k, v, persist) {
+              tune[k] = v;
+              root.style.setProperty(k, v);
+              if (persist !== false) {
+                try {
+                  localStorage.setItem("ew.sig", JSON.stringify(tune));
+                } catch (e) {}
+              }
+            }
+            // push any stored overrides onto the document
+            Object.keys(tune).forEach(function (k) {
+              root.style.setProperty(k, tune[k]);
+            });
+
+            var beat = "name";
+            var bez = { name: [0.2, 0.8, 0.2, 1], body: [0.2, 0.8, 0.2, 1] };
+            ["name", "body"].forEach(function (b) {
+              var m = String(readVar(EASE_VAR[b])).match(/-?[\d.]+/g);
+              if (m && m.length === 4) bez[b] = m.map(Number);
+            });
+
+            var svg = document.getElementById("dev-curve");
+            var p1 = document.getElementById("c-p1");
+            var p2 = document.getElementById("c-p2");
+            var l1 = document.getElementById("c-l1");
+            var l2 = document.getElementById("c-l2");
+            var path = document.getElementById("c-path");
+            var bezVal = document.getElementById("dev-bez-val");
+            var bezBox = document.getElementById("dev-bez");
+            var stepBox = document.getElementById("dev-steps");
+            var timeline = document.getElementById("dev-timeline");
+
+            var toX = function (x) { return x * 100; };
+            var toY = function (y) { return (1 - y) * 100; };
+
+            function drawCurve() {
+              if (beat === "dither") return;
+              var b = bez[beat];
+              var x1 = toX(b[0]), y1 = toY(b[1]), x2 = toX(b[2]), y2 = toY(b[3]);
+              p1.setAttribute("cx", x1); p1.setAttribute("cy", y1);
+              p2.setAttribute("cx", x2); p2.setAttribute("cy", y2);
+              l1.setAttribute("x1", 0); l1.setAttribute("y1", 100);
+              l1.setAttribute("x2", x1); l1.setAttribute("y2", y1);
+              l2.setAttribute("x1", 100); l2.setAttribute("y1", 0);
+              l2.setAttribute("x2", x2); l2.setAttribute("y2", y2);
+              path.setAttribute(
+                "d",
+                "M 0 100 C " + x1 + " " + y1 + " " + x2 + " " + y2 + " 100 0",
+              );
+              var css =
+                "cubic-bezier(" +
+                b.map(function (n) { return Math.round(n * 100) / 100; }).join(", ") +
+                ")";
+              bezVal.textContent = css;
+              setVar(EASE_VAR[beat], css);
+            }
+
+            var dragging = null;
+            function pointToBez(evt) {
+              var r = svg.getBoundingClientRect();
+              var x = (evt.clientX - r.left) / r.width;
+              var y = 1 - (evt.clientY - r.top) / r.height;
+              return [
+                Math.min(1, Math.max(0, x)),
+                Math.min(1.6, Math.max(-0.6, y)),
+              ];
+            }
+            [p1, p2].forEach(function (pt, idx) {
+              pt.addEventListener("pointerdown", function (e) {
+                dragging = idx;
+                pt.setPointerCapture(e.pointerId);
+                e.preventDefault();
+              });
+              pt.addEventListener("pointermove", function (e) {
+                if (dragging !== idx) return;
+                var v = pointToBez(e);
+                bez[beat][idx * 2] = v[0];
+                bez[beat][idx * 2 + 1] = v[1];
+                drawCurve();
+              });
+              pt.addEventListener("pointerup", function () {
+                if (dragging === idx) { dragging = null; play(current()); }
+              });
+            });
+
+            document
+              .getElementById("dev-presets")
+              .addEventListener("click", function (e) {
+                var b = e.target.closest("[data-bez]");
+                if (!b || beat === "dither") return;
+                bez[beat] = b.dataset.bez.split(",").map(Number);
+                drawCurve();
+                play(current());
+              });
+
+            var tabs = document.getElementById("dev-tabs");
+            tabs.addEventListener("click", function (e) {
+              var b = e.target.closest("[data-beat]");
+              if (!b) return;
+              beat = b.dataset.beat;
+              Array.prototype.forEach.call(tabs.children, function (t) {
+                t.setAttribute("aria-current", String(t.dataset.beat === beat));
+              });
+              var isDither = beat === "dither";
+              bezBox.hidden = isDither;
+              stepBox.hidden = !isDither;
+              drawCurve();
+            });
+
+            var sliders = Array.prototype.slice.call(
+              panel.querySelectorAll("input[type=range]"),
+            );
+            function syncTimeline() {
+              var n = parseFloat(readVar("--sig-name-dur"));
+              var ds = parseFloat(readVar("--sig-dither-start"));
+              var dg = parseFloat(readVar("--sig-dither-stag"));
+              var dd = parseFloat(readVar("--sig-dither-dur"));
+              var chars = document.querySelectorAll(".handle .ch").length || 1;
+              var dEnd = ds + (chars - 1) * dg + dd;
+              var bl = parseFloat(readVar("--sig-body-lead"));
+              var bg = parseFloat(readVar("--sig-body-stag"));
+              var bd = parseFloat(readVar("--sig-body-dur"));
+              var count = document.querySelectorAll(".rv").length - 2;
+              var bEnd = bl + Math.max(0, count - 1) * bg + bd;
+              var gap = bl - dEnd;
+              timeline.innerHTML =
+                "name <b>0–" + Math.round(n) + "</b><br>" +
+                "dither <b>" + Math.round(ds) + "–" + Math.round(dEnd) + "</b><br>" +
+                "gap <b>" + (gap >= 0 ? "+" : "") + Math.round(gap) + "ms</b><br>" +
+                "body <b>" + Math.round(bl) + "–" + Math.round(bEnd) + "</b>";
+            }
+            sliders.forEach(function (s) {
+              var key = s.dataset.var;
+              var unit = s.dataset.unit;
+              s.value = parseFloat(readVar(key));
+              s.nextElementSibling.textContent = s.value;
+              s.addEventListener("input", function () {
+                setVar(key, s.value + unit);
+                s.nextElementSibling.textContent = s.value;
+                syncTimeline();
+              });
+              s.addEventListener("change", function () { play(current()); });
+            });
+
+            document
+              .getElementById("dev-copy")
+              .addEventListener("click", function (e) {
+                var css =
+                  ":root {\n" +
+                  Object.keys(DEFAULTS)
+                    .map(function (k) { return "  " + k + ": " + readVar(k) + ";"; })
+                    .join("\n") +
+                  "\n}";
+                navigator.clipboard.writeText(css).then(function () {
+                  var b = e.target;
+                  b.textContent = "✓";
+                  setTimeout(function () { b.textContent = "Copy"; }, 900);
+                });
+                console.log(css);
+              });
+
+            document
+              .getElementById("dev-reset")
+              .addEventListener("click", function () {
+                Object.keys(DEFAULTS).forEach(function (k) {
+                  root.style.removeProperty(k);
+                });
+                tune = {};
+                try { localStorage.removeItem("ew.sig"); } catch (e) {}
+                bez = { name: [0.2, 0.8, 0.2, 1], body: [0.2, 0.8, 0.2, 1] };
+                sliders.forEach(function (s) {
+                  s.value = parseFloat(DEFAULTS[s.dataset.var]);
+                  s.nextElementSibling.textContent = s.value;
+                });
+                drawCurve();
+                syncTimeline();
+                play(current());
+              });
+
+            drawCurve();
+            syncTimeline();
+            document.addEventListener("keydown", function (e) {
+              if (e.key !== "Enter") return;
+              var t = e.target;
+              if (t && t.closest && t.closest("input, textarea")) return;
+              play(current());
+            });
+            mark();
+          })();
+        </script>
+      )
+    }
+
     <style is:global>
       :root {
-        --bg: #0d0d0d;
+        --bg: #0f0f0f;
+        --card: #1a1a1a;
+        --card-hover: #202020;
         --ink: #ffffff;
-        --serif: "Spectral", Georgia, "Times New Roman", serif;
-        --sans: "General Sans", "Inter", system-ui, sans-serif;
+        --ink-2: #e6e6e6;
+        --ink-3: #cccccc;
+        --ink-4: #999999;
+        --hair: rgba(255, 255, 255, 0.1);
+        --sans: "Geist", system-ui, -apple-system, sans-serif;
+        /* One typeface across the whole page — hierarchy comes from ink, not family. */
+        --mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+        /* Signature entrance — tunable live from the dev panel. */
+        --sig-name-dur: 420ms;
+        --sig-name-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+        --sig-dither-start: 280ms;
+        --sig-dither-stag: 22ms;
+        --sig-dither-dur: 260ms;
+        --sig-dither-steps: 4;
+        --sig-body-lead: 920ms;
+        --sig-body-stag: 18ms;
+        --sig-body-dur: 600ms;
+        --sig-body-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
       }
       * { box-sizing: border-box; }
       body {
         margin: 0;
-        min-height: 100svh;
         background: var(--bg);
         color: var(--ink);
-        font-family: var(--serif);
-        line-height: 1.5;
-        -webkit-font-smoothing: antialiased;
-        text-rendering: optimizeLegibility;
-        word-break: break-word;
-      }
-
-      /* full-screen layout: content at top, footer pinned to bottom */
-      main {
-        min-height: 100svh;
-        padding: 40px;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        gap: 80px;
-      }
-
-      /* ---------- top row ---------- */
-      .top {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 80px;
-      }
-
-      .headline {
-        margin: 0;
-        flex-shrink: 0;
-        width: 483px;
-        max-width: 100%;
-        font-family: var(--serif);
-        font-weight: 300;
-        font-size: 40px;
-        letter-spacing: -3.2px;
-        line-height: 1.2;
-      }
-
-      /* ---------- experience ---------- */
-      .work {
-        flex: 0 1 760px;
-        min-width: 0;
-        max-width: 100%;
-        padding: 8px 0;
-        display: flex;
-        flex-direction: column;
-        gap: 32px;
         font-family: var(--sans);
         font-size: 14px;
-        letter-spacing: -0.24px;
+        line-height: 1.3;
+        letter-spacing: -0.01em;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+
+      /* 640px column, 160px from the top, footer near the floor */
+      main {
+        min-height: 100svh;
+        max-width: 680px; /* 640 + 20px padding each side */
+        margin: 0 auto;
+        padding: 160px 20px 80px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 96px;
+      }
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 64px;
+      }
+
+      /* ---------- intro ---------- */
+      .intro {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .namerow {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+      }
+      .name {
+        margin: 0;
+        flex: 1 0 0;
+        min-width: 0;
+        color: var(--ink);
+      }
+      .handle {
+        margin: 0;
+        width: 128px;
+        flex-shrink: 0;
+        font-size: 13px;
+        letter-spacing: -0.01em;
+        text-align: right;
+        color: var(--ink-4);
+      }
+      .bio {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .bio p {
+        margin: 0;
+        color: var(--ink-4);
+      }
+      a.u {
+        color: inherit;
+        cursor: pointer;
+        text-decoration: underline;
+        text-underline-position: from-font;
+        transition: color 0.15s ease;
+      }
+      a.u:hover { color: var(--ink-2); }
+      a.u:focus-visible {
+        outline: 1px solid var(--ink-4);
+        outline-offset: 2px;
+        border-radius: 2px;
+      }
+      .loc {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .loc img {
+        width: 16px;
+        height: 16px;
+        opacity: 0.6;
+        flex-shrink: 0;
+      }
+      .loc p { margin: 0; color: var(--ink-4); }
+
+      /* ---------- sections ---------- */
+      .section {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .label {
+        margin: 0;
+        color: var(--ink-2);
+      }
+
+      /* ---------- work ---------- */
+      .group {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding-bottom: 8px;
+      }
+      .company {
+        position: relative;
+        margin: 0;
+        padding-top: 8px;
+        color: var(--ink-3);
+      }
+      .company::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: var(--hair);
+        transform-origin: left center;
+      }
+      /* No gap between rows: the 12px sits inside each row as padding instead,
+         with the container pulled back 6px top and bottom. Geometry is identical
+         to a 12px gap, but the rows now tile with no dead space between them —
+         so moving down the list never passes through a gap where nothing is
+         hovered, which is what made the dimming flicker. */
+      .rows {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        margin: -6px 0;
       }
       .row {
         display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 16px;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 0 6px 16px;
+        color: var(--ink-4);
+        text-decoration: none;
+        white-space: nowrap;
+        transition: opacity 0.15s ease, color 0.15s ease;
       }
-      .meta {
+      .row .title { flex-shrink: 0; }
+      .row .year {
+        margin-left: auto;
+        flex-shrink: 0;
+        font-variant-numeric: tabular-nums;
+      }
+      .row .arrow,
+      .row .lock {
+        opacity: 0;
+        transform: translateX(-4px);
+        transition: opacity 0.15s ease, transform 0.15s ease;
+      }
+      .row .lock {
+        display: inline-flex;
+        align-items: center;
+        line-height: 0;
+        cursor: help;
+      }
+      .row.link { cursor: pointer; }
+      .row.locked { cursor: default; }
+      .row.link:focus-visible {
+        outline: 1px solid var(--ink-4);
+        outline-offset: 3px;
+        border-radius: 2px;
+      }
+      /* Hovering one row dims its siblings and brings the hovered one forward.
+         Keyed on :has(.row:hover) rather than .rows:hover — the 12px gaps between
+         rows belong to .rows but to no .row, so a plain :hover dimmed every row
+         with none left to highlight whenever the pointer sat in the spacing. */
+      @media (hover: hover) and (pointer: fine) {
+        .rows:has(.row:hover) .row { opacity: 0.3; }
+        .rows:has(.row:hover) .row:hover { opacity: 1; }
+        .row:hover { color: var(--ink-2); }
+        .row.link:hover .arrow,
+        .row.locked:hover .lock { opacity: 1; transform: translateX(0); }
+        /* the padlock reads as a "no" — keep it quieter than the arrow */
+        .row.locked:hover .lock { opacity: 0.55; }
+      }
+
+      /* ---------- experiments ---------- */
+      .grid {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      .col {
+        flex: 1 0 0;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .card {
+        position: relative;
+        height: var(--h);
+        overflow: hidden;
+        display: flex;
+        align-items: flex-end;
+        padding: 8px;
+        border-radius: 8px;
+        background: var(--card);
+        color: var(--ink);
+        text-decoration: none;
+      }
+      .card .media {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      /* A live, scaled-down render of the experiment itself. Four times the card
+         size then scaled to a quarter, so the page lays out at desktop width. */
+      .card .preview {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 400%;
+        height: 400%;
+        border: 0;
+        transform: scale(0.25);
+        transform-origin: 0 0;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.4s ease;
+      }
+      .card .preview.ready { opacity: 1; }
+      .caption {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 12px;
+        width: 100%;
+        line-height: 1;
+        white-space: nowrap;
+      }
+      .caption.end { justify-content: flex-end; }
+      .caption .muted { opacity: 0.6; }
+      .caption .date { opacity: 0.6; }
+      /* Motion cards keep the name off until you point at them. */
+      .card.motion .caption {
+        opacity: 0;
+        transform: translateY(3px);
+        transition: opacity 0.18s ease, transform 0.18s ease;
+      }
+      .card.motion::after {
+        content: "";
+        position: absolute;
+        inset: auto 0 0 0;
+        height: 46%;
+        background: linear-gradient(transparent, rgba(0, 0, 0, 0.62));
+        opacity: 0;
+        transition: opacity 0.18s ease;
+        pointer-events: none;
+      }
+      .card.motion:hover .caption,
+      .card.motion:focus-visible .caption {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .card.motion:hover::after,
+      .card.motion:focus-visible::after { opacity: 1; }
+      .card.link { cursor: pointer; transition: background-color 0.15s ease; }
+      .card.link:not(.motion):hover { background: var(--card-hover); }
+      .card.link:focus-visible {
+        outline: 1px solid var(--ink-4);
+        outline-offset: 2px;
+      }
+
+      /* ---------- experiment viewer ---------- */
+      .viewer[hidden] { display: none; }
+      .viewer {
+        position: fixed;
+        inset: 0;
+        z-index: 40;
         display: flex;
         align-items: center;
-        gap: 8px;
+        justify-content: center;
+        padding: 24px;
+      }
+      .viewer-scrim {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.72);
+        backdrop-filter: blur(3px);
+        animation: v-fade 0.2s ease both;
+      }
+      .viewer-win {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        width: min(1120px, 100%);
+        height: min(760px, 100%);
+        border-radius: 10px;
+        overflow: hidden;
+        background: var(--card);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+        animation: v-in 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+      }
+      @keyframes v-fade { from { opacity: 0; } }
+      @keyframes v-in { from { opacity: 0; transform: translateY(10px) scale(0.985); } }
+      .viewer-bar {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: 12px;
+        padding: 9px 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+        background: rgba(255, 255, 255, 0.02);
         flex-shrink: 0;
       }
-      .company { width: 80px; font-weight: 500; }
-      .year { width: 80px; font-weight: 400; opacity: 0.6; }
-      .desc { width: 540px; max-width: 100%; margin: 0; font-weight: 400; }
+      .viewer-name {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        justify-content: center;
+        color: var(--ink-2);
+        white-space: nowrap;
+      }
+      .viewer-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border: 0;
+        border-radius: 5px;
+        background: transparent;
+        color: var(--ink-4);
+        cursor: pointer;
+        text-decoration: none;
+        flex-shrink: 0;
+      }
+      .viewer-btn:hover { background: rgba(255, 255, 255, 0.09); color: var(--ink); }
+      .viewer-btn:focus-visible { outline: 1px solid var(--ink-4); outline-offset: 1px; }
+      #viewer-close { justify-self: start; }
+      .viewer-url {
+        justify-self: end;
+        color: #5c5c5c;
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .viewer-frame {
+        flex: 1;
+        width: 100%;
+        border: 0;
+        background: var(--bg);
+      }
+      body.viewer-open { overflow: hidden; }
+      @media (max-width: 680px) {
+        .viewer { padding: 0; }
+        .viewer-win { width: 100%; height: 100%; border-radius: 0; border: 0; }
+        .viewer-url { display: none; }
+      }
 
       /* ---------- footer ---------- */
       footer {
@@ -154,43 +1292,304 @@ const experience = [
         align-items: flex-start;
         justify-content: space-between;
         gap: 16px;
-        font-family: var(--serif);
-        font-weight: 300;
-        font-size: 12px;
-        line-height: 1.5;
-        letter-spacing: -0.6px;
       }
+      .quote {
+        margin: 0;
+        flex: 1 0 0;
+        min-width: 0;
+        color: var(--ink-3);
+      }
+      .quote .cite { color: #5c5c5c; margin-left: 4px; }
       .links {
         display: flex;
-        align-items: center;
-        gap: 16px;
+        gap: 12px;
         flex-shrink: 0;
+        white-space: nowrap;
       }
       .links a {
-        color: var(--ink);
+        color: var(--ink-4);
         text-decoration: none;
       }
-      .links a:hover { opacity: 0.6; }
-      footer .tag { margin: 0; }
+      .links a:hover { color: var(--ink); }
+      .links a:focus-visible {
+        outline: 1px solid var(--ink-4);
+        outline-offset: 2px;
+        border-radius: 2px;
+      }
+
+      /* =====================================================
+         Entrance animations
+         Base state is the finished state, so with JS off or
+         no [data-anim] the page simply renders. Each keyframe
+         set only declares `from`; the browser fills `to` with
+         the element's natural values.
+         ===================================================== */
+      html[data-anim] .rv {
+        animation-duration: var(--dur, 0.55s);
+        animation-timing-function: var(--ease, cubic-bezier(0.2, 0.8, 0.2, 1));
+        animation-fill-mode: both;
+        animation-delay: calc(var(--i, 0) * var(--stag, 26ms) + var(--lead, 0ms));
+      }
+
+      @keyframes a-fadeup { from { opacity: 0; transform: translateY(8px); } }
+      @keyframes a-blurup { from { opacity: 0; filter: blur(8px); transform: translateY(16px); } }
+      @keyframes a-fade { from { opacity: 0; } }
+      @keyframes a-tile { from { opacity: 0; transform: scale(0.96); } }
+      @keyframes a-settle { from { opacity: 0; transform: scale(0.985); } }
+      @keyframes a-track { from { opacity: 0; letter-spacing: 0.06em; } }
+      @keyframes a-ink {
+        from { opacity: 0.5; -webkit-mask-size: 100% 0%; mask-size: 100% 0%; }
+        to { opacity: 1; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }
+      }
+      @keyframes a-line { from { transform: scaleX(0); } }
+
+      /* 00 signature — name lands, handle dithers in, everything else blurs up */
+      html[data-anim="signature"] .rv {
+        animation-name: a-blurup;
+        /* --i 0 is the name, 1 is the handle; content starts counting at 2 */
+        animation-delay: calc(
+          var(--sig-body-lead) + (var(--i, 2) - 2) * var(--sig-body-stag)
+        );
+        animation-duration: var(--sig-body-dur);
+        animation-timing-function: var(--sig-body-ease);
+      }
+      html[data-anim="signature"] .name {
+        animation: a-fadeup var(--sig-name-dur) var(--sig-name-ease) both;
+        animation-delay: 0ms;
+      }
+      html[data-anim="signature"] .handle {
+        animation: none;
+        opacity: 1;
+      }
+      html[data-anim="signature"] .handle .ch {
+        animation: a-fade var(--sig-dither-dur)
+          steps(var(--sig-dither-steps), end) both;
+        animation-delay: calc(
+          var(--sig-dither-start) + var(--s, 0) * var(--sig-dither-stag)
+        );
+      }
+
+      /* 01 fade up */
+      html[data-anim="fade-up"] .rv { animation-name: a-fadeup; }
+
+      /* 02 blur up */
+      html[data-anim="blur-up"] .rv {
+        animation-name: a-blurup;
+        --stag: 34ms;
+        --dur: 0.7s;
+      }
+
+      /* 03 cascade — every line, quickly, in document order */
+      html[data-anim="cascade"] .rv {
+        animation-name: a-fadeup;
+        --stag: 16ms;
+        --dur: 0.4s;
+      }
+
+      /* 04 progressive — ordered by hierarchy tier, not by position */
+      html[data-anim="progressive"] .rv {
+        animation-name: a-fadeup;
+        animation-delay: calc(var(--t, 1) * 95ms);
+        --dur: 0.6s;
+      }
+
+      /* 05 map settle — the column eases out of a zoom as one object */
+      html[data-anim="map-settle"] main {
+        animation: a-settle 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+      html[data-anim="map-settle"] .rv { animation: none; }
+
+      /* 06 ink bleed — content wipes downward */
+      html[data-anim="ink-bleed"] .rv {
+        animation-name: a-ink;
+        -webkit-mask-image: linear-gradient(#000, #000);
+        mask-image: linear-gradient(#000, #000);
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: top left;
+        mask-position: top left;
+        --stag: 30ms;
+        --dur: 0.5s;
+        --ease: cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      /* 07 dither resolve — quantized, like a halftone finding its level */
+      html[data-anim="dither"] .rv {
+        animation-name: a-fade;
+        --stag: 26ms;
+        --dur: 0.6s;
+        --ease: steps(6, end);
+      }
+
+      /* 08 hairline draw — rules draw first, then the text arrives */
+      html[data-anim="hairline"] .company::before {
+        animation: a-line 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+        animation-delay: calc(var(--i, 0) * 26ms);
+      }
+      html[data-anim="hairline"] .rv {
+        animation-name: a-fade;
+        --stag: 22ms;
+        --lead: 260ms;
+        --dur: 0.5s;
+      }
+
+      /* 09 tiles first — the work lands before the words */
+      html[data-anim="tiles-first"] .rv {
+        animation-name: a-fadeup;
+        --stag: 20ms;
+        --lead: 300ms;
+      }
+      html[data-anim="tiles-first"] .rv.card {
+        animation-name: a-tile;
+        animation-delay: calc(var(--ci, 0) * 55ms);
+        --dur: 0.6s;
+      }
+
+      /* 10 type settle — tracking tightens as it fades in */
+      html[data-anim="type-settle"] .rv {
+        animation-name: a-track;
+        --stag: 28ms;
+        --dur: 0.7s;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html[data-anim] .rv,
+        html[data-anim] main,
+        html[data-anim] .name,
+        html[data-anim] .handle .ch,
+        html[data-anim] .company::before {
+          animation: none !important;
+        }
+        .card.link, .row, .row .arrow { transition: none; }
+      }
 
       /* ---------- responsive ---------- */
-      @media (max-width: 1100px) {
-        .top { flex-direction: column; gap: 56px; }
-        .headline { width: 100%; font-size: clamp(32px, 6vw, 40px); letter-spacing: -2px; }
-        .work { width: 100%; }
+      @media (max-width: 680px) {
+        main { padding: 88px 20px 40px; gap: 64px; }
+        .stack { gap: 48px; }
+        .namerow { justify-content: space-between; }
+        .name { flex: 0 1 auto; }
+        .handle { width: auto; text-align: right; }
+        .grid { flex-direction: column; }
+        .card { height: 200px; }
+        .row { white-space: normal; gap: 12px; }
       }
-      @media (max-width: 640px) {
-        main { padding: 88px 20px calc(12px + env(safe-area-inset-bottom)); gap: 40px; }
-        .top { gap: 20px; }
-        .headline { font-size: 20px; letter-spacing: -1.6px; line-height: 1.2; }
-        .work { flex: none; gap: 14px; font-size: 13px; }
-        .row { flex-direction: column; gap: 4px; }
-        .meta { width: 100%; justify-content: space-between; gap: 8px; }
-        .company { width: auto; }
-        .year { width: auto; }
-        .desc { width: 100%; }
-        footer { flex-direction: column; gap: 8px; font-size: 12px; }
-      }
+
     </style>
+
+    <script>
+      // ---- live location line: city follows the Pacific-time clock -------
+      // 9am–8pm Pacific reads as San Francisco (where the work is); outside
+      // that window it reads as Oakland, CA — home, at night.
+      type CitySpec = { name: string; lat: number; lon: number };
+      const SF: CitySpec = { name: "San Francisco", lat: 37.7749, lon: -122.4194 };
+      const OAKLAND: CitySpec = { name: "Oakland", lat: 37.8044, lon: -122.2711 };
+
+      function pacificHour(): number | null {
+        const hour = new Intl.DateTimeFormat("en-US", {
+          timeZone: "America/Los_Angeles",
+          hour: "numeric",
+          hour12: false,
+        })
+          .formatToParts(new Date())
+          .find((p) => p.type === "hour")?.value;
+        return hour ? parseInt(hour, 10) % 24 : null;
+      }
+
+      async function loadWeather() {
+        const el = document.getElementById("loc-text");
+        if (!el) return;
+        const hour = pacificHour();
+        const city = hour === null || (hour >= 9 && hour < 20) ? SF : OAKLAND;
+        try {
+          const res = await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m&temperature_unit=fahrenheit`,
+          );
+          if (!res.ok) return;
+          const data = await res.json();
+          const temp = Math.round(data?.current?.temperature_2m);
+          if (!Number.isFinite(temp)) return;
+          el.textContent = `${temp}° in ${city.name}`;
+        } catch {
+          el.textContent = `${city.name}.`; // still swap the city even if the fetch fails
+        }
+      }
+      loadWeather();
+
+      // ---- card previews: only mount an iframe once the tile is in view ----
+      const frames = Array.from(
+        document.querySelectorAll<HTMLIFrameElement>("iframe[data-preview]"),
+      );
+      if (frames.length) {
+        const mount = (f: HTMLIFrameElement) => {
+          if (f.dataset.mounted) return;
+          f.dataset.mounted = "1";
+          f.addEventListener("load", () => f.classList.add("ready"), { once: true });
+          f.src = f.dataset.preview!;
+        };
+        if ("IntersectionObserver" in window) {
+          const io = new IntersectionObserver(
+            (entries) => {
+              entries.forEach((e) => {
+                if (!e.isIntersecting) return;
+                mount(e.target as HTMLIFrameElement);
+                io.unobserve(e.target);
+              });
+            },
+            { rootMargin: "200px" },
+          );
+          frames.forEach((f) => io.observe(f));
+        } else {
+          frames.forEach(mount);
+        }
+      }
+
+      // ---- experiment viewer -------------------------------------------
+      const viewer = document.getElementById("viewer");
+      const vFrame = document.getElementById("viewer-frame") as HTMLIFrameElement | null;
+      const vTitle = document.getElementById("viewer-title");
+      const vOpen = document.getElementById("viewer-open") as HTMLAnchorElement | null;
+      const vUrl = document.getElementById("viewer-url");
+      const vClose = document.getElementById("viewer-close");
+
+      if (viewer && vFrame && vTitle && vOpen && vUrl && vClose) {
+        let lastFocused: HTMLElement | null = null;
+
+        function openViewer(src: string, title: string) {
+          lastFocused = document.activeElement as HTMLElement;
+          vTitle!.textContent = title;
+          vOpen!.href = src;
+          vUrl!.textContent = location.host + src;
+          vFrame!.src = src;
+          viewer!.hidden = false;
+          document.body.classList.add("viewer-open");
+          (vClose as HTMLElement).focus();
+        }
+
+        function closeViewer() {
+          if (viewer!.hidden) return;
+          viewer!.hidden = true;
+          vFrame!.removeAttribute("src"); // stop whatever was running inside
+          document.body.classList.remove("viewer-open");
+          lastFocused?.focus();
+        }
+
+        document.querySelectorAll<HTMLAnchorElement>("a.card[data-src]").forEach((card) => {
+          card.addEventListener("click", (e) => {
+            // let cmd/ctrl/middle-click fall through to a real navigation
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+            e.preventDefault();
+            openViewer(card.dataset.src!, card.dataset.title || "Experiment");
+          });
+        });
+
+        vClose.addEventListener("click", closeViewer);
+        viewer.querySelector("[data-close]")?.addEventListener("click", closeViewer);
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") closeViewer();
+        });
+      }
+
+    </script>
   </body>
 </html>
