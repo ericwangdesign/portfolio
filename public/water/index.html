@@ -377,6 +377,12 @@ void main() {
     // crescent still shapes it — a lit droplet is still a droplet, and adding
     // the light afterwards simply erased the structure.
     glass += glowCol * glo * cap * 0.175;
+    // light-piping: trapped light escapes hardest at grazing angles, the way an
+    // edge-lit acrylic sheet blazes along its cut edge. this also goes in
+    // BEFORE the rim work — at 0.5 and applied after, it added white straight
+    // on top of the crescent at twice the crescent's own weight and erased it,
+    // so a lit droplet stopped reading as water at all.
+    glass += glowCol * glo * gz * 0.120;
     // and the light has a COLOUR, so weight shifts the hue rather than only
     // the brightness — otherwise a bright droplet just reads as a pale one
     glass *= mix(vec3(1.0), vec3(1.030, 1.0, 0.945), glo);
@@ -405,10 +411,6 @@ void main() {
     // is what reads as 透亮; dark -> clear on its own is a painted ring.
     float thru = smoothstep(0.52, 0.78, gz) * smoothstep(1.06, 0.86, gz);
     glass += vec3(1.0, 0.996, 0.978) * thru * 0.075 * (0.40 + 0.60 * pow(dirT, 1.25));
-
-    // light-piping: trapped light escapes hardest at grazing angles, the way
-    // an edge-lit acrylic sheet blazes along its cut edge
-    glass += glowCol * glo * gz * 0.500;
 
     // light entry on the lit edge — rim only, never a wash across the body
     glass += vec3(1.0) * gz * gz * smoothstep(0.25, 0.9, facing) * 0.045;
