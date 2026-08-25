@@ -105,6 +105,9 @@
   button:active{transform:translateY(1px)}
   button.on{background:var(--txt); color:#0b0b0c; border-color:var(--txt)}
   #presetBtns button{padding:6px 8px; font-size:10.5px}
+  [data-morph]{padding:5px 7px; font-size:10px}
+  .mlab{flex:0 0 100%; color:var(--dim); font:9.5px/1 ui-monospace,Menlo,monospace;
+        margin-bottom:1px}
   .rule{flex:0 0 100%; height:1px; background:var(--line); margin:4px 0 3px; border:0}
   button.wide{flex:1 1 calc(50% - 3px)}
 
@@ -201,8 +204,13 @@ const CTRL = [
     {k:'altDepth',  n:'Contrast',      min:0,  max:1,  step:.01, v:.70, f:2},
     {k:'altGlare',  n:'Glare offset',  min:-.5,max:.5, step:.005,v:.300,f:3},
   ]},
+  {g:'Morph', items:[
+    {k:'morphAmt',    n:'Travel',        min:0,  max:1,  step:.01, v:1,  f:2},
+    {k:'morphRate',   n:'· rate',        min:0,  max:.4, step:.005,v:.05,f:3, u:'hz'},
+    {k:'morphHold',   n:'· dwell',       min:0,  max:.9, step:.01, v:.35,f:2},
+  ]},
   {g:'Motion', items:[
-    {k:'spin',        n:'Spin',          min:-60,max:60, step:.5,  v:5,  f:1, u:'°/s'},
+    {k:'spin',        n:'Spin',          min:-60,max:60, step:.5,  v:0,  f:1, u:'°/s'},
     {k:'twistAmp',    n:'Twist wobble',  min:0,  max:60, step:.5,  v:0,  f:1, u:'°'},
     {k:'twistRate',   n:'· rate',        min:.01,max:1.5,step:.01, v:.14,f:2, u:'hz'},
     {k:'breatheAmp',  n:'Breathe',       min:0,  max:.4, step:.005,v:0,  f:3},
@@ -238,9 +246,10 @@ const PRESETS = {
            depthOuter:.24,hole:.092,weight:1.3,bloom:.6,glarePos:.3},
   Blade:  {count:16,tipSharp:.07,cornerR:.07,cornerT:.35,sweep:.5,twist:8,
            depthOuter:.30,hole:.02,weight:2.2,bloom:.9,glarePos:.12,glareWide:.25},
-  Halo:   {count:60,tipSharp:.28,cornerR:.28,cornerT:.6,sweep:-.4,twist:-26,
-           depthOuter:.08,hole:.389,gamma:1.9,weight:.8,bloom:1.2,
-           opMin:.15,glarePos:.55,glareWide:.45},
+  Halo:   {altAmt:.005,radius:359,rotation:0,tipSharp:.25,tipBias:-.15,
+           cornerR:.25,cornerT:.5,sweep:-.4,twist:-26,taper:.035,
+           count:56,depthOuter:.05,hole:.42,gamma:1.9,
+           weight:.75,opMin:.27,opMax:.9,glarePos:.39,glareWide:.45,bloom:1.2},
 };
 for (const k in PRESETS) PRESETS[k] = Object.assign({}, BASE, PRESETS[k]);
 
@@ -452,8 +461,45 @@ function build(n, N){
   built = n + ':' + N;
 }
 
+/* ------------------------------- morph -------------------------------
+   The motion is a journey between two poses, not a rotation. Pose A is
+   whatever the sliders hold; pose B is a preset. Every continuous axis is
+   interpolated between them, so the mark genuinely becomes a different
+   figure and comes back — the geometry transforms rather than turning.
+
+   The discrete axes are held at pose A: lobe count, chord span and the two
+   harmonics are integers, and a figure cannot grow half a lobe. Line count
+   is held too — it is an integer that forces a DOM rebuild, so morphing it
+   would stutter the transition it is meant to smooth.                   */
+const NO_MORPH = new Set(['lobes','span','altFold','lightFold','count']);
+const MORPH_KEYS = CTRL
+  .filter(s => s.g !== 'Motion' && s.g !== 'Morph')
+  .flatMap(s => s.items.map(i => i.k))
+  .filter(k => !NO_MORPH.has(k));
+
+let morphTarget = 'Blade';
+
+/* Ping-pong with a dwell at each end. Without the dwell the mark is never
+   actually either pose, it is permanently mid-transition — the hold is what
+   makes it read as "this shape, then that shape". */
+function morphPhase(){
+  if (P.morphRate <= 0) return 1;
+  const x = wrap01(t * P.morphRate);
+  const tri = x < .5 ? x*2 : 2 - x*2;
+  const h = Math.min(.95, P.morphHold);
+  const c = Math.max(0, Math.min(1, (tri - h*.5) / (1 - h)));
+  return c*c*(3 - 2*c);
+}
+
 function effective(){
   const e = Object.assign({}, P);
+
+  const B = PRESETS[morphTarget];
+  if (B && P.morphAmt > .001){
+    const m = P.morphAmt * morphPhase();
+    for (const k of MORPH_KEYS) if (k in B) e[k] = lerp(P[k], B[k], m);
+  }
+
   e.rotation   += P.spin * t;
   e.twist      += P.twistAmp * Math.sin(2*Math.PI*P.twistRate*t);
   e.hole        = Math.max(0, e.hole + P.breatheAmp * Math.sin(2*Math.PI*P.breatheRate*t));
@@ -532,6 +578,7 @@ const panel = document.getElementById('panel');
 const inputs = {}, readouts = {};
 
 const rows = {};
+let morphSect = null;
 /* Sections fold. 39 controls in one column is a scroll, not an instrument —
    the ones you reach for while shaping stay open, the finishing passes don't. */
 const OPEN = {Symmetry:1, Form:1, Band:1};
@@ -544,6 +591,7 @@ CTRL.forEach(sec => {
   s.className = 'sect fold' + (open ? ' open' : '');
   s.innerHTML = `<h2>${sec.g}<span class="n">${sec.items.length}</span></h2><div class="rows"></div>`;
   const body = s.querySelector('.rows');
+  if (sec.g === 'Morph') morphSect = body;
   s.querySelector('h2').addEventListener('click', () => {
     s.classList.toggle('open');
     openState[sec.g] = s.classList.contains('open');
@@ -565,14 +613,18 @@ CTRL.forEach(sec => {
     const inp = row.querySelector('input'), out = row.querySelector('.val');
     inputs[it.k] = inp; readouts[it.k] = {el:out, it};
     const show = () => out.textContent = P[it.k].toFixed(it.f) + (it.u || '');
-    inp.addEventListener('input', () => { P[it.k] = parseFloat(inp.value); show(); markDirty(); });
+    const poseAxis = sec.g !== 'Motion' && sec.g !== 'Morph';
+    inp.addEventListener('input', () => {
+      P[it.k] = parseFloat(inp.value); show(); if (poseAxis) markDirty();
+    });
     // drag the number to scrub
     out.addEventListener('pointerdown', ev => {
       ev.preventDefault(); out.setPointerCapture(ev.pointerId);
       const x0 = ev.clientX, v0 = P[it.k], span = it.max - it.min;
       const move = m => {
         const v = Math.min(it.max, Math.max(it.min, v0 + (m.clientX - x0)/220 * span));
-        P[it.k] = Math.round(v/it.step)*it.step; inp.value = P[it.k]; show(); markDirty();
+        P[it.k] = Math.round(v/it.step)*it.step; inp.value = P[it.k]; show();
+        if (poseAxis) markDirty();
       };
       const up = () => { out.removeEventListener('pointermove',move); out.removeEventListener('pointerup',up); };
       out.addEventListener('pointermove', move); out.addEventListener('pointerup', up);
@@ -647,6 +699,26 @@ Object.keys(PRESETS).forEach(name => {
   b.onclick = () => applyPreset(name);
   presetBtns.appendChild(b);
 });
+/* Pose B picker. Reuses the presets, so any two of them can be travelled
+   between — the second half of the motion is chosen, not hard-coded. */
+if (morphSect){
+  const pick = document.createElement('div');
+  pick.className = 'btns'; pick.style.margin = '0 0 11px';
+  pick.innerHTML = '<span class="mlab">toward</span>';
+  Object.keys(PRESETS).forEach(name => {
+    const b = document.createElement('button');
+    b.textContent = name; b.dataset.morph = name;
+    b.onclick = () => { morphTarget = name; paintMorph(); };
+    pick.appendChild(b);
+  });
+  morphSect.insertBefore(pick, morphSect.firstChild);
+}
+function paintMorph(){
+  document.querySelectorAll('[data-morph]')
+    .forEach(b => b.classList.toggle('on', b.dataset.morph === morphTarget));
+}
+paintMorph();
+
 applyPreset(DEFAULT_PRESET);
 const rnd = document.createElement('button'); rnd.textContent='Randomize';
 rnd.style.flex = '0 0 100%';
