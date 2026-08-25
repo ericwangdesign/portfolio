@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shape Exploration</title>
+<style>
+  :root{
+    --bg:#0A0A0A; --panel:#0A0A0A; --line:#232326; --txt:#e8e8ea;
+    --dim:#8a8a92; --accent:#e8e8ea; --radius:6px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--bg); color:var(--txt);
+    font:12px/1.4 ui-sans-serif,-apple-system,"SF Pro Text",Inter,system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased; overflow:hidden;
+  }
+  #app{display:flex; height:100vh}
+  main{flex:1; display:grid; place-items:center; position:relative; min-width:0}
+  #stageWrap{width:min(92vh,92%); aspect-ratio:1/1; position:relative}
+  svg#stage{width:100%; height:100%; display:block; border-radius:2px}
+
+  #hud{position:absolute; left:18px; bottom:14px; display:flex; gap:14px;
+       color:var(--dim); font:10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
+       letter-spacing:.04em; pointer-events:none}
+
+  aside{
+    width:308px; flex:none; background:var(--panel); border-left:1px solid var(--line);
+    overflow-y:auto; overscroll-behavior:contain;
+    transition:opacity .5s ease, margin-right .5s ease;
+  }
+  /* The mark is the piece; the instrument is not. Chrome fades out when the
+     pointer goes still and returns the moment it moves. Pinned open while the
+     pointer is inside the panel, so a slow drag never dismisses the control
+     being dragged. */
+  /* Collapse the panel's layout width too, not just its paint. Fading it alone
+     left the mark sitting half a panel left of centre — the composition has to
+     recentre, or hiding the instrument just makes the piece look misaligned.
+     The stage is sized on 92vh, so it recentres without resizing. */
+  body.idle aside{opacity:0; margin-right:-308px; pointer-events:none}
+  body.idle #hud{opacity:0}
+  #hud{transition:opacity .5s ease}
+  body.resting{cursor:none}
+
+  /* On a phone the piece is the whole page. A 308px panel would eat most of
+     the screen, and the summon gesture it is hidden behind — a 56px sweep of
+     a pointer — is not something a finger does; every tap would open it
+     instead. So the instrument is not there at all, and the mark gets the
+     full frame. The coarse-pointer branch is bounded so a desktop
+     touchscreen keeps its controls. */
+  @media (max-width: 820px), (pointer: coarse) and (max-width: 1180px){
+    aside{display:none}
+    #hud{display:none}
+    #stageWrap{width:min(92vh, 96%)}
+  }
+  aside::-webkit-scrollbar{width:8px}
+  aside::-webkit-scrollbar-thumb{background:#2a2a2e;border-radius:8px}
+
+  .head{padding:16px 16px 12px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--panel); z-index:5}
+  .head h1{margin:0; font-size:13px; letter-spacing:.01em; font-weight:600;
+           display:flex; align-items:baseline; gap:8px}
+  .head h1 .fig{font:10px/1 ui-monospace,Menlo,monospace; letter-spacing:.04em; color:var(--dim);
+                border:1px solid var(--line); border-radius:3px; padding:3px 5px}
+  .head p{margin:5px 0 0; color:var(--dim); font-size:11px}
+
+  .sect{border-bottom:1px solid var(--line); padding:12px 16px 14px}
+  .sect > h2{
+    margin:0 0 10px; font:10.5px/1 ui-monospace,Menlo,monospace; letter-spacing:0;
+    color:var(--dim); font-weight:500;
+    display:flex; align-items:center; gap:8px;
+  }
+  .sect.fold > h2{cursor:pointer; user-select:none; margin:0}
+  .sect.fold.open > h2{margin:0 0 10px}
+  .sect.fold > h2::before{
+    content:''; width:5px; height:5px; flex:none; margin-bottom:2px;
+    border-right:1px solid currentColor; border-bottom:1px solid currentColor;
+    transform:rotate(-45deg); transition:transform .14s;
+  }
+  .sect.fold.open > h2::before{transform:rotate(45deg)}
+  .sect.fold > h2:hover{color:var(--txt)}
+  .sect > h2 .n{margin-left:auto; color:#4a4a52; letter-spacing:0; font-size:9px}
+  .sect.fold:not(.open) .rows{display:none}
+
+  .row{display:grid; grid-template-columns:1fr auto; align-items:center; gap:6px; margin-bottom:9px;
+       transition:opacity .15s}
+  .row.mute{opacity:.32}
+  .row.mute input[type=range]{pointer-events:none}
+  .row label{color:var(--txt); font-size:11.5px; cursor:default; user-select:none}
+  .row .val{font:10.5px/1 ui-monospace,Menlo,monospace; color:var(--dim); min-width:44px; text-align:right; cursor:ew-resize}
+  .row input[type=range]{grid-column:1/-1; -webkit-appearance:none; appearance:none; width:100%; height:14px; background:transparent; margin:-2px 0 0}
+  input[type=range]::-webkit-slider-runnable-track{height:2px; background:#2c2c31; border-radius:2px}
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:11px; height:11px; margin-top:-4.5px; border-radius:50%;
+    background:var(--accent); border:none; cursor:pointer; transition:transform .1s;
+  }
+  input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.18)}
+  input[type=range]:active::-webkit-slider-thumb{transform:scale(1.3)}
+  /* discrete axes get a ticked track — the value is a count, not a continuum */
+  /* Ticks live on the input, not the track pseudo-element — the track is only
+     2px tall and WebKit will not paint a background image on it. The track then
+     covers the middle of each tick, leaving a mark above and below. Spacing is
+     inset by half a thumb so ticks land where the thumb actually stops. */
+  input[type=range].disc{
+    background-image:linear-gradient(90deg,#55555f 0 1.5px,transparent 1.5px);
+    background-size:calc((100% - 11px)/var(--steps)) 6px;
+    background-position:5.5px center;
+    background-repeat:repeat-x;
+  }
+
+  .btns{display:flex; flex-wrap:wrap; gap:6px}
+  button{
+    font:11px/1 inherit; color:var(--txt); background:#1a1a1e; border:1px solid #2a2a2f;
+    padding:7px 10px; border-radius:var(--radius); cursor:pointer; transition:.12s;
+  }
+  button:hover{background:#232329; border-color:#3a3a42}
+  button:active{transform:translateY(1px)}
+  button.on{background:var(--txt); color:#0A0A0A; border-color:var(--txt)}
+  #presetBtns button{padding:6px 8px; font-size:10.5px}
+  .sect .hint:first-child{margin-top:0}
+  .rule{flex:0 0 100%; height:1px; background:var(--line); margin:4px 0 3px; border:0}
+  button.wide{flex:1 1 calc(50% - 3px)}
+
+  .swatches{display:flex; gap:8px; align-items:center}
+  .sw{display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dim)}
+  input[type=color]{width:26px;height:22px;padding:0;border:1px solid #2a2a2f;border-radius:4px;background:#1a1a1e;cursor:pointer}
+
+  .hint{color:#63636b; font-size:10.5px; line-height:1.5; margin:8px 0 0}
+  kbd{font:10px ui-monospace,Menlo,monospace; background:#1d1d21; border:1px solid #2c2c32;
+      border-radius:3px; padding:1px 4px; color:var(--dim)}
+</style>
+</head>
+<body>
+<div id="app">
+  <main>
+    <div id="stageWrap">
+      <svg id="stage" xmlns="http://www.w3.org/2000/svg" viewBox="-500 -500 1000 1000"></svg>
+    </div>
+    <div id="hud">
+      <span id="hudPaths">—</span>
+      <span id="hudTime">t 0.00s</span>
+      <span id="hudState">playing</span>
+    </div>
+  </main>
+
+  <aside>
+    <div class="head">
+      <h1>Shape Exploration</h1>
+      <p>Parametric mark canvas · live SVG</p>
+    </div>
+    <div id="panel"></div>
+  </aside>
+</div>
+
+<script>
+/* ------------------------------------------------------------------
+   MODEL
+   N lobes with N-fold rotational symmetry. Each lobe is a family of
+   nested cubic-Bezier arcs that share two vertices and bow inward.
+     lobes   = how many vertices sit on the circle
+     span    = how many sectors a chord jumps. 1 = polygon, >1 = star
+               polygon {N/span}, so the arcs weave through each other.
+     depth   = how far an arc bows toward the centre. The outer bow is set
+               directly; the inner one is derived from Hole size, since the
+               hole is simply the void the innermost arc encloses.
+     sweep   = asymmetry between the two control handles (the "lean")
+     twist   = each successive arc's tips rotate, producing the crossover
+   Brightness is three multiplied terms: across the band (glare), along
+   each path (falloff toward the tips), and a per-lobe light response of
+   fold m — at m=2 opposite lobes match and adjacent ones differ, so the
+   mark never reads as flatly symmetrical. See lobeLit().
+-------------------------------------------------------------------*/
+
+const CTRL = [
+  {g:'Form', items:[
+    {k:'radius',   n:'Radius',        min:120, max:490, step:1,    v:434, f:0},
+    {k:'rotation', n:'Rotation',      min:-180,max:180, step:.5,   v:31,  f:1, u:'°'},
+    {k:'tipSharp', n:'Tip sharpness', min:.02, max:.50, step:.005, v:.28, f:3},
+    {k:'tipBias',  n:'Tip bias',      min:-1,  max:1,   step:.01,  v:0,   f:2},
+    {k:'cornerR',  n:'Corner radius', min:0,   max:.45, step:.005, v:.10, f:3},
+    {k:'cornerT',  n:'Corner tension',min:.1,  max:1,   step:.01,  v:.50, f:2},
+    {k:'sweep',    n:'Sweep',         min:-2,  max:2,   step:.01,  v:.16, f:2},
+    {k:'twist',    n:'Twist',         min:-90, max:90,  step:.5,   v:8.5, f:1, u:'°'},
+    {k:'taper',    n:'Taper',         min:0,   max:.6,  step:.005, v:.035,f:3},
+  ]},
+  {g:'Band', items:[
+    {k:'count',      n:'Lines / lobe', min:2, max:80,  step:1,    v:22,  f:0},
+    {k:'depthOuter', n:'Outer bow',    min:0, max:.75, step:.005, v:.230,f:3},
+    {k:'hole',       n:'Hole size',    min:0, max:.95, step:.005, v:.201,f:3},
+    {k:'bowSpread',  n:'Bow spread',   min:0, max:1,   step:.005, v:0,   f:3},
+    {k:'depthCurve', n:'Bow easing',   min:.25,max:4,  step:.01,  v:1,   f:2},
+    {k:'gamma',      n:'Distribution', min:.3,max:3,   step:.02,  v:1.30,f:2},
+  ]},
+  {g:'Light', items:[
+    {k:'weight',    n:'Stroke weight', min:.2, max:6,  step:.05, v:2.60,f:2},
+    {k:'opMin',     n:'Floor',         min:0,  max:1,  step:.01, v:.30, f:2},
+    {k:'opMax',     n:'Peak',          min:0,  max:1,  step:.01, v:1,   f:2},
+    {k:'glarePos',  n:'Glare position',min:0,  max:1,  step:.005,v:.545,f:3},
+    {k:'glareWide', n:'Glare width',   min:.03,max:1.2,step:.005,v:.305,f:3},
+    {k:'tipFade',   n:'Tip falloff',   min:0,  max:1,  step:.01, v:.51, f:2},
+    {k:'tipFadePos',n:'Falloff centre',min:0,  max:1,  step:.005,v:.5,  f:3},
+    {k:'bloom',     n:'Bloom',         min:0,  max:2,  step:.01, v:.81, f:2},
+  ]},
+  {g:'Facets', items:[
+    {k:'lightAngle',n:'Light angle',   min:0,  max:180,step:.5,  v:30,  f:1, u:'°'},
+    {k:'lightFold', n:'Light fold',    min:1,  max:6,  step:1,   v:2,   f:0},
+    {k:'altDepth',  n:'Contrast',      min:0,  max:1,  step:.01, v:.70, f:2},
+    {k:'altGlare',  n:'Glare offset',  min:-.5,max:.5, step:.005,v:.300,f:3},
+  ]},
+  {g:'Flow', items:[
+    {k:'flow',        n:'Flow',          min:0,  max:1,  step:.01, v:1,  f:2},
+    {k:'dwell',       n:'· hold',        min:0,  max:8,  step:.1,  v:2,  f:1, u:'s'},
+    {k:'drift',       n:'· drift',       min:0,  max:8,  step:.1,  v:3,  f:1, u:'s'},
+    {k:'travel',      n:'· travel',      min:.5, max:12, step:.1,  v:3,  f:1, u:'s'},
+    {k:'variety',     n:'· variety',     min:0,  max:1,  step:.01, v:.45,f:2},
+  ]},
+  {g:'Motion', items:[
+    {k:'spin',        n:'Spin',          min:-60,max:60, step:.5,  v:0,  f:1, u:'°/s'},
+    {k:'twistAmp',    n:'Twist wobble',  min:0,  max:60, step:.5,  v:0,  f:1, u:'°'},
+    {k:'twistRate',   n:'· rate',        min:.01,max:1.5,step:.01, v:.14,f:2, u:'hz'},
+    {k:'breatheAmp',  n:'Breathe',       min:0,  max:.4, step:.005,v:0,  f:3},
+    {k:'breatheRate', n:'· rate',        min:.01,max:1.5,step:.01, v:.1, f:2, u:'hz'},
+    {k:'glareDrift',  n:'Glare drift',   min:-1, max:1,  step:.01, v:0,  f:2, u:'/s'},
+    {k:'lightDrift',  n:'Light drift',   min:-40,max:40, step:.5,  v:0,  f:1, u:'°/s'},
+  ]},
+];
+
+/* The mark is a four-fold mark. squash turns it elliptical and a radial
+   wobble pushes alternate vertices out, and both drop it to two-fold — so
+   neither is a control any more, and neither can be reached by the walk.
+   lobeCubic and the hole maths are still written for any N and any chord
+   span; these are the only values fed to them. */
+const LOCKED = {lobes:4, span:1, altAmt:0, altFold:2, squash:1};
+
+const P = {};
+CTRL.forEach(s => s.items.forEach(i => P[i.k] = i.v));
+Object.assign(P, LOCKED);
+
+/* Every preset is complete. Flat/Point/Ribbon/Blade/Halo were written as
+   partial overrides on a "Reference" preset, so deleting that button would
+   have left them inheriting whatever was on screen. BASE keeps the shared
+   values in one place and each preset is expanded against it below, so a
+   preset always lands on exactly the same mark whatever preceded it. */
+const BASE = {
+  lobes:4, span:1, altAmt:0, altFold:2, squash:1,
+  radius:434, rotation:31, tipSharp:.28, tipBias:0, cornerR:.10, cornerT:.50,
+  sweep:.16, twist:8.5, taper:.035,
+  count:22, depthOuter:.230, hole:.201, bowSpread:0, depthCurve:1, gamma:1.30,
+  weight:2.60, opMin:.30, opMax:1, glarePos:.545, glareWide:.305,
+  tipFade:.51, tipFadePos:.5, bloom:.81,
+  lightAngle:30, lightFold:2, altDepth:.70, altGlare:.300,
+};
+
+const PRESETS = {
+  Flat:   {altDepth:0, altGlare:0},
+  Point:  {radius:430,count:24,tipSharp:.28,cornerR:0,sweep:.45,twist:9,
+           depthOuter:.215,hole:.228,gamma:1.45,weight:1.3,bloom:.40},
+  Ribbon: {count:26,tipSharp:.22,cornerR:.20,cornerT:.5,sweep:.72,twist:44,
+           depthOuter:.24,hole:.092,weight:1.3,bloom:.6,glarePos:.3},
+  Blade:  {count:16,tipSharp:.07,cornerR:.07,cornerT:.35,sweep:.5,twist:8,
+           depthOuter:.30,hole:.02,weight:2.2,bloom:.9,glarePos:.12,glareWide:.25},
+  Halo:   {radius:359,rotation:0,tipSharp:.25,tipBias:-.15,
+           cornerR:.25,cornerT:.5,sweep:-.4,twist:-26,taper:.035,
+           count:56,depthOuter:.05,hole:.42,gamma:1.9,
+           weight:.75,opMin:.27,opMax:.9,glarePos:.39,glareWide:.45,bloom:1.2},
+};
+for (const k in PRESETS) PRESETS[k] = Object.assign({}, BASE, PRESETS[k], LOCKED);
+
+const DEFAULT_PRESET = 'Halo';
+
+/* Backstop: if a preset is ever written without one of the axes added after
+   the original 4-fold model, it lands on neutral rather than on whatever
+   happened to be on screen. BASE already covers all of them. */
+const NEUTRAL = {lobes:4, span:1, altAmt:0, altFold:2, squash:1,
+                 tipBias:0, depthCurve:1, bowSpread:0, lightFold:2};
+
+let bgColor = '#0A0A0A', inkColor = '#ffffff';
+let playing = true, t = 0, speed = 1, lastMs = null;
+
+/* ------------------------------ geometry ------------------------------ */
+const lerp = (a,b,x) => a + (b-a)*x;
+
+/* vector + cubic-Bezier helpers (de Casteljau) */
+const vAdd = (a,b) => [a[0]+b[0], a[1]+b[1]];
+const vSub = (a,b) => [a[0]-b[0], a[1]-b[1]];
+const vMul = (a,s) => [a[0]*s, a[1]*s];
+const vLen = a => Math.hypot(a[0], a[1]);
+const vUnit = a => { const l = vLen(a) || 1; return [a[0]/l, a[1]/l]; };
+const vLerp = (a,b,t) => [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t];
+
+function bezLeft(p, t){                       // control points of [0, t]
+  const a=vLerp(p[0],p[1],t), b=vLerp(p[1],p[2],t), c=vLerp(p[2],p[3],t);
+  const d=vLerp(a,b,t), e=vLerp(b,c,t);
+  return [p[0], a, d, vLerp(d,e,t)];
+}
+function bezRight(p, t){                      // control points of [t, 1]
+  const a=vLerp(p[0],p[1],t), b=vLerp(p[1],p[2],t), c=vLerp(p[2],p[3],t);
+  const d=vLerp(a,b,t), e=vLerp(b,c,t);
+  return [vLerp(d,e,t), e, c, p[3]];
+}
+const bezSub = (p,t0,t1) => bezLeft(bezRight(p,t0), (t1-t0)/(1-t0));
+
+const clamp = (v,a,b) => v < a ? a : v > b ? b : v;
+
+/* Symmetry. N vertices sit on a circle; a chord jumps `span` sectors, so the
+   closed figure is the star polygon {N/span}. span is capped at N/2 — beyond
+   that the chord subtends more than a half turn and the inward normal flips. */
+const lobeCount = e => Math.max(2, Math.round(e.lobes));
+const spanOf    = e => clamp(Math.round(e.span), 1, Math.max(1, Math.floor(lobeCount(e)/2)));
+const stepOf    = e => spanOf(e) * 2*Math.PI / lobeCount(e);
+
+function lobeCubic(lobe, u, e){
+  const step  = stepOf(e);
+  const twist = e.twist * u * Math.PI/180;
+  const base  = e.rotation*Math.PI/180 + twist;
+  const R = e.radius * (1 - e.taper*u);
+
+  /* Radial harmonic. Measured on the traversed angle, so any integer
+     harmonic closes on itself after N steps — no seam. */
+  const rFac = j => 1 + e.altAmt * Math.cos(e.altFold * j * step);
+  const a = base + lobe*step, b = base + (lobe+1)*step;
+  const Ra = R*rFac(lobe), Rb = R*rFac(lobe+1);
+  const A = [Ra*Math.cos(a), Ra*Math.sin(a)];
+  const B = [Rb*Math.cos(b), Rb*Math.sin(b)];
+
+  const dx = B[0]-A[0], dy = B[1]-A[1];
+  const len = Math.hypot(dx,dy) || 1;
+  const tx = dx/len, ty = dy/len;
+
+  /* Inward normal. Vertices advance by a positive step, so the figure is
+     always traversed the same way round and rotating the tangent a quarter
+     turn always points into it — no midpoint test, which is the point: at
+     span = N/2 the chord is a diameter, the midpoint lands on the origin,
+     and "which side is inward" becomes a coin flip on floating-point dust.
+     That made a 2-lobe figure bow both arcs the same way and flip as it
+     spun. This is also the honest normal when a radial harmonic makes the
+     chord uneven and the midpoint no longer sits square to it. */
+  const nx = -ty, ny = tx;
+
+  const h  = lerp(e.depthOuter, e.depthInner, Math.pow(u, e.depthCurve)) * len;
+  const s1 = h * (1 + e.sweep), s2 = h * (1 - e.sweep);
+  /* |sweep| > 1 flips one handle's sign: the arc gains an inflection and
+     reads as an S rather than a bow. */
+  const f1 = clamp(e.tipSharp * (1 + e.tipBias), .005, .49);
+  const f2 = 1 - clamp(e.tipSharp * (1 - e.tipBias), .005, .49);
+
+  /* Squash is a pure affine map, and affine maps commute with Bezier control
+     points — so scaling the four points scales the curve exactly. Everything
+     downstream (trimming, folds, gradients) inherits it for free. */
+  const q = e.squash;
+  const c1 = [A[0] + tx*f1*len + nx*s1, (A[1] + ty*f1*len + ny*s1)*q];
+  const c2 = [A[0] + tx*f2*len + nx*s2, (A[1] + ty*f2*len + ny*s2)*q];
+  return [[A[0], A[1]*q], c1, c2, [B[0], B[1]*q]];
+}
+
+/* One nested loop at band-position u, returned as N lobe pieces.
+   Each piece runs corner-midpoint → arc → corner-midpoint, so the pieces
+   still tile a closed figure but every tip is a smooth G1 fold. */
+function buildLoop(u, e){
+  const N = lobeCount(e);
+  const idx = Array.from({length:N}, (_,i) => i);
+  const arcs = idx.map(i => lobeCubic(i, u, e));
+  const tc = Math.min(.45, e.cornerR);
+  if (tc < .002) return arcs.map(a => ({seg:[a], A:a[0], B:a[3]}));
+
+  const trim = arcs.map(a => bezSub(a, tc, 1-tc));
+  const fill = [];
+  for (let i=0;i<N;i++){
+    const prev = trim[(i+N-1)%N], cur = trim[i];
+    const E = prev[3], Te = vUnit(vSub(prev[3], prev[2]));
+    const S = cur[0],  Ts = vUnit(vSub(cur[1], cur[0]));
+    const k = e.cornerT * vLen(vSub(S, E));
+    fill[i] = [E, vAdd(E, vMul(Te,k)), vSub(S, vMul(Ts,k)), S];
+  }
+  return idx.map(i => {
+    const inHalf  = bezRight(fill[i], .5);        // back half of this tip's fold
+    const outHalf = bezLeft(fill[(i+1)%N], .5);   // front half of the next tip's fold
+    return {seg:[inHalf, trim[i], outHalf], A:inHalf[0], B:outHalf[3]};
+  });
+}
+
+function pathD(segs){
+  const r = n => Math.round(n*100)/100;
+  let d = `M${r(segs[0][0][0])} ${r(segs[0][0][1])}`;
+  for (const s of segs)
+    d += `C${r(s[1][0])} ${r(s[1][1])} ${r(s[2][0])} ${r(s[2][1])} ${r(s[3][0])} ${r(s[3][1])}`;
+  return d;
+}
+
+const wrap01 = x => ((x % 1) + 1) % 1;
+
+/* Hole size ⇄ inner bow.
+   The hole is bounded by the innermost arc, so its size IS that arc's depth —
+   just inside-out and in an unreadable unit. These convert between the two so
+   the slider can read as "how big is the hole", measured as a fraction of Radius.
+   A cubic's midpoint sits 3/4 of the way to its handles. For a chord spanning
+   angle s the midpoint is at R·cos(s/2) and the chord is 2R·sin(s/2) long, so
+     waist = R(1-taper)·( cos(s/2) − (3/2)·sin(s/2)·depth ).
+   At s = 90° that is the original 1/√2 and (3/4)√2. As s → 180° the chord runs
+   through the centre, cos → 0, and there is no hole to speak of.            */
+function chordK(e){
+  const h = stepOf(e)/2;
+  return {kc: Math.cos(h), kb: 1.5*Math.sin(h)};
+}
+function holeToDepth(hole, e){
+  const {kc, kb} = chordK(e);
+  const d = (kc - hole/Math.max(1-e.taper, .001)) / Math.max(kb, 1e-6);
+  return Math.max(e.depthOuter, d);  // inner arc can never bow less than the outer one
+}
+function depthToHole(depth, e){
+  const {kc, kb} = chordK(e);
+  return Math.max(0, (1-e.taper) * (kc - kb*depth));
+}
+const maxHole = e => depthToHole(e.depthOuter, e);
+
+/* Per-lobe light response, at fold m. cos(m·Δ) is the whole idea: the lighting
+   has its OWN symmetry order, independent of the geometry's. m=2 over 4 lobes
+   makes opposite lobes match and adjacent ones differ — the 2-fold lighting on
+   4-fold geometry that a twisted band shows under a fixed light. m = N flattens
+   it (every lobe identical); m coprime with N never repeats, so no two lobes are
+   lit alike. The angle is measured in world space, so when the mark spins the
+   light stays put and each arm swings through the highlight. */
+function lobeLit(i, e){
+  const stepDeg = stepOf(e) * 180/Math.PI;
+  const th = (e.rotation + (i + .5)*stepDeg) * Math.PI/180;   // the lobe's bisector
+  const L  = e.lightAngle * Math.PI/180;
+  const m  = Math.max(1, Math.round(e.lightFold));
+  const s  = (1 - Math.cos(m*(th - L))) / 2;   // 0 = facing the light, 1 = turned away
+  return {mul: 1 - e.altDepth*s, shift: e.altGlare*s};
+}
+
+function brightness(u, e, lit){
+  const d = (u - (e.glarePos + lit.shift)) / Math.max(e.glareWide, .001);
+  return (e.opMin + (e.opMax - e.opMin) * Math.exp(-d*d)) * lit.mul;
+}
+
+/* ------------------------------ rendering ------------------------------ */
+const stage = document.getElementById('stage');
+let built = '', groups = [];
+
+function build(n, N){
+  stage.innerHTML = '';
+  groups = [];
+  const NS = 'http://www.w3.org/2000/svg';
+  const mk = (tag, attrs={}) => { const el = document.createElementNS(NS, tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]); return el; };
+
+  const defs = mk('defs');
+  const filt = mk('filter', {id:'bloom', x:'-40%', y:'-40%', width:'180%', height:'180%'});
+  const blur = mk('feGaussianBlur', {stdDeviation:'8', id:'bloomBlur'});
+  filt.appendChild(blur); defs.appendChild(filt);
+
+  for (let i=0;i<N;i++){
+    const grad = mk('linearGradient', {id:'lg'+i, gradientUnits:'userSpaceOnUse'});
+    const st = [mk('stop',{offset:'0'}), mk('stop',{offset:'.5'}), mk('stop',{offset:'1'})];
+    st.forEach(s=>grad.appendChild(s));
+    defs.appendChild(grad);
+  }
+  stage.appendChild(defs);
+
+  const bg = mk('rect', {id:'bg', x:-500, y:-500, width:1000, height:1000, fill:bgColor});
+  stage.appendChild(bg);
+
+  const lines = mk('g', {id:'lines', fill:'none', 'stroke-linecap':'round'});
+  for (let i=0;i<N;i++){
+    const g = mk('g', {id:'lobe'+i, stroke:`url(#lg${i})`});
+    const paths = [];
+    for (let k=0;k<n;k++){ const p = mk('path'); g.appendChild(p); paths.push(p); }
+    lines.appendChild(g); groups.push({g, paths});
+  }
+  const glow = mk('use', {href:'#lines', 'xlink:href':'#lines', filter:'url(#bloom)', id:'glow'});
+  stage.appendChild(glow);
+  stage.appendChild(lines);
+  built = n + ':' + N;
+}
+
+/* -------------------------------- flow --------------------------------
+   The mark settles on a pose, sits there, then leaves for a pose it has
+   never held before. It never returns and never repeats — a walk, not a
+   ping-pong, so there is nothing to recognise as a loop.
+
+   New poses are drawn from inside the hull of the presets: a blend of two
+   of them, then jittered. Sampling the raw slider ranges instead produces
+   mush most of the time, because most of that volume is ugly; blending
+   known-good poses is what keeps every stop worth looking at.
+
+   The discrete axes never move: lobe count, chord span and the two
+   harmonics are integers, and a figure cannot grow half a lobe. Line count
+   is held for the same reason, plus it forces a DOM rebuild that would
+   stutter the very transition it is meant to smooth.                    */
+const NO_MORPH = new Set(['lobes','span','altFold','lightFold','count']);
+const AXIS = {};
+CTRL.forEach(s => s.items.forEach(i => AXIS[i.k] = i));
+const MORPH_KEYS = CTRL
+  .filter(s => s.g !== 'Motion' && s.g !== 'Flow')
+  .flatMap(s => s.items.map(i => i.k))
+  .filter(k => !NO_MORPH.has(k));
+
+const POSE_NAMES = Object.keys(PRESETS);
+const rndPick = a => a[(Math.random() * a.length) | 0];
+
+/* How far apart two poses read, as the RMS of their per-axis difference in
+   units of each axis's own range. Rotation is left out: it is unbounded and
+   always advancing, so it would swamp everything else. */
+const DIST_KEYS = MORPH_KEYS.filter(k => k !== 'rotation');
+function poseDist(a, b){
+  let s = 0;
+  for (const k of DIST_KEYS){
+    const d = (a[k] - b[k]) / (AXIS[k].max - AXIS[k].min);
+    s += d*d;
+  }
+  return Math.sqrt(s / DIST_KEYS.length);
+}
+
+function drawPose(){
+  const a = rndPick(POSE_NAMES);
+  const b = rndPick(POSE_NAMES.filter(x => x !== a));   // never blend a preset with itself
+  /* Pushed away from the middle: a 50/50 blend of two presets is the average
+     of both and reads as neither. Landing near one end keeps a pose in
+     character. */
+  const r = Math.random();
+  const w = r < .5 ? r*r*.9 : 1 - (1-r)*(1-r)*.9;
+  const out = {};
+  for (const k of MORPH_KEYS){
+    const it = AXIS[k];
+    let v = lerp(PRESETS[a][k], PRESETS[b][k], w);
+    /* Jitter scaled by each control's own range, so a 0-to-1 axis and a
+       120-to-490 axis wander by comparable amounts. */
+    v += (Math.random() * 2 - 1) * P.variety * (it.max - it.min) * .16;
+    out[k] = Math.max(it.min, Math.min(it.max, v));
+  }
+  return out;
+}
+
+/* Draw several candidates and keep whichever sits furthest from where we
+   are. Sampling once let roughly one journey in ten land almost on top of
+   the pose it left, which read as the motion going nowhere. Choosing the
+   furthest of a handful lifts that floor without widening the vocabulary at
+   all — the candidates all come from the same hull, so the biggest changes
+   are no bigger, the forgettable ones just stop happening. */
+const POSE_CANDIDATES = 6;
+function samplePose(prev){
+  let best = null, bestD = -1;
+  for (let i = 0; i < POSE_CANDIDATES; i++){
+    const c = drawPose();
+    const d = prev ? poseDist(c, prev) : 1;
+    if (d > bestD){ bestD = d; best = c; }
+  }
+  /* Rotation is the one axis that must not be clamped or reversed — it keeps
+     advancing so the mark never turns back through an angle it already held. */
+  best.rotation = (prev ? prev.rotation : P.rotation) + 25 + Math.random() * 80;
+  return best;
+}
+
+/* A Catmull-Rom spline through the poses rather than eased hops between
+   them. Easing each hop separately drives velocity to zero on arrival, so
+   the mark visibly stops at every pose even with no dwell at all. A spline
+   is C1 across the joins: poses become points the motion passes through at
+   speed, never places it comes to rest.
+
+   Four poses are always in hand — the one behind, the two bracketing the
+   current segment, and the one ahead — because that is what a Catmull-Rom
+   tangent needs to know which way to lean going in and coming out. */
+const catmull = (p0,p1,p2,p3,u) => {
+  const u2 = u*u, u3 = u2*u;
+  return .5*(2*p1 + (p2-p0)*u + (2*p0 - 5*p1 + 4*p2 - p3)*u2
+                              + (3*p1 - 3*p2 + p3 - p0)*u3);
+};
+
+/* The opening is three phases: hold the pose dead still, then turn it slowly
+   without changing its shape, then walk. segN counts them: -2 holding,
+   -1 turning, 0 and up are spline segments. */
+let queue = [], segAt = 0, segN = -2, turned = 0;
+function flowInit(){ queue = []; segAt = 0; segN = -2; turned = 0; }
+
+/* Half the rate the walk's own first segment would turn at. Not a chosen
+   number: with the first pose doubled at the start of the spline, the
+   Catmull-Rom tangent there is exactly half the segment's rotation delta, so
+   turning at this rate means the walk picks rotation up at precisely the
+   speed the drift left it. No stall, no lurch, nothing to tune. */
+function turnRate(){
+  if (queue.length < 3 || !queue[2]) return 0;
+  return .5 * (queue[2].rotation - queue[1].rotation) / Math.max(.2, P.travel);
+}
+
+/* Advanced from the animation loop, not from effective(), so rendering a
+   frame never mutates the walk — export and slider redraws stay put. */
+function flowStep(){
+  if (!queue.length){
+    const home = {}; for (const k of MORPH_KEYS) home[k] = P[k];
+    queue = [home, home, samplePose(home)];
+    queue.push(samplePose(queue[2]));
+    segAt = t; segN = -2; turned = 0;
+    return;
+  }
+  if (t < segAt) segAt = t;                   // time was reset under us
+  const dur = Math.max(.2, P.travel);
+  if (segN === -2){                           // dead still on the opening pose
+    if (t - segAt < Math.max(0, P.dwell)) return;
+    segAt = t; segN = -1; return;
+  }
+  if (segN === -1){                           // same shape, turning slowly
+    const d = Math.max(0, P.drift);
+    turned = Math.min(t - segAt, d) * turnRate();
+    if (t - segAt < d) return;
+    segAt = t; segN = 0; return;              // leaves the opening, for good
+  }
+  let guard = 0;
+  while (t - segAt >= dur && guard++ < 4096){
+    segAt += dur; segN++;
+    queue.shift();
+    queue.push(samplePose(queue[queue.length - 1]));
+  }
+}
+function flowRawU(){
+  if (segN < 0) return 0;
+  return Math.min(1, Math.max(0, (t - segAt) / Math.max(.2, P.travel)));
+}
+function flowMix(){
+  const u = flowRawU();
+  /* The first segment alone starts from rest and hands over at exactly the
+     speed every later segment runs at: f(0)=0, f'(0)=0, f(1)=1, f'(1)=1. */
+  return segN === 0 ? u*u*(2 - u) : u;
+}
+
+function effective(){
+  const e = Object.assign({}, P);
+
+  if (segN >= 0 && queue.length === 4 && P.flow > .001){
+    const uShape = flowMix(), uTurn = flowRawU();
+    for (const k of MORPH_KEYS){
+      /* Shape eases in from rest on the first segment; rotation does not.
+         It was already turning through the drift, so easing it from zero
+         would stall the one thing that was moving. */
+      const u = k === 'rotation' ? uTurn : uShape;
+      let v = catmull(queue[0][k], queue[1][k], queue[2][k], queue[3][k], u);
+      /* A spline overshoots its control points — welcome as motion, but it
+         must not carry an axis outside its own range. Rotation is exempt:
+         clamping it is what would make the mark turn back. */
+      if (k !== 'rotation'){
+        const it = AXIS[k];
+        v = Math.max(it.min, Math.min(it.max, v));
+      }
+      /* Anchored to the sliders: at flow 0 you get exactly what you set, and
+         editing an axis still bites while the walk is running. */
+      e[k] = lerp(P[k], v, P.flow);
+    }
+  }
+
+  e.rotation   += P.spin * t + turned;   // carried on, so the walk never rewinds it
+  e.twist      += P.twistAmp * Math.sin(2*Math.PI*P.twistRate*t);
+  e.hole        = Math.max(0, e.hole + P.breatheAmp * Math.sin(2*Math.PI*P.breatheRate*t));
+  /* Hole is the natural dial for a polygon, but once the chord swings past
+     the centre (span → N/2, or N=2) cos(s/2) → 0, the hole vanishes, and every
+     arc collapses onto the same bow — a band with no spread. bowSpread adds
+     the inner bow back explicitly so those figures still read as a band. */
+  e.depthInner  = holeToDepth(e.hole, e) + e.bowSpread;
+  e.glarePos    = wrap01(e.glarePos + P.glareDrift * t);
+  e.lightAngle += P.lightDrift * t;
+  return e;
+}
+
+function render(){
+  const e = effective();
+  const n = Math.round(e.count);
+  const N = lobeCount(e);
+  const idx = Array.from({length:N}, (_,i) => i);
+  if (n + ':' + N !== built) build(n, N);
+
+  document.getElementById('bg').setAttribute('fill', bgColor);
+  document.getElementById('bloomBlur').setAttribute('stdDeviation', (e.bloom*9).toFixed(2));
+  document.getElementById('glow').setAttribute('opacity', Math.min(1, e.bloom).toFixed(3));
+  document.getElementById('glow').setAttribute('display', e.bloom > .001 ? 'inline' : 'none');
+
+  const midK = Math.floor(n/2), ends = [];
+  const lits = idx.map(i => lobeLit(i, e));
+  for (let k=0;k<n;k++){
+    const u = n === 1 ? 0 : Math.pow(k/(n-1), e.gamma);
+    const lobes = buildLoop(u, e);
+    const w = e.weight.toFixed(2);
+    for (let i=0;i<N;i++){
+      const p = groups[i].paths[k];
+      p.setAttribute('d', pathD(lobes[i].seg));
+      p.setAttribute('stroke-width', w);
+      p.setAttribute('stroke-opacity', brightness(u, e, lits[i]).toFixed(3));
+      if (k === midK) ends[i] = lobes[i];
+    }
+  }
+
+  for (let i=0;i<N;i++){
+    const grad = document.getElementById('lg'+i);
+    const {A,B} = ends[i] || buildLoop(.5, e)[i];
+    grad.setAttribute('x1',A[0].toFixed(1)); grad.setAttribute('y1',A[1].toFixed(1));
+    grad.setAttribute('x2',B[0].toFixed(1)); grad.setAttribute('y2',B[1].toFixed(1));
+    const edge = (1 - e.tipFade).toFixed(3);
+    const stops = grad.children;
+    stops[0].setAttribute('offset','0');
+    stops[1].setAttribute('offset', e.tipFadePos.toFixed(3));
+    stops[2].setAttribute('offset','1');
+    for (const s of stops) s.setAttribute('stop-color', inkColor);
+    stops[0].setAttribute('stop-opacity', edge);
+    stops[1].setAttribute('stop-opacity','1');
+    stops[2].setAttribute('stop-opacity', edge);
+  }
+
+  document.getElementById('hudPaths').textContent = (n*N) + ' paths';
+  affordances();
+  document.getElementById('hudTime').textContent  = 't ' + t.toFixed(2) + 's';
+}
+
+function tick(ms){
+  flowStep();
+  if (lastMs === null) lastMs = ms;
+  const dt = Math.min(.05, (ms - lastMs)/1000);
+  lastMs = ms;
+  if (playing) t += dt * speed;
+  render();
+  requestAnimationFrame(tick);
+}
+
+/* ------------------------------ panel ------------------------------ */
+const panel = document.getElementById('panel');
+const inputs = {}, readouts = {};
+
+const rows = {};
+let morphSect = null;
+/* Sections fold. 39 controls in one column is a scroll, not an instrument —
+   the ones you reach for while shaping stay open, the finishing passes don't. */
+const OPEN = {Symmetry:1, Form:1, Band:1};
+let openState = {};
+try { openState = JSON.parse(localStorage.getItem('logoMathFolds') || '{}'); } catch(e){}
+
+CTRL.forEach(sec => {
+  const s = document.createElement('div');
+  const open = sec.g in openState ? openState[sec.g] : !!OPEN[sec.g];
+  s.className = 'sect fold' + (open ? ' open' : '');
+  s.innerHTML = `<h2>${sec.g}<span class="n">${sec.items.length}</span></h2><div class="rows"></div>`;
+  const body = s.querySelector('.rows');
+  if (sec.g === 'Flow') morphSect = body;
+  s.querySelector('h2').addEventListener('click', () => {
+    s.classList.toggle('open');
+    openState[sec.g] = s.classList.contains('open');
+    try { localStorage.setItem('logoMathFolds', JSON.stringify(openState)); } catch(e){}
+  });
+  sec.items.forEach(it => {
+    const row = document.createElement('div'); row.className = 'row';
+    /* Ticked only when the value is a small count you can actually aim at.
+       Radius and Lines/lobe step by 1 too, but over ranges wide enough that
+       ticks would fill the track solid — those stay continuous. */
+    const steps = Math.max(1, Math.round((it.max - it.min)/it.step));
+    const disc = it.step >= 1 && steps <= 24;
+    row.innerHTML =
+      `<label for="c_${it.k}">${it.n}</label><span class="val" id="v_${it.k}"></span>` +
+      `<input type="range" id="c_${it.k}" min="${it.min}" max="${it.max}" step="${it.step}" ` +
+      `value="${it.v}"${disc ? ` class="disc" style="--steps:${steps}"` : ''}>`;
+    body.appendChild(row);
+    rows[it.k] = row;
+    const inp = row.querySelector('input'), out = row.querySelector('.val');
+    inputs[it.k] = inp; readouts[it.k] = {el:out, it};
+    const show = () => out.textContent = P[it.k].toFixed(it.f) + (it.u || '');
+    const poseAxis = sec.g !== 'Motion' && sec.g !== 'Flow';
+    inp.addEventListener('input', () => {
+      P[it.k] = parseFloat(inp.value); show(); if (poseAxis) markDirty();
+    });
+    // drag the number to scrub
+    out.addEventListener('pointerdown', ev => {
+      ev.preventDefault(); out.setPointerCapture(ev.pointerId);
+      const x0 = ev.clientX, v0 = P[it.k], span = it.max - it.min;
+      const move = m => {
+        const v = Math.min(it.max, Math.max(it.min, v0 + (m.clientX - x0)/220 * span));
+        P[it.k] = Math.round(v/it.step)*it.step; inp.value = P[it.k]; show();
+        if (poseAxis) markDirty();
+      };
+      const up = () => { out.removeEventListener('pointermove',move); out.removeEventListener('pointerup',up); };
+      out.addEventListener('pointermove', move); out.addEventListener('pointerup', up);
+    });
+    show();
+  });
+  panel.appendChild(s);
+});
+
+function syncUI(){
+  for (const k in inputs){ inputs[k].value = P[k];
+    const {el,it} = readouts[k]; el.textContent = P[k].toFixed(it.f) + (it.u||''); }
+}
+
+/* Which preset (if any) the canvas is still sitting on. Touching any slider
+   leaves it, so the highlight never lies about what you are looking at. */
+let presetBtns = null;
+let activePreset = DEFAULT_PRESET;
+function markDirty(){ if (activePreset){ activePreset = null; paintPresets(); } }
+function paintPresets(){
+  if (!presetBtns) return;
+  presetBtns.querySelectorAll('[data-preset]')
+    .forEach(b => b.classList.toggle('on', b.dataset.preset === activePreset));
+}
+function applyPreset(name){
+  Object.assign(P, NEUTRAL, PRESETS[name]); syncUI();
+  activePreset = name; paintPresets();
+  flowInit();          // start the walk again from the pose you just chose
+}
+
+/* Two of the new axes have dead zones, and a slider that silently does nothing
+   is worse than one that isn't there. Grey them out and say why on hover. */
+/* At a fixed four folds the chord never swings near the centre, so hole and
+   bow spread are both always live. Only the oscillator rates can go dead. */
+function affordances(){
+  rows.hole.title = 'Void enclosed by the innermost arc, as a fraction of Radius.';
+  rows.twistRate.classList.toggle('mute', P.twistAmp < .01);
+  rows.breatheRate.classList.toggle('mute', P.breatheAmp < .001);
+  rows.altGlare.classList.toggle('mute', P.altDepth < .005);
+}
+
+/* Presets sit at the top: you pick a starting point, then shape it. Having to
+   scroll past 39 sliders to reach them had the instrument backwards. */
+const ps = document.createElement('div'); ps.className='sect';
+ps.innerHTML = `<h2>Presets</h2><div class="btns" id="presetBtns"></div>`;
+panel.insertBefore(ps, panel.firstChild);
+presetBtns = ps.querySelector('#presetBtns');
+Object.keys(PRESETS).forEach(name => {
+  const b = document.createElement('button');
+  b.textContent = name; b.dataset.preset = name;
+  b.onclick = () => applyPreset(name);
+  presetBtns.appendChild(b);
+});
+if (morphSect){
+  const note = document.createElement('p');
+  note.className = 'hint'; note.style.margin = '0 0 11px';
+  note.textContent = 'Holds, turns, then walks and never stops. Poses are passed through, not rested on, and none repeats.';
+  morphSect.insertBefore(note, morphSect.firstChild);
+}
+
+applyPreset(DEFAULT_PRESET);
+const rnd = document.createElement('button'); rnd.textContent='Randomize';
+rnd.style.flex = '0 0 100%';
+const pick = a => a[Math.floor(Math.random()*a.length)];
+rnd.onclick = () => {
+  CTRL.forEach(s => { if (s.g === 'Motion' || s.g === 'Flow') return;   // pose, not choreography
+    s.items.forEach(it => {
+      if (it.step >= 1) return;                    // discrete axes handled below
+      P[it.k] = it.min + Math.random()*(it.max-it.min);
+    });
+  });
+  /* Discrete axes deserve real choices, not a rounded uniform draw. Low lobe
+     counts read as marks; high ones read as ornament, so bias toward the low
+     end. Span is capped at N/2 and only means anything above 3 lobes. */
+  P.lightFold = pick([1,2,2,2,3,4]);
+  P.count  = 8 + Math.floor(Math.random()*40);
+  P.radius = 380 + Math.random()*110;
+  P.hole   = Math.min(P.hole, Math.max(0, maxHole(P) - .04));
+  P.bowSpread = P.hole > .05 ? 0 : Math.random()*.5;   // hole and spread are alternates
+
+  P.weight = .4 + Math.random()*1.8;
+  syncUI(); activePreset = null; paintPresets();
+};
+presetBtns.appendChild(rnd);
+
+/* transport */
+const tr = document.createElement('div'); tr.className='sect';
+tr.innerHTML = `<h2>Transport</h2>
+  <div class="btns">
+    <button id="play" class="on wide">Pause</button>
+    <button data-sp=".25">.25×</button><button data-sp="1" class="on">1×</button><button data-sp="3">3×</button>
+    <button id="reset" class="wide">Reset time</button>
+  </div>
+  <p class="hint"><kbd>space</kbd> play / pause · <kbd>R</kbd> randomize · drag any number to scrub<br>
+  Withdraws after five seconds still. A sweep of the pointer, a click or a key calls it back.</p>`;
+panel.appendChild(tr);
+const playBtn = tr.querySelector('#play');
+playBtn.onclick = () => { playing = !playing; playBtn.textContent = playing?'Pause':'Play';
+  playBtn.classList.toggle('on', playing); document.getElementById('hudState').textContent = playing?'playing':'paused'; };
+tr.querySelector('#reset').onclick = () => { t = 0; };
+tr.querySelectorAll('[data-sp]').forEach(b => b.onclick = () => {
+  speed = parseFloat(b.dataset.sp);
+  tr.querySelectorAll('[data-sp]').forEach(x => x.classList.toggle('on', x===b));
+});
+
+/* output */
+const out = document.createElement('div'); out.className='sect';
+out.innerHTML = `<h2>Output</h2>
+  <div class="swatches" style="margin-bottom:10px">
+    <span class="sw"><input type="color" id="bgc" value="#0A0A0A">Ground</span>
+    <span class="sw"><input type="color" id="inkc" value="#ffffff">Ink</span>
+    <button id="invert">Invert</button>
+  </div>
+  <div class="btns">
+    <button id="dlsvg" class="wide">Download SVG</button>
+    <button id="dlpng" class="wide">Download PNG</button>
+    <button id="dlanim" class="wide">SVG + spin loop</button>
+    <button id="cpjson" class="wide">Copy params</button>
+  </div>
+  <p class="hint">Exported SVG keeps one group per lobe (<code>#lobe0…</code>) so each arm can be
+  animated separately. Set Bloom to 0 for a pure-vector file — bloom is a blur filter and
+  rasterizes on import.<br><br>
+  Note: lighting is baked per stroke at export. The spin-loop export rotates the whole mark,
+  so the highlights turn with it rather than staying fixed the way they do here.</p>`;
+panel.appendChild(out);
+
+const bgc = out.querySelector('#bgc'), inkc = out.querySelector('#inkc');
+bgc.oninput = e => bgColor = e.target.value;
+inkc.oninput = e => inkColor = e.target.value;
+out.querySelector('#invert').onclick = () => {
+  const a = bgColor; bgColor = inkColor; inkColor = a;
+  bgc.value = bgColor; inkc.value = inkColor;
+};
+
+function svgString(spin){
+  render(); // guarantee the exported frame matches the current params
+  const clone = stage.cloneNode(true);
+  clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  clone.setAttribute('xmlns:xlink','http://www.w3.org/1999/xlink');
+  clone.setAttribute('width','1000'); clone.setAttribute('height','1000');
+  if (spin){
+    const dur = Math.abs(P.spin) > .01 ? (360/Math.abs(P.spin)) : 20;
+    const dir = P.spin < 0 ? '-360' : '360';
+    const wrapG = clone.ownerDocument.createElementNS('http://www.w3.org/2000/svg','g');
+    const anim = clone.ownerDocument.createElementNS('http://www.w3.org/2000/svg','animateTransform');
+    anim.setAttribute('attributeName','transform'); anim.setAttribute('type','rotate');
+    anim.setAttribute('from','0 0 0'); anim.setAttribute('to',`${dir} 0 0`);
+    anim.setAttribute('dur', dur.toFixed(2)+'s'); anim.setAttribute('repeatCount','indefinite');
+    const lines = clone.querySelector('#lines'), glow = clone.querySelector('#glow');
+    wrapG.appendChild(anim);
+    if (glow) wrapG.appendChild(glow);
+    wrapG.appendChild(lines);
+    clone.appendChild(wrapG);
+  }
+  return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
+}
+function download(name, blob){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+}
+out.querySelector('#dlsvg').onclick  = () => download('mark.svg', new Blob([svgString(false)],{type:'image/svg+xml'}));
+out.querySelector('#dlanim').onclick = () => download('mark-spin.svg', new Blob([svgString(true)],{type:'image/svg+xml'}));
+out.querySelector('#dlpng').onclick  = () => {
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement('canvas'); c.width = c.height = 2000;
+    const g = c.getContext('2d'); g.drawImage(img,0,0,2000,2000);
+    c.toBlob(b => download('mark.png', b));
+  };
+  img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString(false))));
+};
+out.querySelector('#cpjson').onclick = e => {
+  navigator.clipboard.writeText(JSON.stringify(Object.assign({}, P, {bg:bgColor, ink:inkColor}), null, 2));
+  e.target.textContent = 'Copied'; setTimeout(()=>e.target.textContent='Copy params', 1100);
+};
+
+addEventListener('keydown', ev => {
+  if (ev.target.tagName === 'INPUT') return;
+  if (ev.code === 'Space'){ ev.preventDefault(); playBtn.click(); }
+  if (ev.key === 'r' || ev.key === 'R') rnd.click();
+});
+
+/* ---------------------------- auto-hide ----------------------------
+   The page opens as the piece alone — no panel, nothing to dismiss. The
+   instrument is summoned, not dismissed.
+
+   Waking on any pointermove made that useless: a mouse resting on a desk
+   drifts, a trackpad reports a pixel from a resting palm, and the panel
+   flew back in unasked. So a wake has to be deliberate — either an
+   unambiguous act (click, key, wheel, touch) or a continuous sweep of the
+   pointer far enough that nothing but intent explains it.
+
+   Distance only counts while the gesture is unbroken. Pause longer than a
+   moment and the tally resets, so a pixel of drift every few seconds never
+   accumulates into a summons.                                            */
+const asideEl = document.querySelector('aside');
+/* Same test as the stylesheet, live — so rotating a tablet across the
+   breakpoint is handled without rewiring anything. */
+const HANDHELD = matchMedia('(max-width: 820px), (pointer: coarse) and (max-width: 1180px)');
+const IDLE_MS = 5000;      // stillness before the instrument withdraws
+const WAKE_PX = 56;        // deliberate sweep needed to call it back
+const GESTURE_GAP = 400;   // longer a pause than this and the sweep is over
+
+let idleTimer = null, pinned = false;
+let swept = 0, lastPt = null, lastAt = 0;
+
+function show(){
+  if (HANDHELD.matches) return;      // there is no panel to summon on a phone
+  document.body.classList.remove('idle', 'resting');
+  clearTimeout(idleTimer);
+  if (!pinned) idleTimer = setTimeout(hide, IDLE_MS);
+}
+function hide(){
+  document.body.classList.add('idle', 'resting');
+  swept = 0; lastPt = null;
+}
+
+addEventListener('pointermove', ev => {
+  /* The cursor itself comes straight back — hiding both it and the panel
+     behind the same threshold would leave you sweeping blind. */
+  document.body.classList.remove('resting');
+  const now = performance.now();
+  if (lastPt && now - lastAt < GESTURE_GAP)
+    swept += Math.hypot(ev.clientX - lastPt[0], ev.clientY - lastPt[1]);
+  else swept = 0;
+  lastPt = [ev.clientX, ev.clientY]; lastAt = now;
+  if (document.body.classList.contains('idle') && swept < WAKE_PX) return;
+  swept = 0;
+  show();
+}, {passive:true});
+
+['pointerdown','keydown','wheel','touchstart'].forEach(ev =>
+  addEventListener(ev, () => { document.body.classList.remove('resting'); show(); },
+                   {passive:true}));
+
+asideEl.addEventListener('pointerenter', () => { pinned = true;  show(); });
+asideEl.addEventListener('pointerleave', () => { pinned = false; show(); });
+addEventListener('blur', () => { pinned = false; hide(); });
+
+hide();          // opens as the piece, not the instrument
+
+build(Math.round(P.count));
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
