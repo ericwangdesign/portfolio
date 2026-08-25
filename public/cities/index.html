@@ -7,7 +7,10 @@
   <link rel="apple-touch-icon" href="/favicon-darkbg.png" />
   <title>Cities, roughly</title>
   <style>
-    /* One type size, one dim ink, one spacing scale: 8 / 16 / 26 / 36.
+    /* One type size, one dim ink, and three spacing steps that have to stay in
+       ratio: a label sits tight to its control (4), wrapped rows of that control
+       breathe wider (11), and separate fields wider still (30). When the first two
+       were equal, a label read as just another row and nothing grouped.
        Nothing is tracked out — at this size letter-spacing only makes short
        lowercase words look stretched. */
     :root {
@@ -16,9 +19,10 @@
       --faint: #ece9e233;
       --dim: #ece9e299;
       --aspect: 1.1894;
-      --gap-label: 8px;
-      --gap-field: 26px;
-      --gap-block: 36px;
+      --gap-label: 4px;
+      --gap-row: 11px;
+      --gap-field: 30px;
+      --gap-block: 38px;
     }
     * { box-sizing: border-box; margin: 0; }
     body {
@@ -92,8 +96,8 @@
 
     /* ---- sidebar ---------------------------------------------------------- */
     aside {
-      width: 300px;
-      padding: 40px 36px 36px 28px;
+      width: 316px;
+      padding: 40px 34px 36px 30px;
       display: flex;
       flex-direction: column;
       gap: var(--gap-block);
@@ -101,15 +105,15 @@
       scrollbar-width: thin;
       scrollbar-color: var(--faint) transparent;
     }
-    .masthead .kicker { color: var(--dim); margin-bottom: 10px; }
-    .masthead h1 { font-size: 15px; font-weight: 500; }
-    .masthead .sub { color: var(--dim); line-height: 1.65; margin-top: 10px; }
+    .masthead .kicker { color: var(--dim); line-height: 1.3; margin-bottom: 7px; }
+    .masthead h1 { font-size: 15px; font-weight: 500; line-height: 1.3; }
+    .masthead .sub { color: var(--dim); line-height: 1.65; margin-top: 13px; }
 
     .fields { display: flex; flex-direction: column; gap: var(--gap-field); }
     .field { display: flex; flex-direction: column; gap: var(--gap-label); }
-    .field > .name { color: var(--dim); }
+    .field > .name { color: var(--dim); line-height: 1.3; }
 
-    .seg { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+    .seg { display: flex; flex-wrap: wrap; gap: var(--gap-row) 16px; line-height: 1.3; }
     .seg button {
       font: inherit; padding: 0; background: none; border: none;
       color: var(--dim); cursor: pointer; transition: color 140ms ease;
@@ -120,7 +124,7 @@
     .seg button[disabled]:hover { color: var(--dim); }
 
     /* two columns, so the four keys read as a deliberate block rather than a 3+1 wrap */
-    .legend { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 12px; color: var(--dim); }
+    .legend { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap-row) 12px; color: var(--dim); line-height: 1.3; }
     .legend span { display: flex; align-items: center; gap: 7px; }
     .legend i { width: 8px; height: 8px; display: inline-block; flex: none; }
 
@@ -139,7 +143,7 @@
       input[type="range"] { height: 2px; }
       input[type="range"]::-webkit-slider-thumb { width: 20px; height: 20px; }
       input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; }
-      .seg { gap: 12px 18px; }
+      .seg { gap: 14px 18px; }
     }
   </style>
   <script type="module" crossorigin src="/cities/assets/index-DmCIdY3N.js"></script>
