@@ -92,12 +92,6 @@
   @media (prefers-reduced-motion:reduce){
     .gi.reveal{ animation:none; }
   }
-  .blot{
-    position:absolute;
-    pointer-events:none;
-    border-radius:50%;
-    transform:translate(-50%,-50%);
-  }
   .selunder{
     position:absolute;
     height:1px;
@@ -136,90 +130,11 @@
   #caption.show{opacity:.5}
   #caption .d{font-size:.62em; opacity:.75}
 
-  /* ---------- zero state ----------
-     The piece has to teach itself: most people arrive from a link with no
-     one there to explain it. Opens as a small card, folds to a corner tab
-     the moment they start writing. */
-  #intro{
-    /* sits above the mic control, which owns the bottom-left corner */
-    position:fixed; left:26px; bottom:64px; z-index:41;
-    width:288px;
-    background:rgba(247,244,236,.94);
-    backdrop-filter:blur(10px);
-    border:1px solid rgba(107,101,96,.20);
-    border-radius:3px;
-    box-shadow:0 8px 30px rgba(60,54,44,.09);
-    padding:16px 17px 14px;
-    font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;
-    color:#4b4640;
-    transition:opacity .55s ease, transform .55s cubic-bezier(.4,0,.2,1);
-    cursor:default;
-  }
-  #intro h3{
-    margin:0 0 7px; font-size:9px; font-weight:500;
-    letter-spacing:.15em; text-transform:uppercase; color:#8d867d;
-  }
-  #intro .lede{
-    margin:0 0 12px; font-size:12px; line-height:1.55; color:#3f3b36;
-  }
-  #intro ul{ margin:0; padding:0; list-style:none; }
-  #intro li{
-    font-size:11px; line-height:1.5; color:#6b6560;
-    padding:3.5px 0 3.5px 13px; position:relative;
-  }
-  #intro li::before{
-    content:""; position:absolute; left:2px; top:11px;
-    width:4px; height:1px; background:rgba(107,101,96,.5);
-  }
-  #intro li b{ color:#3f3b36; font-weight:500; }
-  #intro .foot{
-    margin:11px 0 0; padding-top:9px; font-size:10px; color:#9a938a;
-    border-top:1px solid rgba(107,101,96,.15);
-  }
-  #intro .x{
-    position:absolute; right:9px; top:8px;
-    font-size:13px; line-height:1; color:#b0a89e;
-    cursor:pointer; padding:3px 5px; border-radius:2px;
-  }
-  #intro .x:hover{ color:#6b6560; }
-  /* folded: collapses to a quiet tab in the corner */
-  #intro.folded{
-    width:auto; padding:7px 11px; cursor:pointer;
-    box-shadow:0 3px 12px rgba(60,54,44,.07);
-  }
-  #intro.folded .lede,
-  #intro.folded ul,
-  #intro.folded .foot,
-  #intro.folded .x{ display:none; }
-  #intro.folded h3{ margin:0; }
-  #intro.folded:hover{ background:rgba(250,248,242,.98); }
-
   #hidden{
     position:fixed; left:-9999px; top:0; width:1px; height:1px;
     opacity:0; border:0; padding:0; resize:none;
   }
 
-  /* ---------- voice ---------- */
-  #mic{
-    position:fixed; left:26px; bottom:22px; z-index:40;
-    color:var(--graphite); opacity:.32;
-    line-height:1;
-    cursor:pointer; user-select:none;
-    transition:opacity .35s ease, color .35s ease;
-    display:flex; align-items:center; gap:9px;
-  }
-  #mic:hover{opacity:.55}
-  #mic.on{color:var(--ink); opacity:.85}
-  #mic .dot{
-    width:7px; height:7px; border-radius:50%;
-    background:currentColor; opacity:0;
-    transition:opacity .3s ease;
-  }
-  #mic.on .dot{opacity:.8; animation:micpulse 1.6s ease-in-out infinite}
-  @keyframes micpulse{0%,100%{transform:scale(.7);opacity:.45}50%{transform:scale(1);opacity:.9}}
-  #mic.err{opacity:.2; cursor:default}
-
-  /* ---------- control panel ---------- */
   #panel{
     position:fixed; right:22px; top:22px; z-index:50;
     width:268px;
@@ -290,21 +205,6 @@
 </div>
 <textarea id="hidden" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
 
-<div id="intro">
-  <span class="x" title="close">&times;</span>
-  <h3>Pen &amp; Paper</h3>
-  <p class="lede">Typing kept the words and lost the writing. This keeps it — the page records <em>how</em> you wrote, not just what.</p>
-  <ul>
-    <li><b>Type slowly</b> — the hand stays careful and even</li>
-    <li><b>Type fast</b> — it runs, leans, joins into cursive</li>
-    <li><b>Stop for a moment</b> — ink pools where you paused</li>
-    <li><b>Delete something</b> — it stays, crossed out, like paper</li>
-  </ul>
-  <p class="foot">Just start typing. Refresh for a clean page.</p>
-</div>
-
-<div id="mic" title="dictate onto the page"><span class="dot"></span><span class="lbl">listen</span></div>
-
 <div id="panel">
   <h4>Pen &amp; Paper</h4>
   <div class="hint">⌘/ (ctrl /) toggles this panel · esc cancels a revision</div>
@@ -363,10 +263,6 @@ const SPREAD_CAP = 0.046;
 const SPEC = [
   { key:'baseSize',    type:'range',  label:'Size',              def:28,   min:20,  max:40,  step:1,    fmt:v=>v+'px' },
   { key:'weight',      type:'range',  label:'Weight',            def:0.050,min:0.03,max:0.10, step:0.002,fmt:v=>v.toFixed(3) },
-  { key:'pauseThresh', type:'range',  label:'Pause threshold',   def:2.0,  min:0.5, max:5,   step:0.1,  fmt:v=>v.toFixed(1)+'s' },
-  { key:'poolMax',     type:'range',  label:'Pool max',          def:5.0,  min:2,   max:10,  step:0.5,  fmt:v=>v.toFixed(1)+'s' },
-  { key:'poolDark',    type:'range',  label:'Pool darkness',     def:0.95, min:0.5, max:1,   step:0.01, fmt:v=>v.toFixed(2) },
-  { key:'poolBleed',   type:'range',  label:'Pool bleed',        def:0.55, min:0,   max:1.6, step:0.05, fmt:v=>v.toFixed(2) },
   { key:'scrapAmt',    type:'range',  label:'Scrappiness',       def:1.0,  min:0,   max:2,   step:0.05, fmt:v=>v.toFixed(2) },
   { key:'letterSpread',type:'range',  label:'Letter spread',     def:1.0,  min:0,   max:2,   step:0.05, fmt:v=>v.toFixed(2) },
   { key:'ghostOp',     type:'range',  label:'Ghost opacity',     def:1.0,  min:0.3, max:1,   step:0.01, fmt:v=>v.toFixed(2) },
@@ -407,41 +303,6 @@ const lerp  = (a,b,t) => a + (b-a)*t;
 function mixColor(t){                            // graphite -> ink
   const c = GRAPHITE.map((g,i)=> Math.round(lerp(g, INK[i], t)));
   return 'rgb('+c[0]+','+c[1]+','+c[2]+')';
-}
-
-/* ------------------------------ ink pools ------------------------------
-   A pool is a pure function of how long the pen rested: it starts at the
-   pause threshold and reaches full at "Pool max". The live growth loop and
-   layout() both go through poolPhase/applyPool, so what you watch happen
-   is exactly what a re-layout, a replay and the export will reproduce.
-   ----------------------------------------------------------------------- */
-function poolPhase(gapMs){
-  const thresh = S.pauseThresh * 1000;
-  const span   = Math.max(200, S.poolMax * 1000 - thresh);
-  return clamp((gapMs - thresh) / span, 0, 1);
-}
-// the first sliver of a pool fades in rather than snapping on, so growth
-// reads as continuous. It only ever scales the tuned values down.
-const poolFade = p => clamp(p * 5, 0, 1);
-// The TRAILING pool is GONE (Eric, round 2: damp it; round 3: "remove the
-// dint when i stopped typing"). Finishing a page is not hesitation - only
-// pauses BETWEEN marks pool. 0 kills both layout()'s trailing branch and
-// the live growth loop (which only ever grows the trailing pool).
-const TRAIL_POOL = 0;
-// alpha at the centre of a full pool (see blotStyle)
-const POOL_CORE = 0.95;
-
-function applyPool(g, p, base){
-  if(p <= 0) return;
-  const f = poolFade(p);
-  g.pool    = Math.max(g.pool, p);
-  g.opacity = Math.max(g.opacity, lerp(g.opacity, S.poolDark, f));
-  g.density = Math.max(g.density, lerp(g.density, 1, f));
-  // The blot (see blotCenter) now carries the story of where the pen
-  // rested; the glyph itself should only swell a little, not visibly grow.
-  g.size    = Math.max(g.size,    base * lerp(1, 1.015, f));
-  g.blur    = Math.max(g.blur,    0.4 * f);
-  g.color   = mixColor(g.density);
 }
 
 /* ============================== TIMELINE ==============================
@@ -1198,7 +1059,6 @@ function layout(events, opts){
     g.density = clamp(0.90 + rnd(g.seq, 8) * 0.05 * scrap, 0, 1);
     g.opacity = clamp(0.86 + rnd(g.seq, 7) * 0.05 * scrap, 0, 1);
     g.blur    = 0;
-    g.pool    = 0;
 
     // (3) rhythm wobble: variance of recent intervals loosens the line.
     // A second source of looseness — but it is GATED by scrappiness, so the
@@ -1289,33 +1149,12 @@ function layout(events, opts){
   wordPass(main);
   for(const r of revisions.values()) wordPass(r.glyphs);
 
-  // (2) pause -> ink pool. A glyph pools if the NEXT mark came long after it.
-  // The pen rests on the last LETTER, not on the space after it — otherwise
-  // the commonest hesitation of all (finish a word, then think) leaves no mark.
-  const threshMs = S.pauseThresh * 1000;
-  const lastT = events.length ? events[events.length-1].t : 0;
-  let hesitations = 0;
-  // Every pause pools, including the trailing one: a finished page is allowed
-  // to carry the mark of the pen that stopped on it.
-  for(let i=0;i<N;i++){
-    const gap = (i < N-1) ? all[i+1].dt : Math.max(0, nowT - lastT);
-    if(gap <= threshMs) continue;
-    if(i < N-1) hesitations++;   // the caption counts pauses BETWEEN marks
-    let k = i;
-    while(k > 0 && (all[k].ch === ' ' || all[k].ch === '\n')) k--;
-    const g = all[k];
-    if(g.ch === ' ' || g.ch === '\n' || g.struck) continue;
-    // the trailing rest is damped - see TRAIL_POOL
-    applyPool(g, poolPhase(gap) * (i < N-1 ? 1 : TRAIL_POOL), S.baseSize * g.faceScale);
-  }
-
   // Struck ink keeps its weight — crossing a word out doesn't lift ink off
   // the paper. The hairline through it is the only record of the deletion.
   for(const g of all){
     if(g.struck){
       g.opacity = clamp(g.opacity * S.ghostOp, 0.04, 1);
       g.blur = 0;
-      g.pool = 0;
     }
     g.color = mixColor(g.density);
   }
@@ -1434,7 +1273,7 @@ function layout(events, opts){
     height, lines: lastLine + 1,
     stats: {
       duration: events.length ? Math.round((Timeline.last() - Timeline.first())/1000) : 0,
-      hesitations, unsaid,
+      unsaid,
     },
   };
 }
@@ -1467,14 +1306,10 @@ let selection = null;   // {anchor} while a word is selected / being revised
 // the same ink without re-performing it.
 let pendingEntrance = false;
 
-// the one glyph the live pool loop is allowed to touch, and its two elements
-let poolTargetG = null, poolTargetEl = null, poolTargetBlot = null;
-
 // This styles the OUTER (.g) span: a real box (width = advance, top at
 // TOP_K above the baseline, bottom DESC_K below) so transform-origin
 // 50% 100% keeps meaning what the export mirrors. Color and opacity live
-// here; the ink inside is SVG filled with currentColor, so the live pool
-// loop can darken a glyph by restyling this span alone. No font, no mask,
+// here; the ink inside is SVG filled with currentColor. No font, no mask,
 // no filter - the lifted-pen fade is stroke-taper geometry in handGlyph().
 function glyphStyle(g){
   return 'left:'+g.x.toFixed(2)+'px;'+
@@ -1484,48 +1319,6 @@ function glyphStyle(g){
     'transform:translateY('+g.jitter.toFixed(2)+'px) skewX('+g.skew.toFixed(2)+'deg) '+
       'rotate('+g.rot.toFixed(2)+'deg);';
 }
-// Real ink gathers where the pen STOPS, not over the whole letter: at the
-// stroke's exit (the right end of the glyph's advance), sitting on the
-// baseline. A small seeded jitter keeps repeated pools from looking stamped
-// in the same spot every time. Shared by the DOM renderer, the live
-// pool-growth loop, and the canvas export, so all three agree exactly.
-function blotCenter(g){
-  const jx = rnd(g.seq, 41) * g.size * 0.05;
-  const jy = rnd(g.seq, 42) * g.size * 0.05;
-  // 0.55 of the advance, lifted into the x-height: a resting pen pools ON
-  // the stroke. Parked at the end of the advance on the baseline (0.9 / 0.05,
-  // as it was) the blot lands exactly where a full stop goes, and every pause
-  // read as punctuation - "one. two. three." instead of hesitation.
-  return {
-    cx: g.x + g.adv * 0.55 + jx,
-    cy: g.y - g.size * 0.20 + jy,
-  };
-}
-function blotStyle(g){
-  // POOL_CORE is the alpha at the centre. Pooled ink is DARKER than the
-  // stroke that fed it, never lighter - the old 0.30 peak read as a soft grey
-  // shadow beside near-opaque strokes, so pauses were computed but invisible.
-  // The tight inner stops carry the wet core; the outer two do the bleed.
-  const r = g.size * (0.10 + g.pool * 0.34 * S.poolBleed);
-  const c = blotCenter(g);
-  const a = v => 'rgba(28,26,23,'+(v*S.poolDark).toFixed(3)+')';
-  return 'left:'+c.cx+'px;top:'+c.cy+'px;'+
-    'width:'+(r*2)+'px;height:'+(r*2)+'px;'+
-    'opacity:'+poolFade(g.pool).toFixed(3)+';'+
-    (g.pool > 0 ? '' : 'display:none;')+
-    'background:radial-gradient(circle, '+a(POOL_CORE)+' 0%, '+a(POOL_CORE*0.95)+' 22%, '+
-      a(POOL_CORE*0.46)+' 40%, '+a(POOL_CORE*0.16)+' 60%, rgba(28,26,23,0) 82%);';
-}
-
-// which glyph a trailing pause would settle on — mirrors the pool loop above
-function trailingTarget(m){
-  let k = m.all.length - 1;
-  while(k > 0 && (m.all[k].ch === ' ' || m.all[k].ch === '\n')) k--;
-  const g = m.all[k];
-  if(!g || g.ch === ' ' || g.ch === '\n' || g.struck) return null;
-  return g;
-}
-
 function wobblyPath(s){
   // a hairline that remembers it was drawn by a hand
   const len = Math.max(6, s.x1 - s.x0);
@@ -1550,23 +1343,11 @@ function render(m){
   const fresh = (pendingEntrance && m.all.length) ? m.all[m.all.length-1] : null;
   pendingEntrance = false;
 
-  poolTargetG = trailingTarget(m);
-  poolTargetEl = poolTargetBlot = null;
-
   // --- glyphs ---
   const frag = document.createDocumentFragment();
   const emit = (g, idx, revAnchor, list, li) => {
     const isRev = revAnchor !== undefined;
     if(g.ch === ' ' || g.ch === '\n') return;
-    // the pool target always gets a blot, even an empty one: the live growth
-    // loop needs something to grow, and must never add a second one.
-    if(g.pool > 0 || g === poolTargetG){
-      const blot = document.createElement('div');
-      blot.className = 'blot';
-      blot.style.cssText = blotStyle(g);
-      if(g === poolTargetG) poolTargetBlot = blot;
-      frag.appendChild(blot);
-    }
     // The outer span (.g) is positioned and carries the lifted-pen fade
     // mask; the inner span (.gi) carries the character and the entrance
     // reveal mask/animation. Nested rather than layered on one element so
@@ -1611,7 +1392,6 @@ function render(m){
     if(g === fresh) inner.style.setProperty('--rd', g.revealMs + 'ms');
     outer.appendChild(inner);
 
-    if(g === poolTargetG) poolTargetEl = outer;
     frag.appendChild(outer);
   };
 
@@ -1688,25 +1468,20 @@ function render(m){
   elCap.style.top = (m.height - PAD_BOT + m.lh * 1.2) + 'px';
   elCap.innerHTML = captionHTML(m);
 
-  // the DOM was just rebuilt, so the growth loop needs its new handles
-  if(!replaying) startLivePool();
 }
 
-function captionText(m){
-  const st = m.stats;
-  return st.duration + 's · ' + st.hesitations + ' hesitation' + (st.hesitations===1?'':'s') +
-         ' · ' + st.unsaid + ' word' + (st.unsaid===1?'':'s') + ' unsaid';
-}
+// The page signs itself with a date and nothing else. The stats line
+// (duration / hesitations / words unsaid) was removed 2026-08-24 - it read
+// as instrumentation on a surface that should read as paper.
+const CAPTION_SIZE = 0.62;   // of base size; was 0.42 for the old stats line
 function dateText(){
   const d = new Date();
   return d.toLocaleDateString(undefined, {year:'numeric', month:'long', day:'numeric'});
 }
 function captionHTML(m){
-  const cs = m.reprBase * 0.42;
-  const l1 = handTextSVG(captionText(m), cs, 0.25, 7100, 'currentColor');
-  const l2 = handTextSVG(dateText(), cs * 0.78, 0.25, 7200, 'currentColor', 0.75);
-  return '<span style="display:inline-block">' + l1.svg + '</span><br>' +
-         '<span style="display:inline-block">' + l2.svg + '</span>';
+  const cs = m.reprBase * CAPTION_SIZE;
+  return '<span style="display:inline-block">' +
+    handTextSVG(dateText(), cs, 0.25, 7200, 'currentColor').svg + '</span>';
 }
 
 /* ============================== INPUT ================================= */
@@ -1719,51 +1494,6 @@ function relayout(opts){
   render(layout(Timeline.events, opts));
 }
 
-/* --------------------------- live ink pooling --------------------------
-   While the writer sits still, the pen keeps bleeding into the paper. This
-   loop touches exactly two elements — the resting glyph and its blot — and
-   never re-runs layout. It computes the pool through the same poolPhase /
-   applyPool the tape does, so when typing resumes and layout freezes the
-   pool from the recorded gap, nothing jumps.
-   ----------------------------------------------------------------------- */
-let liveRAF = null, liveTimer = null;
-
-function stopLivePool(){
-  if(liveRAF){ cancelAnimationFrame(liveRAF); liveRAF = null; }
-  clearTimeout(liveTimer); liveTimer = null;
-}
-
-function startLivePool(){
-  stopLivePool();
-  if(!model || !poolTargetG || !poolTargetEl) return;
-  const evs = Timeline.events;
-  if(!evs.length) return;
-
-  const g0 = poolTargetG, el = poolTargetEl, blot = poolTargetBlot;
-  const lastT = evs[evs.length-1].t;
-  let shown = -1;
-
-  const step = () => {
-    const p = poolPhase(Date.now() - lastT) * TRAIL_POOL;   // live = trailing
-    if(p - shown > 0.002){
-      shown = p;
-      // pg keeps g0's own resolved face (font/topK/faceScale/x/adv/y) —
-      // Object.assign copies those straight through, so applyPool/glyphStyle/
-      // blotStyle read the same face and rest-point the live loop as layout().
-      const pg = Object.assign({}, g0);
-      applyPool(pg, p, S.baseSize * g0.faceScale);
-      el.style.cssText = glyphStyle(pg);
-      if(blot) blot.style.cssText = blotStyle(pg);
-    }
-    liveRAF = p < 1 ? requestAnimationFrame(step) : null;
-  };
-
-  // nothing to do until the pause threshold is crossed
-  const wait = S.pauseThresh*1000 - (Date.now() - lastT);
-  if(wait > 0) liveTimer = setTimeout(()=>{ liveRAF = requestAnimationFrame(step); }, wait + 16);
-  else liveRAF = requestAnimationFrame(step);
-}
-
 function scheduleIdleCaption(){
   clearTimeout(idleTimer);
   elCap.classList.remove('show');
@@ -1771,7 +1501,7 @@ function scheduleIdleCaption(){
     if(!replaying && Timeline.events.length){ relayout(); elCap.classList.add('show'); }
   }, IDLE_CAP);
 }
-function touched(){ scheduleIdleCaption(); }   // render() restarts the pool loop
+function touched(){ scheduleIdleCaption(); }
 
 function commitRevision(){
   if(!selection || !selection.pending) return;
@@ -1779,33 +1509,6 @@ function commitRevision(){
   selection = null;
   relayout(); touched();
 }
-/* ----------------------------- zero state -----------------------------
-   Most people meet this piece through a link, with nobody there to explain
-   it. The card carries the whole idea, then gets out of the way the instant
-   they start writing — folding to a corner tab they can reopen. */
-const elIntro = document.getElementById('intro');
-let introFolded = false;
-
-function foldIntro(){
-  if(introFolded || !elIntro) return;
-  introFolded = true;
-  elIntro.classList.add('folded');
-  elIntro.title = 'what is this?';
-}
-function unfoldIntro(){
-  if(!elIntro) return;
-  introFolded = false;
-  elIntro.classList.remove('folded');
-  elIntro.title = '';
-}
-if(elIntro){
-  elIntro.addEventListener('mousedown', e => {
-    e.stopPropagation();               // never steal focus from the page
-    if(e.target.classList.contains('x')){ foldIntro(); return; }
-    if(introFolded) unfoldIntro();
-  });
-}
-
 function cancelRevision(){
   if(!selection) return;
   if(selection.pending) Timeline.push({ type:'revcancel', t: Date.now() });
@@ -1815,7 +1518,7 @@ function cancelRevision(){
 
 function typeChar(ch){
   const t = Date.now();
-  if(!firstKeyDone){ firstKeyDone = true; elPh.style.opacity = '0'; foldIntro(); }
+  if(!firstKeyDone){ firstKeyDone = true; elPh.style.opacity = '0'; }
   if(selection){
     if(ch === ' ' || ch === '\n'){
       if(selection.pending){ commitRevision(); return; }
@@ -1904,282 +1607,6 @@ elPage.addEventListener('mousedown', e => {
 
 window.addEventListener('resize', () => { if(model) relayout(); });
 
-/* =============================== VOICE ================================ */
-/* Dictation is just a second hand on the same pen. Interim results from
-   SpeechRecognition stream in as you speak: a word is written the moment
-   the recognizer is confident in it (everything but the still-volatile
-   trailing word), so ink trails the voice by roughly a word. When the
-   recognizer revises a word it already gave us, the correction happens the
-   only way this page allows — the old word is struck and rewritten. The
-   machine has second thoughts too. And silence between phrases is a real
-   gap in Timeline timestamps, which is exactly what pools ink. */
-
-const elMic = document.getElementById('mic');
-const SRCls = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-let rec = null;
-let micOn = false;
-let voiceQueue = [];   // pen ops: chars to write, '\b' to strike one glyph back
-let voiceTimer = null;
-let uttWords = [];     // words of the current utterance already queued
-// The pen keeps the speaker's pace. Words arrive from the recognizer in
-// bursts that mirror speech rate, so ms-per-char between arrivals IS the
-// voice's tempo — fast talk drives dt toward FAST_MS and the hand goes
-// scrappy, slow deliberate speech keeps it neat.
-let voicePace = 90;    // ms per char, smoothed from arrival rate
-let lastArrival = 0;
-let micWatchdog = null;  // says something when the recognizer never speaks up
-let heardAudio = false;  // has this session ever seen audio start?
-
-/* ---- on-device recognition -------------------------------------------
-   Chrome's classic Web Speech API ships the audio to Google's servers, so
-   it dies with a `network` error behind a VPN, a DNS-level blocker, or in
-   a Chromium build without Google's speech keys (Brave et al) - and in a
-   demo room with hostile wifi. Recent Chrome can run the recogniser
-   ON DEVICE instead: same API, no network. We prefer it whenever it's
-   there, and fall back to the cloud path when it isn't.
-   `useLocal` is null until the probe answers. -------------------------- */
-let localSpeech = 'unknown';   // available | downloadable | unavailable
-let usingLocal = false;
-const canProbeLocal = !!(SRCls && typeof SRCls.available === 'function');
-
-async function probeLocalSpeech(){
-  if(!canProbeLocal){ localSpeech = 'unavailable'; return localSpeech; }
-  try{
-    localSpeech = await SRCls.available({ langs:['en-US'], processLocally:true });
-  }catch(e){
-    localSpeech = 'unavailable';
-  }
-  console.debug('[voice] on-device:', localSpeech);
-  return localSpeech;
-}
-// warm the answer early so the first click doesn't have to wait on it
-if(canProbeLocal) probeLocalSpeech();
-
-// The label is engine-drawn when it says the two normal things, and plain
-// text for faults - a fault has to be READABLE, and the hand at 19px is
-// deliberately small. micNote(null) returns to the normal label.
-function micNote(msg){
-  const lbl = elMic.querySelector('.lbl');
-  if(msg){
-    lbl.textContent = msg;
-    lbl.style.font = '11px/1 "Inter", sans-serif';
-    lbl.style.letterSpacing = '.04em';
-  }else{
-    lbl.style.font = ''; lbl.style.letterSpacing = '';
-    lbl.innerHTML = '<span style="display:inline-block;vertical-align:middle">' +
-      handTextSVG(micOn ? 'listening' : 'listen', 19, 0.3, 7300).svg + '</span>';
-  }
-}
-function updateMic(){
-  elMic.classList.toggle('on', micOn);
-  micNote(null);
-}
-
-function penPace(tok){
-  if(tok === '\b') return 55 + Math.random()*35;
-  const base = tok === ' ' ? voicePace * 1.6 : voicePace;
-  return base * (0.75 + Math.random()*0.5);
-}
-
-function voiceTick(){
-  voiceTimer = null;
-  if(!voiceQueue.length) return;
-  if(replaying){ voiceTimer = setTimeout(voiceTick, 400); return; }
-  const tok = voiceQueue.shift();
-  if(tok === '\b') backspace(); else typeChar(tok);
-  if(voiceQueue.length) voiceTimer = setTimeout(voiceTick, penPace(voiceQueue[0]));
-}
-
-function queueOps(str){
-  if(str.length && str[0] !== '\b'){
-    const now = performance.now();
-    if(lastArrival){
-      const gap = now - lastArrival;
-      if(gap < 4000){
-        const per = Math.max(38, Math.min(220, gap / str.length));
-        voicePace = voicePace * 0.35 + per * 0.65;
-      }
-    }
-    lastArrival = now;
-  }
-  voiceQueue.push(...str);
-  if(!voiceTimer) voiceTimer = setTimeout(voiceTick, 0);
-}
-
-function syncUtterance(text, done){
-  const words = text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
-  // the trailing word of an interim result is the volatile one — hold it
-  const stable = done ? words : words.slice(0, -1);
-  if(!stable.length){ if(done) uttWords = []; return; }
-  let i = 0;
-  while(i < uttWords.length && i < stable.length &&
-        uttWords[i].toLowerCase() === stable[i].toLowerCase()) i++;
-  // words the recognizer took back get struck, one glyph per back-op
-  if(i < uttWords.length){
-    let backs = 0;
-    for(let j = i; j < uttWords.length; j++) backs += uttWords[j].length + (j > i ? 1 : 0);
-    queueOps('\b'.repeat(backs));
-    uttWords = uttWords.slice(0, i);
-  }
-  const seg = stable.slice(i);
-  if(seg.length){
-    let pre = ' ';
-    if(!uttWords.length && !voiceQueue.length){
-      const last = (model && model.main.length) ? model.main[model.main.length-1].ch : '\n';
-      if(last === ' ' || last === '\n') pre = '';
-    }
-    queueOps(pre + seg.join(' '));
-    uttWords = uttWords.concat(seg);
-  }
-  if(done) uttWords = [];
-}
-
-function flushVoice(){
-  voiceQueue = []; uttWords = [];
-  voicePace = 90; lastArrival = 0;
-  if(voiceTimer){ clearTimeout(voiceTimer); voiceTimer = null; }
-}
-
-function startRec(preferLocal){
-  heardAudio = false;
-  rec = new SRCls();
-  rec.continuous = true;
-  rec.interimResults = true;
-  // on-device when we can: no round trip, works offline, and it is the
-  // only thing that survives a `network` error
-  usingLocal = !!(preferLocal && canProbeLocal && localSpeech === 'available');
-  if(usingLocal){
-    try{ rec.processLocally = true; }catch(e){ usingLocal = false; }
-  }
-  // fixed, not navigator.language — a zh/other system locale would make the
-  // recognizer sit silent through English speech
-  rec.lang = 'en-US';
-  rec.onstart      = () => console.debug('[voice] start');
-  rec.onaudiostart = () => {
-    console.debug('[voice] audio flowing');
-    heardAudio = true; clearTimeout(micWatchdog);
-    if(micOn) updateMic();          // back to the normal 'listening' label
-  };
-  rec.onspeechstart= () => console.debug('[voice] speech detected');
-  rec.onresult = e => {
-    console.debug('[voice] result', JSON.stringify([...e.results].map(r => r[0].transcript + (r.isFinal ? ' [final]' : ''))));
-    let interim = '';
-    for(let i = e.resultIndex; i < e.results.length; i++){
-      const r = e.results[i];
-      if(r.isFinal) syncUtterance(r[0].transcript, true);
-      else interim += r[0].transcript;
-    }
-    if(interim) syncUtterance(interim, false);
-  };
-  // Chrome ends recognition on its own after a stretch of silence;
-  // while the mic mark is on, silence is content, so start it back up.
-  rec.onend = () => {
-    console.debug('[voice] end');
-    // Chrome ends recognition after a stretch of silence; while the mark is
-    // on, silence is content - start it back up on the same engine.
-    if(micOn){ try{ rec.start(); }catch(err){} }
-  };
-  rec.onerror = e => {
-    console.debug('[voice] error:', e.error);
-    // A fault must never be a DEAD END. Denying the permission prompt once
-    // used to latch .err forever and the click handler returned early on it,
-    // so the mic was bricked until a reload - with the reason in 7px type.
-    // Now every fault is a state you can click your way out of.
-    if(e.error === 'not-allowed' || e.error === 'service-not-allowed'){
-      micOn = false; updateMic();
-      elMic.classList.add('err');
-      micNote('mic blocked — allow it in the address bar, then click again');
-    }else if(e.error === 'audio-capture'){
-      micOn = false; updateMic();
-      elMic.classList.add('err');
-      micNote('no microphone — click to try again');
-    }else if(e.error === 'network'){
-      // The cloud recogniser is unreachable. Before blaming the user's
-      // connection (the page itself plainly loaded), try the on-device
-      // recogniser, which never leaves the machine.
-      if(!usingLocal && canProbeLocal){
-        micNote('switching to on-device dictation…');
-        (async () => {
-          if(localSpeech === 'unknown') await probeLocalSpeech();
-          if(localSpeech === 'downloadable' || localSpeech === 'downloading'){
-            micNote('downloading the voice model, one moment…');
-            try{ await SRCls.install({ langs:['en-US'], processLocally:true }); }catch(err){}
-            await probeLocalSpeech();
-          }
-          if(localSpeech === 'available' && micOn){
-            try{ rec.abort(); }catch(err){}
-            startRec(true);
-            micNote(null);
-          }else{
-            micOn = false; updateMic();
-            elMic.classList.add('err');
-            micNote('can\'t reach the speech service — a VPN or blocker may be in the way');
-          }
-        })();
-      }else{
-        micOn = false; updateMic();
-        elMic.classList.add('err');
-        micNote('speech service unreachable — click to retry');
-      }
-    }
-    // no-speech / aborted fall through to onend's restart
-  };
-  try{ rec.start(); }catch(err){}
-}
-
-if(!SRCls){
-  elMic.style.display = 'none';
-}else{
-  elMic.addEventListener('click', () => {
-    // a previous fault clears on click - the next click is always a retry,
-    // never a no-op (see onerror)
-    const wasErr = elMic.classList.contains('err');
-    if(wasErr){ elMic.classList.remove('err'); micOn = false; }
-    micOn = !micOn;
-    if(micOn){
-      micNote('starting…');
-      // If the on-device model is merely downloadable, fetch it HERE - this
-      // click is a user gesture, and install() can require one. Meanwhile
-      // the cloud engine starts, so dictation works during the download.
-      if(canProbeLocal && (localSpeech === 'downloadable' || localSpeech === 'unknown')){
-        (async () => {
-          if(localSpeech === 'unknown') await probeLocalSpeech();
-          if(localSpeech === 'downloadable'){
-            try{ await SRCls.install({ langs:['en-US'], processLocally:true }); }catch(err){}
-            probeLocalSpeech();
-          }
-        })();
-      }
-      startRec(true);
-      // if nothing came back at all, say so rather than sitting silent
-      clearTimeout(micWatchdog);
-      micWatchdog = setTimeout(() => {
-        if(micOn && !heardAudio) micNote('no audio yet — check the mic input');
-      }, 4000);
-    }else{
-      if(rec) rec.stop();      // let the pen finish what was already said
-    }
-    updateMic();
-  });
-  updateMic();
-}
-
-/* A one-call status readout: run penVoice() in the console and read it
-   back. Faults in this piece are drawn small and quiet by design, so
-   there needs to be a way to ask the page plainly what it thinks. */
-window.penVoice = () => ({
-  recogniserPresent: !!SRCls,
-  onDeviceSupported: canProbeLocal,
-  onDeviceStatus: localSpeech,
-  currentlyUsingOnDevice: usingLocal,
-  listening: micOn,
-  heardAudio,
-  label: elMic.querySelector('.lbl').textContent.trim() || '(the hand-drawn label)',
-  online: navigator.onLine,
-  secureContext: window.isSecureContext,
-});
-
 /* ============================== REPLAY ================================ */
 
 let replayTimers = [];
@@ -2187,7 +1614,6 @@ function stopReplay(){
   replayTimers.forEach(clearTimeout);
   replayTimers = [];
   replaying = false;
-  stopLivePool();
   document.getElementById('btnReplay').textContent = 'Replay';
 }
 function replay(){
@@ -2196,7 +1622,6 @@ function replay(){
   if(!evs.length) return;
   replaying = true;
   selection = null;
-  stopLivePool();
   document.getElementById('btnReplay').textContent = 'Stop';
   elCap.classList.remove('show');
 
@@ -2209,7 +1634,6 @@ function replay(){
     schedule.push(acc);
   }
   // Replay renders through CURRENT settings — that's the whole point of it.
-  // We pass a synthetic `nowT` so pools appear exactly as they will at rest.
   render(layout([], {nowT:0}));
   for(let i=0;i<evs.length;i++){
     replayTimers.push(setTimeout(()=>{
@@ -2264,23 +1688,6 @@ async function savePage(){
 
   const drawGlyph = (g, li, arr) => {
     if(g.ch === ' ' || g.ch === '\n') return;
-    if(g.pool > 0){
-      // mirrors blotStyle() exactly - radius, stops and POOL_CORE. If you
-      // retune the pool there, retune it here or the PNG stops matching
-      // the page.
-      const r = g.size * (0.10 + g.pool * 0.34 * S.poolBleed);
-      const f = poolFade(g.pool);
-      const c = blotCenter(g);
-      const rg = x.createRadialGradient(c.cx, c.cy, 0, c.cx, c.cy, r);
-      const ca = v => 'rgba(28,26,23,'+(v*S.poolDark*f).toFixed(3)+')';
-      rg.addColorStop(0,    ca(POOL_CORE));
-      rg.addColorStop(0.22, ca(POOL_CORE*0.95));
-      rg.addColorStop(0.40, ca(POOL_CORE*0.46));
-      rg.addColorStop(0.60, ca(POOL_CORE*0.16));
-      rg.addColorStop(0.82, 'rgba(28,26,23,0)');
-      x.fillStyle = rg;
-      x.beginPath(); x.arc(c.cx, c.cy, r, 0, Math.PI*2); x.fill();
-    }
     // The DOM shears each glyph about its box's bottom-centre
     // (transform-origin:50% 100%): box bottom sits size*DESC_K below the
     // baseline. Word-uniform lean means that offset is constant across a
@@ -2357,18 +1764,13 @@ async function savePage(){
   x.globalAlpha = 1;
   x.restore();
 
-  // caption - same engine text as the page, centred by measured width
-  const cs = m.reprBase * 0.42;
-  const capL1 = handTextParts(captionText(m), cs, 0.25, 7100);
-  const capL2 = handTextParts(dateText(), cs * 0.78, 0.25, 7200);
+  // caption - the date alone, same engine text and size as the page
+  const cs = m.reprBase * CAPTION_SIZE;
+  const cap = handTextParts(dateText(), cs, 0.25, 7200);
   x.fillStyle = mixColor(0.15);
-  x.globalAlpha = 0.62;
-  x.save(); x.translate(W/2 - capL1.w/2, H - 74);
-  for(const pp of capL1.parts){ x.save(); x.translate(pp.tx, 0); x.fill(new Path2D(pp.d)); x.restore(); }
-  x.restore();
-  x.globalAlpha = 0.45;
-  x.save(); x.translate(W/2 - capL2.w/2, H - 74 + cs*1.6);
-  for(const pp of capL2.parts){ x.save(); x.translate(pp.tx, 0); x.fill(new Path2D(pp.d)); x.restore(); }
+  x.globalAlpha = 0.5;
+  x.save(); x.translate(W/2 - cap.w/2, H - 74);
+  for(const pp of cap.parts){ x.save(); x.translate(pp.tx, 0); x.fill(new Path2D(pp.d)); x.restore(); }
   x.restore();
   x.globalAlpha = 1;
 
@@ -2385,10 +1787,9 @@ async function savePage(){
 /* ============================ CONTROL PANEL =========================== */
 
 const elPanel = document.getElementById('panel');
-// Open by default: people arrive from a link with no one to demo this, so the
-// controls should be visible as part of the piece rather than hidden behind a
-// shortcut. Cmd/Ctrl+/ still toggles it away.
-elPanel.classList.add('on');
+// The page opens as a writing surface and nothing else (Eric, 2026-08-24).
+// The panel still exists behind Cmd/Ctrl + / for tuning; it is simply never
+// put in front of anyone who didn't ask for it.
 function togglePanel(){ elPanel.classList.toggle('on'); }
 
 (function buildPanel(){
@@ -2426,8 +1827,6 @@ document.getElementById('btnReplay').onclick = replay;
 document.getElementById('btnSave').onclick   = savePage;
 document.getElementById('btnClear').onclick  = () => {
   stopReplay();
-  stopLivePool();
-  flushVoice();
   Timeline.clear();
   selection = null; firstKeyDone = false;
   elPh.style.opacity = '';
