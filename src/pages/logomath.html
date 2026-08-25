@@ -54,7 +54,7 @@
 
   .sect{border-bottom:1px solid var(--line); padding:12px 16px 14px}
   .sect > h2{
-    margin:0 0 10px; font:10.5px/1 ui-monospace,Menlo,monospace; letter-spacing:.09em;
+    margin:0 0 10px; font:10.5px/1 ui-monospace,Menlo,monospace; letter-spacing:0;
     color:var(--dim); font-weight:500;
     display:flex; align-items:center; gap:8px;
   }
@@ -67,7 +67,7 @@
   }
   .sect.fold.open > h2::before{transform:rotate(45deg)}
   .sect.fold > h2:hover{color:var(--txt)}
-  .sect > h2 .n{margin-left:auto; color:#4a4a52; letter-spacing:.08em; font-size:9px}
+  .sect > h2 .n{margin-left:auto; color:#4a4a52; letter-spacing:0; font-size:9px}
   .sect.fold:not(.open) .rows{display:none}
 
   .row{display:grid; grid-template-columns:1fr auto; align-items:center; gap:6px; margin-bottom:9px;
