@@ -14,6 +14,16 @@
       "source": "/fluid",
       "destination": "/water/",
       "permanent": true
+    },
+    {
+      "source": "/logomath",
+      "destination": "/shape-exploration/",
+      "permanent": true
+    },
+    {
+      "source": "/logoanimator",
+      "destination": "/shape-exploration/",
+      "permanent": true
     }
   ]
 }
