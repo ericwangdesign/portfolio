@@ -11,7 +11,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
     --paper:#f5f1e8;
@@ -51,7 +51,8 @@
   #stage{position:relative; z-index:1; width:100%;}
   #page{
     position:relative;
-    width:640px;
+    width:800px;                 /* keep in step with COL_W */
+    max-width:100%;
     margin:0 auto;
     min-height:100vh;
   }
@@ -108,29 +109,18 @@
     animation:blink 1.1s steps(1,end) infinite;
   }
   @keyframes blink{0%,55%{opacity:.85}56%,100%{opacity:0}}
-  /* The standing label. It never leaves - it is how the page explains
-     itself, and it explains by BEING the two hands it names. */
+  /* The standing label. It never leaves. Set in Geist - the portfolio's
+     own face - NOT the hand: it is the page talking about the writing,
+     not writing, and the contrast is the point. */
   #hint{
     position:fixed; left:0; right:0; bottom:28px;
     display:flex; justify-content:center;
     color:var(--ink);
     pointer-events:none;
-    line-height:1;
+    font:16px/1 "Geist", system-ui, -apple-system, sans-serif;
+    letter-spacing:-0.01em;
     z-index:5;
   }
-  #caption{
-    position:absolute;
-    left:0; width:100%;
-    text-align:center;
-    color:var(--ink);
-    opacity:0;
-    transition:opacity 1.4s ease;
-    pointer-events:none;
-    line-height:1.5;
-  }
-  #caption.show{opacity:1}
-  #caption .d{font-size:.62em; opacity:.75}
-
   #hidden{
     position:fixed; left:-9999px; top:0; width:1px; height:1px;
     opacity:0; border:0; padding:0; resize:none;
@@ -200,10 +190,9 @@
     <svg id="strikes" xmlns="http://www.w3.org/2000/svg"></svg>
     <div id="glyphs"></div>
     <div id="caret"></div>
-    <div id="caption"></div>
   </div>
 </div>
-<div id="hint"></div>
+<div id="hint">type slowly or fast</div>
 <textarea id="hidden" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
 
 <div id="panel">
@@ -237,7 +226,7 @@
 
 const GRAPHITE = [0x6b, 0x65, 0x60];
 const INK      = [0x1c, 0x1a, 0x17];
-const COL_W    = 640;          // writing column width
+const COL_W    = 800;          // writing column width
 const PAD_TOP  = 132;          // top of page padding
 const PAD_BOT  = 180;
 const FAST_MS  = 70;           // dt considered "fast"
@@ -251,7 +240,6 @@ const DT_CAP   = 1400;         // dt above this doesn't loosen the hand further
 // end read as 规整 rather than slightly-wobbly.
 const SCRAP_KNEE  = 0.30;
 const STRIKE_OP = 1;           // the strike is a mark of its own, not a ghost — full ink
-const IDLE_CAP = 10000;        // ms of stillness before the caption fades in
 const REPLAY_GAP_CAP = 3000;
 
 /* The hand's join floor: the tracking, in em, at which drag-traces from one
@@ -1330,7 +1318,6 @@ const elGlyphs = document.getElementById('glyphs');
 const elSvg    = document.getElementById('strikes');
 const elCaret  = document.getElementById('caret');
 const elHint   = document.getElementById('hint');
-const elCap    = document.getElementById('caption');
 
 // The pen-stroke reveal's mask must persist WHILE the animation runs (so the
 // travelling gradient has something to reveal), but not a moment after: once
@@ -1497,46 +1484,20 @@ function render(m){
   elCaret.style.cssText = 'left:'+cx+'px;top:'+(cy-ch*0.82)+'px;height:'+ch+'px;';
 
 
-  // --- caption position ---
-  elCap.style.top = (m.height - PAD_BOT + m.lh * 1.2) + 'px';
-  elCap.innerHTML = captionHTML(m);
-
-}
-
-// The page signs itself with a date and nothing else. The stats line
-// (duration / hesitations / words unsaid) was removed 2026-08-24 - it read
-// as instrumentation on a surface that should read as paper.
-// Page furniture (the date, the standing hint) is set at a FIXED size, not
-// a fraction of the writing - it is the page's own voice and shouldn't grow
-// when the hand does.
-const FURNITURE_SIZE = 16;   // px
-function dateText(){
-  const d = new Date();
-  return d.toLocaleDateString(undefined, {year:'numeric', month:'long', day:'numeric'});
-}
-function captionHTML(m){
-  return '<span style="display:inline-block">' +
-    handTextSVG(dateText(), FURNITURE_SIZE, 0.25, 7200, 'currentColor').svg + '</span>';
 }
 
 /* ============================== INPUT ================================= */
 
 let firstKeyDone = false;
-let idleTimer = null;
 let replaying = false;
 
 function relayout(opts){
   render(layout(Timeline.events, opts));
 }
 
-function scheduleIdleCaption(){
-  clearTimeout(idleTimer);
-  elCap.classList.remove('show');
-  idleTimer = setTimeout(()=>{
-    if(!replaying && Timeline.events.length){ relayout(); elCap.classList.add('show'); }
-  }, IDLE_CAP);
-}
-function touched(){ scheduleIdleCaption(); }
+// The page no longer signs itself, so a keystroke has nothing to schedule.
+// Kept as a seam: every write path already calls it.
+function touched(){}
 
 function commitRevision(){
   if(!selection || !selection.pending) return;
@@ -1658,7 +1619,6 @@ function replay(){
   replaying = true;
   selection = null;
   document.getElementById('btnReplay').textContent = 'Stop';
-  elCap.classList.remove('show');
 
   // honour the original rhythm, but never make the viewer wait more than 3s
   let acc = 0, prev = evs[0].t;
@@ -1799,16 +1759,6 @@ async function savePage(){
   x.globalAlpha = 1;
   x.restore();
 
-  // caption - the date alone, same engine text and size as the page
-  const cs = FURNITURE_SIZE;
-  const cap = handTextParts(dateText(), cs, 0.25, 7200);
-  x.fillStyle = mixColor(1);
-  x.globalAlpha = 1;
-  x.save(); x.translate(W/2 - cap.w/2, H - 74);
-  for(const pp of cap.parts){ x.save(); x.translate(pp.tx, 0); x.fill(new Path2D(pp.d)); x.restore(); }
-  x.restore();
-  x.globalAlpha = 1;
-
   c.toBlob(b => {
     const url = URL.createObjectURL(b);
     const a = document.createElement('a');
@@ -1864,29 +1814,15 @@ document.getElementById('btnClear').onclick  = () => {
   stopReplay();
   Timeline.clear();
   selection = null; firstKeyDone = false;
-  elCap.classList.remove('show');
   relayout();
 };
 elPanel.addEventListener('mousedown', e => e.stopPropagation());
 
-/* The standing hint. Drawn once: it is set at FURNITURE_SIZE, so it does
-   not follow the writing's size, and it never leaves the page. It explains
-   the piece by being it - "type slowly" in the careful hand, "or fast" in
-   the cursive one. */
-function drawHint(){
-  elHint.innerHTML = handRunsSVG([
-    { text: 'type slowly',  scrap: 0,    cursive: false },
-    { text: ' or fast',     scrap: 0.72, cursive: true  },
-  ], FURNITURE_SIZE, 7001).svg;
-}
-
 /* ============================== BOOT ================================== */
 
 (function boot(){
-  // no webfonts to wait for anymore - the letterforms are ours
-  drawHint();
+  // the only webfont left is Geist, and it dresses the standing hint alone
   relayout();
-  scheduleIdleCaption();
 })();
 </script>
 </body>
