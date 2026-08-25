@@ -547,7 +547,7 @@ const CURSIVE_GLYPHS = {
   o: { adv:.52, strokes:[ { pts: [[0,.18],[.30,.75],[.14,.88],[.03,.50],[.11,.10],[.30,.06],[.40,.30],[.40,.65],[.32,.82],[.50,.68]] } ]},
   p: { adv:.56, strokes:[ { pts: [[0,.18],[.22,.85],[.23,-.45],[.25,.35],[.30,.75],[.44,.65],[.46,.22],[.34,.05],[.44,.10],[.55,.26]] } ]},
   q: { adv:.62, strokes:[ { pts: [[0,.18],[.32,.78],[.15,.90],[.03,.52],[.10,.12],[.30,.06],[.40,.45],[.43,.85],[.44,-.40],[.52,-.52],[.58,-.38],[.60,.20]] } ]},
-  r: { adv:.52, strokes:[ { pts: [[0,.18],[.20,.90],[.24,.95],[.27,.68],[.32,.92],[.36,.94],[.37,.50],[.38,.10],[.44,.04],[.52,.26]] } ]},
+  r: { adv:.54, strokes:[ { pts: [[0,.18],[.18,.84],[.23,.95,1],[.29,.72,1],[.35,.93],[.40,.96,1],[.41,.45],[.42,.10],[.47,.04],[.54,.26]] } ]},
   s: { adv:.48, strokes:[ { pts: [[0,.18],[.22,.82],[.30,.94],[.20,.70],[.10,.42],[.20,.08],[.34,.12],[.40,.26]] } ]},
   t: { adv:.46, strokes:[ { pts: [[0,.18],[.22,.85],[.26,1.22],[.27,1.28],[.28,1.22],[.29,.15],[.36,.04],[.46,.26]] },
                           { pts: [[.06,.92],[.48,.94]], kind:'bar' } ]},
@@ -854,20 +854,64 @@ const joinAlpha = w => Math.min(1, 0.55 + 0.60 * w);
 const joinWidth = (size, w) => S.weight * size * (0.55 + 0.25 * w);
 
 /* lay out a short run of engine text (page furniture: placeholder, caption,
-   mic label, revision caret). Returns {parts:[{d,tx}], w}: each part is a
-   glyph-local path plus its x offset; total width in px. */
-function handTextParts(text, size, scrap, seedBase){
+   revision caret). Returns {parts:[{d,tx,stroke}], w}: each part is a
+   glyph-local path plus its x offset; total width in px. `cursive` picks the
+   cursive construction and draws the connectors between its letters, so a
+   run of furniture can demonstrate the fast hand and not merely name it. */
+function handTextParts(text, size, scrap, seedBase, cursive){
   const parts = [];
-  let x = 0;
+  const font = cursive ? 'cursive' : 'hand';
+  let x = 0, prevCh = null, prevX = 0;
   for(let i = 0; i < text.length; i++){
     const ch = text[i];
-    if(ch === ' '){ x += size * 0.30; continue; }
-    if(ch === '\n'){ continue; }
-    const ps = handGlyph(ch, { size, scrap, seed: seedBase + i, wobble: 0.6, weight: 0.060 });
+    if(ch === ' '){ x += size * 0.30; prevCh = null; continue; }
+    if(ch === '\n'){ prevCh = null; continue; }
+    const joinIn = !!(cursive && prevCh && CURSIVE_GLYPHS[prevCh] && CURSIVE_GLYPHS[ch]);
+    const nx = text[i+1];
+    const joinOut = !!(cursive && nx && CURSIVE_GLYPHS[ch] && CURSIVE_GLYPHS[nx]);
+    const ps = handGlyph(ch, { size, scrap, seed: seedBase + i, wobble: 0.6,
+                               weight: S.weight, cursive, joinIn, joinOut });
     for(const p of ps) parts.push({ d: p.d, tx: x });
-    x += charW('hand', ch) * size;
+    if(joinIn){
+      // same geometry as the page's own connectors: prev exit -> this entry,
+      // expressed in THIS glyph's local frame (see render()'s emit)
+      const A = handDefFor(prevCh, true), B = handDefFor(ch, true);
+      const a = handAnchor(A.ext, size), b = handAnchor(B.ent, size);
+      const ax = a[0] + (prevX - x), ay = a[1];
+      const gap = Math.hypot(b[0] - ax, b[1] - ay);
+      if(gap < size * JOIN_REACH){
+        parts.push({
+          d: joinPath(ax, ay, b[0], b[1], Math.min(size * XH * 0.18, gap * 0.28), seedBase + i),
+          tx: x, stroke: joinWidth(size, 1),
+        });
+      }
+    }
+    prevCh = ch; prevX = x;
+    x += charW(font, ch) * size;
   }
   return { parts, w: x };
+}
+
+/* One SVG from several runs, each with its own pace and construction:
+   [{text, scrap, cursive}, ...]. The placeholder uses this to SHOW the
+   two ends of the speed axis instead of describing them. */
+function handRunsSVG(runs, size, seedBase, color){
+  let x = 0, inner = '';
+  runs.forEach((run, ri) => {
+    const r = handTextParts(run.text, size, run.scrap, seedBase + ri * 137, run.cursive);
+    for(const p of r.parts){
+      inner += '<path d="' + p.d + '" transform="translate(' + (x + p.tx).toFixed(1) + ',0)"' +
+        (p.stroke
+          ? ' fill="none" stroke="' + (color || 'currentColor') + '" stroke-width="' + p.stroke.toFixed(2) + '" stroke-linecap="round"'
+          : ' fill="' + (color || 'currentColor') + '"') + '/>';
+    }
+    x += r.w;
+  });
+  const asc = size * TOP_K, desc = size * DESC_K;
+  return { svg:
+    '<svg width="' + Math.ceil(x + size * 0.3) + '" height="' + Math.ceil(asc + desc) +
+    '" style="overflow:visible;display:block">' +
+    '<g transform="translate(0,' + asc.toFixed(1) + ')">' + inner + '</g></svg>', w: x };
 }
 // the same run as an inline SVG string, origin on the left at the baseline
 function handTextSVG(text, size, scrap, seedBase, color, opacity){
@@ -1457,7 +1501,18 @@ function render(m){
     elPh.style.left = '0px';
     elPh.style.top  = (m.line0Y - m.reprBase*m.reprMetrics.top) + 'px';
     if(!elPh.dataset.drawn || +elPh.dataset.size !== m.reprBase){
-      elPh.innerHTML = handTextSVG('start writing', m.reprBase, 0.15, 7001).svg;
+      // The zero state teaches the whole piece in one line, by being it:
+      // "type slowly" is set in the careful hand, "or fast" in the cursive
+      // one. Nobody has to be told what the page does.
+      elPh.innerHTML = handRunsSVG([
+        { text: 'type slowly,', scrap: 0,    cursive: false },
+        // "run", not "fast": the cursive s and c are still the weak letters
+        // in the set, and this is the one line every visitor reads.
+        // 0.72: unmistakably the cursive hand and fully joined, but below
+        // the melt threshold (0.78) - this one line has to stay legible at
+        // 28px, where a melted r or s goes soft.
+        { text: ' or run',      scrap: 0.72, cursive: true  },
+      ], m.reprBase, 7001).svg;
       elPh.dataset.drawn = '1'; elPh.dataset.size = m.reprBase;
     }
   }else{
