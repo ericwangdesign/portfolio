@@ -4,8 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pen &amp; Paper</title>
-<link rel="icon" type="image/png" href="/favicon-darkbg.png">
-<link rel="apple-touch-icon" href="/favicon-darkbg.png">
 <meta name="description" content="A page that records how you wrote, not just what. Type slowly and the hand stays careful; type fast and it runs into cursive.">
 <meta property="og:title" content="Pen &amp; Paper">
 <meta property="og:description" content="We digitized the words and lost the writing. This page keeps it.">
@@ -110,26 +108,27 @@
     animation:blink 1.1s steps(1,end) infinite;
   }
   @keyframes blink{0%,55%{opacity:.85}56%,100%{opacity:0}}
-  #placeholder{
-    position:absolute;
-    color:var(--graphite);
-    opacity:.30;
+  /* The standing label. It never leaves - it is how the page explains
+     itself, and it explains by BEING the two hands it names. */
+  #hint{
+    position:fixed; left:0; right:0; bottom:28px;
+    display:flex; justify-content:center;
+    color:var(--ink);
     pointer-events:none;
     line-height:1;
-    white-space:pre;
-    transition:opacity .5s ease;
+    z-index:5;
   }
   #caption{
     position:absolute;
     left:0; width:100%;
     text-align:center;
-    color:var(--graphite);
+    color:var(--ink);
     opacity:0;
     transition:opacity 1.4s ease;
     pointer-events:none;
     line-height:1.5;
   }
-  #caption.show{opacity:.5}
+  #caption.show{opacity:1}
   #caption .d{font-size:.62em; opacity:.75}
 
   #hidden{
@@ -200,11 +199,11 @@
   <div id="page">
     <svg id="strikes" xmlns="http://www.w3.org/2000/svg"></svg>
     <div id="glyphs"></div>
-    <div id="placeholder">start writing</div>
     <div id="caret"></div>
     <div id="caption"></div>
   </div>
 </div>
+<div id="hint"></div>
 <textarea id="hidden" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
 
 <div id="panel">
@@ -263,7 +262,7 @@ const SPREAD_CAP = 0.046;
 /* ------------------------------ settings ------------------------------- */
 
 const SPEC = [
-  { key:'baseSize',    type:'range',  label:'Size',              def:28,   min:20,  max:40,  step:1,    fmt:v=>v+'px' },
+  { key:'baseSize',    type:'range',  label:'Size',              def:24,   min:16,  max:40,  step:1,    fmt:v=>v+'px' },
   { key:'weight',      type:'range',  label:'Weight',            def:0.050,min:0.03,max:0.10, step:0.002,fmt:v=>v.toFixed(3) },
   { key:'scrapAmt',    type:'range',  label:'Scrappiness',       def:1.0,  min:0,   max:2,   step:0.05, fmt:v=>v.toFixed(2) },
   { key:'letterSpread',type:'range',  label:'Letter spread',     def:1.0,  min:0,   max:2,   step:0.05, fmt:v=>v.toFixed(2) },
@@ -1330,7 +1329,7 @@ const elPage   = document.getElementById('page');
 const elGlyphs = document.getElementById('glyphs');
 const elSvg    = document.getElementById('strikes');
 const elCaret  = document.getElementById('caret');
-const elPh     = document.getElementById('placeholder');
+const elHint   = document.getElementById('hint');
 const elCap    = document.getElementById('caption');
 
 // The pen-stroke reveal's mask must persist WHILE the animation runs (so the
@@ -1497,29 +1496,6 @@ function render(m){
   }
   elCaret.style.cssText = 'left:'+cx+'px;top:'+(cy-ch*0.82)+'px;height:'+ch+'px;';
 
-  // --- placeholder ---
-  if(m.main.length === 0 && !replaying){
-    elPh.style.display = 'block';
-    elPh.style.left = '0px';
-    elPh.style.top  = (m.line0Y - m.reprBase*m.reprMetrics.top) + 'px';
-    if(!elPh.dataset.drawn || +elPh.dataset.size !== m.reprBase){
-      // The zero state teaches the whole piece in one line, by being it:
-      // "type slowly" is set in the careful hand, "or fast" in the cursive
-      // one. Nobody has to be told what the page does.
-      elPh.innerHTML = handRunsSVG([
-        { text: 'type slowly,', scrap: 0,    cursive: false },
-        // "run", not "fast": the cursive s and c are still the weak letters
-        // in the set, and this is the one line every visitor reads.
-        // 0.72: unmistakably the cursive hand and fully joined, but below
-        // the melt threshold (0.78) - this one line has to stay legible at
-        // 28px, where a melted r or s goes soft.
-        { text: ' or run',      scrap: 0.72, cursive: true  },
-      ], m.reprBase, 7001).svg;
-      elPh.dataset.drawn = '1'; elPh.dataset.size = m.reprBase;
-    }
-  }else{
-    elPh.style.display = 'none';
-  }
 
   // --- caption position ---
   elCap.style.top = (m.height - PAD_BOT + m.lh * 1.2) + 'px';
@@ -1530,15 +1506,17 @@ function render(m){
 // The page signs itself with a date and nothing else. The stats line
 // (duration / hesitations / words unsaid) was removed 2026-08-24 - it read
 // as instrumentation on a surface that should read as paper.
-const CAPTION_SIZE = 0.62;   // of base size; was 0.42 for the old stats line
+// Page furniture (the date, the standing hint) is set at a FIXED size, not
+// a fraction of the writing - it is the page's own voice and shouldn't grow
+// when the hand does.
+const FURNITURE_SIZE = 16;   // px
 function dateText(){
   const d = new Date();
   return d.toLocaleDateString(undefined, {year:'numeric', month:'long', day:'numeric'});
 }
 function captionHTML(m){
-  const cs = m.reprBase * CAPTION_SIZE;
   return '<span style="display:inline-block">' +
-    handTextSVG(dateText(), cs, 0.25, 7200, 'currentColor').svg + '</span>';
+    handTextSVG(dateText(), FURNITURE_SIZE, 0.25, 7200, 'currentColor').svg + '</span>';
 }
 
 /* ============================== INPUT ================================= */
@@ -1575,7 +1553,7 @@ function cancelRevision(){
 
 function typeChar(ch){
   const t = Date.now();
-  if(!firstKeyDone){ firstKeyDone = true; elPh.style.opacity = '0'; }
+  if(!firstKeyDone){ firstKeyDone = true; }
   if(selection){
     if(ch === ' ' || ch === '\n'){
       if(selection.pending){ commitRevision(); return; }
@@ -1822,10 +1800,10 @@ async function savePage(){
   x.restore();
 
   // caption - the date alone, same engine text and size as the page
-  const cs = m.reprBase * CAPTION_SIZE;
+  const cs = FURNITURE_SIZE;
   const cap = handTextParts(dateText(), cs, 0.25, 7200);
-  x.fillStyle = mixColor(0.15);
-  x.globalAlpha = 0.5;
+  x.fillStyle = mixColor(1);
+  x.globalAlpha = 1;
   x.save(); x.translate(W/2 - cap.w/2, H - 74);
   for(const pp of cap.parts){ x.save(); x.translate(pp.tx, 0); x.fill(new Path2D(pp.d)); x.restore(); }
   x.restore();
@@ -1886,16 +1864,27 @@ document.getElementById('btnClear').onclick  = () => {
   stopReplay();
   Timeline.clear();
   selection = null; firstKeyDone = false;
-  elPh.style.opacity = '';
   elCap.classList.remove('show');
   relayout();
 };
 elPanel.addEventListener('mousedown', e => e.stopPropagation());
 
+/* The standing hint. Drawn once: it is set at FURNITURE_SIZE, so it does
+   not follow the writing's size, and it never leaves the page. It explains
+   the piece by being it - "type slowly" in the careful hand, "or fast" in
+   the cursive one. */
+function drawHint(){
+  elHint.innerHTML = handRunsSVG([
+    { text: 'type slowly',  scrap: 0,    cursive: false },
+    { text: ' or fast',     scrap: 0.72, cursive: true  },
+  ], FURNITURE_SIZE, 7001).svg;
+}
+
 /* ============================== BOOT ================================== */
 
 (function boot(){
   // no webfonts to wait for anymore - the letterforms are ours
+  drawHint();
   relayout();
   scheduleIdleCaption();
 })();
