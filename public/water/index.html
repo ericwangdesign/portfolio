@@ -262,7 +262,7 @@ void main() {
   float glo = fr.z;                // model weight of the water here, 0..1
   // warm, because the marble is neutral and the refraction is cool — light
   // has to be unmistakably neither of those to read as light and not material
-  vec3 glowCol = mix(vec3(1.0, 0.985, 0.965), vec3(1.0, 0.855, 0.60), 0.50);
+  vec3 glowCol = mix(vec3(1.0, 0.985, 0.965), vec3(1.0, 0.855, 0.60), 0.59);
 
   // light direction across the surface (upper-left)
   vec2 ldir = normalize(vec2(-0.55, 0.75));
@@ -291,7 +291,7 @@ void main() {
   // this the pool floods its own shadow band, lifting it into the highlight
   // shoulder where contrast is compressed — which is why brighter droplets
   // appeared to cast weaker shadows even after the glow scaling came out.
-  col += glowCol * glo * spill * spill * 0.070 * (1.0 - shade);
+  col += glowCol * glo * spill * spill * 0.050 * (1.0 - shade);
 
   // the contact shadow lands LAST, and multiplies. a shadow is an occlusion:
   // it scales whatever light reaches the stone, the pool included. adding it
@@ -323,7 +323,7 @@ void main() {
   // gets sliced off square and reads as a hard polygon notch
   float cw = clamp(nr * 0.11, 3.0, 6.5);
   float caust = smoothstep(cw * uDpr, 0.4 * uDpr, d) * step(0.0, d);
-  col += vec3(1.0, 0.99, 0.955) * caust * smoothstep(0.25, -0.7, facing) * 0.10;
+  col += vec3(1.0, 0.99, 0.955) * caust * smoothstep(0.25, -0.7, facing) * 0.030;
 
   if (mask > 0.003) {
     float depth = max(-d, 0.0) / uDpr;             // css-px depth inside the blob
@@ -333,7 +333,7 @@ void main() {
     // past the capillary length gravity wins. Shading the dome in absolute
     // pixels gave every droplet the same bevel, which is why six sizes read
     // as one UI component at six scales instead of as water.
-    float aspect = mix(0.80, 0.20, smoothstep(14.0, 100.0, nr));
+    float aspect = mix(0.66, 0.20, smoothstep(14.0, 100.0, nr));
     float t = clamp(depth / max(nr, 1.0), 0.0, 1.0);   // 0 at contact line, 1 at crown
     float cap = sqrt(max(t * (2.0 - t), 0.0));         // spherical-cap profile
     float hh = aspect * nr * cap;                      // water height here, css px
@@ -382,7 +382,7 @@ void main() {
     // BEFORE the rim work — at 0.5 and applied after, it added white straight
     // on top of the crescent at twice the crescent's own weight and erased it,
     // so a lit droplet stopped reading as water at all.
-    glass += glowCol * glo * gz * 0.120;
+    glass += glowCol * glo * gz * 0.280;
     // and the light has a COLOUR, so weight shifts the hue rather than only
     // the brightness — otherwise a bright droplet just reads as a pale one
     glass *= mix(vec3(1.0), vec3(1.030, 1.0, 0.945), glo);
@@ -404,13 +404,13 @@ void main() {
     // at the lip. subtle across the body by design — but it varies with the
     // surface normal, so the body finally has something happening in it.
     float F = 0.02 + 0.98 * pow(1.0 - n.z, 5.0);
-    glass = mix(glass, envRefl(n.xy), clamp(F, 0.0, 0.60));
+    glass = mix(glass, envRefl(n.xy), clamp(F * 0.65, 0.0, 0.75));
 
     // ...and the half that was missing. the light that DID make it through,
     // concentrated immediately inside the dark line. dark -> bright -> clear
     // is what reads as 透亮; dark -> clear on its own is a painted ring.
     float thru = smoothstep(0.52, 0.78, gz) * smoothstep(1.06, 0.86, gz);
-    glass += vec3(1.0, 0.996, 0.978) * thru * 0.075 * (0.40 + 0.60 * pow(dirT, 1.25));
+    glass += vec3(1.0, 0.996, 0.978) * thru * 0.250 * (0.40 + 0.60 * pow(dirT, 1.25));
 
     // light entry on the lit edge — rim only, never a wash across the body
     glass += vec3(1.0) * gz * gz * smoothstep(0.25, 0.9, facing) * 0.045;
@@ -426,7 +426,7 @@ void main() {
     vec3 L = normalize(vec3(-0.50, 0.68, 0.54));
     vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
     float ndh = max(dot(n, H), 0.0);
-    glass += pow(ndh, 200.0) * 0.20;
+    glass += pow(ndh, 40.0) * 0.20;
     glass += pow(ndh, 22.0) * 0.010;             // whisper of sheen, no milk
     vec3 L2 = normalize(vec3(0.42, -0.55, 0.72));
     glass += pow(max(dot(n, normalize(L2 + vec3(0.0, 0.0, 1.0))), 0.0), 320.0) * 0.060;
