@@ -153,7 +153,7 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
             </p>
             <div class="loc rv" style={rv(3)}>
               <img src="/pin.png" alt="" width="16" height="16" />
-              <p id="loc-text">San Francisco.</p>
+              <p id="loc-text"><a class="u" href="https://www.google.com/maps/search/?api=1&query=San+Francisco%2C+CA" target="_blank" rel="noreferrer">San Francisco</a></p>
             </div>
           </div>
         </section>
@@ -241,7 +241,7 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
                           { link: card.href, motion },
                         ]}
                         href={card.href}
-                        style={`--h:${card.height}px;${rvCard()}`}
+                        style={`--h:${card.height};${rvCard()}`}
                         data-title={card.title}
                         data-src={card.href}
                       >
@@ -1137,7 +1137,11 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
       }
       .card {
         position: relative;
-        height: var(--h);
+        /* Height as a ratio of the 316px design column rather than fixed px, so
+           the masonry scales fluidly instead of collapsing at a breakpoint.
+           324+316 and 240+400 both make 640, so the columns stay flush at any
+           width. */
+        aspect-ratio: 316 / var(--h);
         overflow: hidden;
         display: flex;
         align-items: flex-end;
@@ -1488,13 +1492,12 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
 
       /* ---------- responsive ---------- */
       @media (max-width: 680px) {
-        main { padding: 88px 20px 40px; gap: 64px; }
+        main { padding: 64px 16px 40px; gap: 48px; }
         .stack { gap: 48px; }
         .namerow { justify-content: space-between; }
         .name { flex: 0 1 auto; }
         .handle { width: auto; text-align: right; }
-        .grid { flex-direction: column; }
-        .card { height: 200px; }
+        /* two columns stay — the grid shrinks, it does not stack */
         .row { white-space: normal; gap: 12px; }
       }
 
@@ -1519,6 +1522,25 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
         return hour ? parseInt(hour, 10) % 24 : null;
       }
 
+      /** A Maps search for the city — the one link on the page that is the day job. */
+      function mapsUrl(city: CitySpec) {
+        return (
+          "https://www.google.com/maps/search/?api=1&query=" +
+          encodeURIComponent(`${city.name}, CA`)
+        );
+      }
+
+      /** Built as nodes rather than innerHTML so the city name is never parsed as markup. */
+      function render(el: HTMLElement, lead: string, city: CitySpec) {
+        const link = document.createElement("a");
+        link.className = "u";
+        link.href = mapsUrl(city);
+        link.target = "_blank";
+        link.rel = "noreferrer";
+        link.textContent = city.name;
+        el.replaceChildren(lead, link);
+      }
+
       async function loadWeather() {
         const el = document.getElementById("loc-text");
         if (!el) return;
@@ -1532,9 +1554,9 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
           const data = await res.json();
           const temp = Math.round(data?.current?.temperature_2m);
           if (!Number.isFinite(temp)) return;
-          el.textContent = `${temp}° in ${city.name}`;
+          render(el, `${temp}° in `, city);
         } catch {
-          el.textContent = `${city.name}.`; // still swap the city even if the fetch fails
+          render(el, "", city); // still swap the city even if the fetch fails
         }
       }
       loadWeather();
@@ -1578,15 +1600,36 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
       if (viewer && vFrame && vTitle && vOpen && vUrl && vClose) {
         let lastFocused: HTMLElement | null = null;
 
+        // Hand the keyboard to the experiment, not to the chrome. Focusing
+        // the close button (as this used to) meant the first thing a visitor
+        // typed went nowhere — and Space or Enter dismissed the viewer
+        // outright. These previews are things you type into.
+        function focusFrame() {
+          if (viewer!.hidden) return; // closed again before it loaded
+          vFrame!.focus({ preventScroll: true });
+          try {
+            const doc = vFrame!.contentDocument;
+            // Escape must keep working even though focus now lives inside
+            // the frame, where the parent's own keydown listener can't see
+            // it. The embedded page gets first refusal: if it handled the
+            // key (called preventDefault), the viewer stays put.
+            doc?.addEventListener("keydown", (e) => {
+              if (e.key === "Escape" && !e.defaultPrevented) closeViewer();
+            });
+          } catch {
+            /* cross-origin frame: it still takes focus, Escape just won't reach us */
+          }
+        }
+
         function openViewer(src: string, title: string) {
           lastFocused = document.activeElement as HTMLElement;
           vTitle!.textContent = title;
           vOpen!.href = src;
           vUrl!.textContent = location.host + src;
+          vFrame!.addEventListener("load", focusFrame, { once: true });
           vFrame!.src = src;
           viewer!.hidden = false;
           document.body.classList.add("viewer-open");
-          (vClose as HTMLElement).focus();
         }
 
         function closeViewer() {

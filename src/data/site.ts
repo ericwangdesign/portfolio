@@ -30,7 +30,7 @@ export const workGroups: WorkGroup[] = [
         href: "https://business.google.com/us/accelerate/announcements/google-maps-in-demand-gen/",
       },
       {
-        title: "Ask Map",
+        title: "Gemini in Maps",
         year: "2025-26",
         href: "https://blog.google/products-and-platforms/products/maps/ask-maps-immersive-navigation/",
       },
@@ -80,15 +80,15 @@ export type ExperimentCard = {
 // Change one and its column-mate has to move to match.
 export const experimentColumns: ExperimentCard[][] = [
   [
-    { title: "Writing Surface", date: "Aug 2026", height: 324, href: "/paper" },
-    { title: "Curve Playground", date: "Aug 2026", height: 316, href: "/shape-exploration" },
+    { title: "Writing", date: "Aug 2026", height: 324, href: "/writing" },
+    { title: "Shape", date: "Aug 2026", height: 316, href: "/shape" },
   ],
   [
-    { title: "Living Map", date: "Aug 2026", height: 240, href: "/cities/" },
+    { title: "Cities", date: "Aug 2026", height: 240, href: "/cities" },
     // Water absorbed the old "Liquid" card — same project, later milestone.
     // The June phone recording stands in for the live preview: it shows the
     // thing being *used*, which an iframe of the page cannot.
-    { title: "Water", date: "Apr–Aug 2026", height: 400, href: "/water/",
+    { title: "Water", date: "Apr–Aug 2026", height: 400, href: "/water",
       media: "/water/card.mp4" },
   ],
 ];
@@ -98,5 +98,5 @@ export const footerQuote = "by eric (旭飞) wang";
 export const footerLinks = [
   { label: "Linkedin", href: "https://www.linkedin.com/in/ericwangdesign/" },
   { label: "X", href: "https://x.com/ericwangdesign" },
-  { label: "Email", href: "mailto:wangxufei.eric@gmail.com" },
+  { label: "Email", href: "mailto:ericwanguxdesign@gmail.com" },
 ];

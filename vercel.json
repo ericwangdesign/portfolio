@@ -1,29 +1,11 @@
 {
   "redirects": [
-    {
-      "source": "/pen&paper",
-      "destination": "/pen-and-paper",
-      "permanent": false
-    },
-    {
-      "source": "/pen-paper",
-      "destination": "/pen-and-paper",
-      "permanent": false
-    },
-    {
-      "source": "/fluid",
-      "destination": "/water/",
-      "permanent": true
-    },
-    {
-      "source": "/logomath",
-      "destination": "/shape-exploration/",
-      "permanent": true
-    },
-    {
-      "source": "/logoanimator",
-      "destination": "/shape-exploration/",
-      "permanent": true
-    }
+    { "source": "/pen&paper", "destination": "/writing", "permanent": false },
+    { "source": "/pen-paper", "destination": "/writing", "permanent": false },
+    { "source": "/paper", "destination": "/writing", "permanent": true },
+    { "source": "/fluid", "destination": "/water", "permanent": true },
+    { "source": "/logomath", "destination": "/shape", "permanent": true },
+    { "source": "/logoanimator", "destination": "/shape", "permanent": true },
+    { "source": "/shape-exploration", "destination": "/shape", "permanent": true }
   ]
 }
