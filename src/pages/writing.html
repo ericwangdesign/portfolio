@@ -51,10 +51,9 @@
   #stage{position:relative; z-index:1; width:100%;}
   #page{
     position:relative;
-    width:800px;                 /* keep in step with COL_W */
-    max-width:100%;
+    width:800px;                 /* fitPage() overrides this from COL_W */
+    max-width:calc(100% - 64px); /* SIDE_PAD either side before JS runs */
     margin:0 auto;
-    /* set from COL_W at boot so thumbnail mode can widen it */
     min-height:100vh;
   }
   #glyphs{position:absolute; inset:0;}
@@ -1864,8 +1863,29 @@ function demoTape(){
   return evs;
 }
 
-function runDemo(){
+/* Bake the FINISHED sentence's line breaks into the tape.
+   Wrapping is measured against the word being written, and a word being
+   written is short - so "y" fits on the line, and then "yo" doesn't, and
+   the letter hops down a line in front of you. Live typing has to live
+   with that (nobody can know how a word ends), but the demo knows its own
+   sentence, so it can break where the finished text breaks: lay it out
+   once, then turn the spaces at those break points into newlines. */
+function demoTapeWrapped(){
   const evs = demoTape();
+  const m = layout(evs, {});
+  // main[] here is one glyph per char event, in order, so the indices line up
+  for(let k = 1; k < m.main.length && k < evs.length; k++){
+    if(m.main[k].line <= m.main[k-1].line) continue;
+    for(let j = k - 1; j >= 0; j--){
+      if(evs[j].ch === '\n') break;
+      if(evs[j].ch === ' '){ evs[j] = Object.assign({}, evs[j], { ch: '\n' }); break; }
+    }
+  }
+  return evs;
+}
+
+function runDemo(){
+  const evs = demoTapeWrapped();
   let i = 0, timer = null;
   const step = () => {
     if(i > evs.length){                      // held the finished line, start over
@@ -1892,7 +1912,8 @@ function runDemo(){
    column reflow. */
 function fitThumb(){
   const w = window.innerWidth, h = window.innerHeight;
-  COL_W = Math.max(420, w - Math.round(w * 0.10));
+  // same ordering trap as fitPage: measure, then let the caller relayout
+  COL_W = Math.max(360, w - Math.round(w * 0.20));   // 10% of the frame each side
   elPage.style.width = COL_W + 'px';
   PAD_TOP = 60;
 
@@ -1913,16 +1934,31 @@ function fitThumb(){
   PAD_TOP = Math.max(24, Math.round((h - m.lines * m.lh) / 2));
 }
 
+/* The reading column: 800px when there's room for it, otherwise the window
+   less a margin on each side. COL_W drives the wrap in layout() and the CSS
+   width has to agree with it, so both are set from here. */
+const SIDE_PAD = 32;
+function fitPage(){
+  COL_W = Math.min(800, Math.max(260, window.innerWidth - SIDE_PAD * 2));
+  elPage.style.width = COL_W + 'px';
+  // The generic resize handler relayouts too, but it was registered first,
+  // so on its own it would wrap against the PREVIOUS column width and let
+  // the ink hang outside the box. Re-run after the width is settled.
+  if(model) relayout();
+}
+
 (function boot(){
   // the only webfont left is Geist, and it dresses the standing hint alone
   if(THUMB){
     document.body.classList.add('thumb');
     fitThumb();
-    window.addEventListener('resize', fitThumb);
+    window.addEventListener('resize', () => { fitThumb(); if(model) relayout(); });
     relayout();
     runDemo();
     return;
   }
+  fitPage();
+  window.addEventListener('resize', fitPage);
   relayout();
 })();
 </script>
