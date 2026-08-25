@@ -750,7 +750,7 @@ const cardTops = experimentColumns.map((column) => {
               "--sig-dither-steps": "4",
               "--sig-body-lead": "1260ms",
               "--sig-body-stag": "32ms",
-              "--sig-body-dur": "1200ms",
+              "--sig-body-dur": "600ms",
               "--sig-body-ease": "cubic-bezier(0.4, 0, 0.2, 1)",
             };
             var EASE_VAR = { name: "--sig-name-ease", body: "--sig-body-ease" };
@@ -995,7 +995,12 @@ const cardTops = experimentColumns.map((column) => {
         --sig-dither-steps: 4;
         --sig-body-lead: 1260ms;
         --sig-body-stag: 32ms;
-        --sig-body-dur: 1200ms;
+        /* Each element's own blur has to finish faster than the beat that
+           follows it, or the rhythm can't be heard: at 1200ms every line in a
+           section was still resolving while the next section opened, and the
+           column smeared into one long dissolve. Just under half that lets a
+           section land before the next one starts. */
+        --sig-body-dur: 600ms;
         --sig-body-ease: cubic-bezier(0.4, 0, 0.2, 1);
       }
       * { box-sizing: border-box; }
