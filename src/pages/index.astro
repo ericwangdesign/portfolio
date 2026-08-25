@@ -16,6 +16,7 @@ const DEFAULT_ANIM = "signature";
 // The handle resolves letter by letter in dispersed order — the same
 // bit-reversal an ordered-dither matrix uses to decide what lands first.
 const HANDLE = "@ericwangdesign";
+const HANDLE_URL = "https://x.com/ericwangdesign";
 const handleChars = [...HANDLE];
 const bitrev = (x: number, bits: number) => {
   let r = 0;
@@ -108,7 +109,7 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
         <section class="intro">
           <div class="namerow">
             <p class="name rv" style={rv(1)}>Eric Wang</p>
-            <p class="handle rv" style={rv(1)}>{handleChars.map((ch, n) => <span class="ch" style={`--s:${stepOf[n]}`}>{ch === " " ? "\u00A0" : ch}</span>)}</p>
+            <a class="handle rv" href={HANDLE_URL} target="_blank" rel="noreferrer" style={rv(1)}>{handleChars.map((ch, n) => <span class="ch" style={`--s:${stepOf[n]}`}>{ch === " " ? "\u00A0" : ch}</span>)}</a>
           </div>
 
           <div class="bio">
@@ -273,9 +274,7 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
       </div>
 
       <footer class="rv" style={rv(6)}>
-        <p class="quote">
-          “{footerQuote.text}” <span class="cite">{footerQuote.by}</span>
-        </p>
+        <p class="quote">{footerQuote}</p>
         <div class="links">
           {
             footerLinks.map((link) => (
@@ -926,7 +925,7 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
         background: var(--bg);
         color: var(--ink);
         font-family: var(--sans);
-        font-size: 14px;
+        font-size: 12px;
         line-height: 1.3;
         letter-spacing: -0.01em;
         -webkit-font-smoothing: antialiased;
@@ -971,10 +970,17 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
         margin: 0;
         width: 128px;
         flex-shrink: 0;
-        font-size: 13px;
         letter-spacing: -0.01em;
         text-align: right;
         color: var(--ink-4);
+        text-decoration: none;
+        transition: color 0.15s ease;
+      }
+      .handle:hover { color: var(--ink-2); }
+      .handle:focus-visible {
+        outline: 1px solid var(--ink-4);
+        outline-offset: 2px;
+        border-radius: 2px;
       }
       .bio {
         display: flex;
@@ -1299,7 +1305,6 @@ const rvCard = () => `--i:${_i++};--t:5;--ci:${_ci++}`;
         min-width: 0;
         color: var(--ink-3);
       }
-      .quote .cite { color: #5c5c5c; margin-left: 4px; }
       .links {
         display: flex;
         gap: 12px;

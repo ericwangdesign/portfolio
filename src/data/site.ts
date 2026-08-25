@@ -93,14 +93,7 @@ export const experimentColumns: ExperimentCard[][] = [
   ],
 ];
 
-// Alternates, if this one wears out:
-//   "A map is not the territory." — Alfred Korzybski
-//   "The map is not the thing mapped." — Eric Temple Bell
-//   "We are all mapmakers, whether we know it or not." — Denis Wood
-export const footerQuote = {
-  text: "A good map tells a multitude of little white lies.",
-  by: "Mark Monmonier",
-};
+export const footerQuote = "by eric (旭飞) wang";
 
 export const footerLinks = [
   { label: "Linkedin", href: "https://www.linkedin.com/in/ericwangdesign/" },
