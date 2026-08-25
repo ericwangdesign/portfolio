@@ -126,9 +126,16 @@
   body.thumb #panel,
   body.thumb #caret{ display:none !important; }
 
+  /* The capture field. A phone raises its keyboard only for a focused form
+     control, so this is what the page focuses when you tap it. It must sit
+     INSIDE the viewport - parked off at -9999px, iOS scrolls the page to
+     chase it on focus - and carry a 16px font, below which Safari zooms the
+     whole page in. Invisible, but present. */
   #hidden{
-    position:fixed; left:-9999px; top:0; width:1px; height:1px;
-    opacity:0; border:0; padding:0; resize:none;
+    position:fixed; left:0; top:0; width:1px; height:1px;
+    opacity:0; border:0; padding:0; margin:0; resize:none;
+    font-size:16px; background:transparent; color:transparent;
+    caret-color:transparent; z-index:-1;
   }
 
   #panel{
@@ -185,7 +192,9 @@
   #panel button:hover{background:rgba(255,255,255,.9)}
   #panel button:disabled{opacity:.4;cursor:default}
 </style>
-<script defer src="/track.js" data-piece="writing"></script>
+<script type="text/javascript">
+(function(){var CLARITY_ID="xprgtw49pv";if(CLARITY_ID==="PASTE_CLARITY_PROJECT_ID")return;(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script",CLARITY_ID);})();
+</script>
 </head>
 <body>
 <div id="stage">
@@ -1527,7 +1536,11 @@ function cancelRevision(){
 
 function typeChar(ch){
   const t = Date.now();
-  if(!firstKeyDone){ firstKeyDone = true; }
+  if(!firstKeyDone){
+    firstKeyDone = true;
+    // on a phone the label was asking for a tap; the pen is up now
+    if(TOUCH && elHint) elHint.textContent = HINT_TEXT;
+  }
   if(selection){
     if(ch === ' ' || ch === '\n'){
       if(selection.pending){ commitRevision(); return; }
@@ -1621,6 +1634,78 @@ elPage.addEventListener('mousedown', e => {
 });
 
 window.addEventListener('resize', () => { if(model) relayout(); });
+
+/* =============================== MOBILE ================================
+   A phone has no hardware keyboard, so `keydown` on window never fires and
+   nothing could be written at all - the piece was desktop-only without
+   anyone noticing, because the textarea that makes it possible had been
+   sitting in the markup unreferenced.
+
+   Two halves. Tapping the page focuses the capture field, which is the only
+   thing that raises a soft keyboard. Then `beforeinput` on that field routes
+   what the keyboard produces into the SAME typeChar/backspace the physical
+   keys use, so the pen behaves identically either way. beforeinput rather
+   than keydown on purpose: soft keyboards report keydown as `Unidentified`
+   (or keyCode 229 mid-composition) and are useless to read that way.
+
+   No double-typing on a desktop with the field focused: the window keydown
+   handler calls preventDefault on every character it takes, and a prevented
+   keydown never produces an input event.
+   ====================================================================== */
+
+const elHidden = document.getElementById('hidden');
+const TOUCH = matchMedia('(hover: none) and (pointer: coarse)').matches;
+const HINT_TEXT = 'type slow or fast';
+
+// "type" is no use as an instruction to someone holding a phone with no
+// keyboard on screen. Ask for the tap that raises it, then say the real
+// thing once they are writing.
+if(TOUCH && elHint && !THUMB) elHint.textContent = 'tap to write';
+
+function focusInput(){
+  if(!elHidden || replaying) return;
+  try{ elHidden.focus({ preventScroll:true }); }catch(e){ elHidden.focus(); }
+}
+
+if(elHidden && !THUMB){
+  elHidden.addEventListener('beforeinput', e => {
+    if(replaying) return;
+    const t = e.inputType || '';
+    if(t === 'insertText' && e.data){
+      e.preventDefault();
+      for(const ch of e.data) typeChar(ch);
+    }else if(t === 'insertLineBreak' || t === 'insertParagraph'){
+      e.preventDefault();
+      typeChar('\n');
+    }else if(t.indexOf('delete') === 0){
+      e.preventDefault();
+      backspace();
+    }
+    // composition (IME, dictation) falls through to compositionend below
+  });
+
+  // IME and voice dictation commit a whole string at once
+  elHidden.addEventListener('compositionend', e => {
+    if(replaying || !e.data) return;
+    for(const ch of e.data) typeChar(ch);
+    elHidden.value = '';
+  });
+
+  // keep the field empty so the keyboard never thinks there is text to edit
+  elHidden.addEventListener('input', () => { if(elHidden.value) elHidden.value = ''; });
+
+  // A tap anywhere on the paper is how you pick the pen up. pointerdown
+  // (not click) so the keyboard begins opening within the gesture - iOS
+  // only honours focus() while a user gesture is being handled.
+  document.addEventListener('pointerdown', e => {
+    if(e.target.closest && e.target.closest('#panel')) return;
+    focusInput();
+  }, true);
+
+  // a desktop visitor never taps: take focus at boot so the first keystroke
+  // lands (harmless there, and iOS ignores it without a gesture anyway)
+  if(!TOUCH) focusInput();
+}
 
 /* ============================== REPLAY ================================ */
 
