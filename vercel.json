@@ -34,6 +34,16 @@
       "source": "/shape-exploration",
       "destination": "/shape",
       "permanent": true
+    },
+    {
+      "source": "/pen-and-paper",
+      "destination": "/writing",
+      "permanent": true
+    },
+    {
+      "source": "/sf-roughly",
+      "destination": "/cities",
+      "permanent": true
     }
   ]
 }
