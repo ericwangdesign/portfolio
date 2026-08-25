@@ -165,6 +165,18 @@ const cardTops = experimentColumns.map((column) => {
         } catch (e) {
           document.documentElement.setAttribute("data-anim", DEFAULT_ANIM);
         }
+        // See the .settled rule in the stylesheet: this hands each element back
+        // to the compositor the moment its entrance is done.
+        document.addEventListener(
+          "animationend",
+          function (e) {
+            var el = e.target;
+            if (el.classList && el.classList.contains("rv")) {
+              el.classList.add("settled");
+            }
+          },
+          true,
+        );
       })();
     </script>
   </head>
@@ -712,6 +724,12 @@ const cardTops = experimentColumns.map((column) => {
             }
             function play(name) {
               root.removeAttribute("data-anim");
+              Array.prototype.forEach.call(
+                document.querySelectorAll(".rv.settled"),
+                function (el) {
+                  el.classList.remove("settled");
+                },
+              );
               void root.offsetWidth; // force reflow so the animation restarts
               if (name !== "off") root.setAttribute("data-anim", name);
               mark();
@@ -1427,8 +1445,21 @@ const cardTops = experimentColumns.map((column) => {
       html[data-anim] .rv {
         animation-duration: var(--dur, 0.55s);
         animation-timing-function: var(--ease, cubic-bezier(0.2, 0.8, 0.2, 1));
-        animation-fill-mode: both;
+        /* Not `both`. iOS Safari keeps a composited layer alive for as long as
+           an animation is still applying values, and the text in that layer
+           stays rasterized at the resolution it had while blurred — so a
+           forwards fill left whole paragraphs permanently soft on iPhone long
+           after they had "finished". Every keyframe set here only declares
+           `from`, so the finished state is just the element's own style and
+           there is nothing for a forwards fill to hold anyway. */
+        animation-fill-mode: backwards;
         animation-delay: calc(var(--i, 0) * var(--stag, 26ms) + var(--lead, 0ms));
+      }
+      /* Belt and braces for the same bug: drop the animation outright as each
+         element lands, so no layer is left compositing even mid-run. */
+      html[data-anim] .rv.settled,
+      html[data-anim] .rv.settled .ch {
+        animation: none;
       }
 
       @keyframes a-fadeup { from { opacity: 0; transform: translateY(8px); } }
