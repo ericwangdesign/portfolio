@@ -1931,6 +1931,31 @@ let lastArrival = 0;
 let micWatchdog = null;  // says something when the recognizer never speaks up
 let heardAudio = false;  // has this session ever seen audio start?
 
+/* ---- on-device recognition -------------------------------------------
+   Chrome's classic Web Speech API ships the audio to Google's servers, so
+   it dies with a `network` error behind a VPN, a DNS-level blocker, or in
+   a Chromium build without Google's speech keys (Brave et al) - and in a
+   demo room with hostile wifi. Recent Chrome can run the recogniser
+   ON DEVICE instead: same API, no network. We prefer it whenever it's
+   there, and fall back to the cloud path when it isn't.
+   `useLocal` is null until the probe answers. -------------------------- */
+let localSpeech = 'unknown';   // available | downloadable | unavailable
+let usingLocal = false;
+const canProbeLocal = !!(SRCls && typeof SRCls.available === 'function');
+
+async function probeLocalSpeech(){
+  if(!canProbeLocal){ localSpeech = 'unavailable'; return localSpeech; }
+  try{
+    localSpeech = await SRCls.available({ langs:['en-US'], processLocally:true });
+  }catch(e){
+    localSpeech = 'unavailable';
+  }
+  console.debug('[voice] on-device:', localSpeech);
+  return localSpeech;
+}
+// warm the answer early so the first click doesn't have to wait on it
+if(canProbeLocal) probeLocalSpeech();
+
 // The label is engine-drawn when it says the two normal things, and plain
 // text for faults - a fault has to be READABLE, and the hand at 19px is
 // deliberately small. micNote(null) returns to the normal label.
@@ -2016,11 +2041,17 @@ function flushVoice(){
   if(voiceTimer){ clearTimeout(voiceTimer); voiceTimer = null; }
 }
 
-function startRec(){
+function startRec(preferLocal){
   heardAudio = false;
   rec = new SRCls();
   rec.continuous = true;
   rec.interimResults = true;
+  // on-device when we can: no round trip, works offline, and it is the
+  // only thing that survives a `network` error
+  usingLocal = !!(preferLocal && canProbeLocal && localSpeech === 'available');
+  if(usingLocal){
+    try{ rec.processLocally = true; }catch(e){ usingLocal = false; }
+  }
   // fixed, not navigator.language — a zh/other system locale would make the
   // recognizer sit silent through English speech
   rec.lang = 'en-US';
@@ -2043,7 +2074,12 @@ function startRec(){
   };
   // Chrome ends recognition on its own after a stretch of silence;
   // while the mic mark is on, silence is content, so start it back up.
-  rec.onend = () => { console.debug('[voice] end'); if(micOn){ try{ rec.start(); }catch(err){} } };
+  rec.onend = () => {
+    console.debug('[voice] end');
+    // Chrome ends recognition after a stretch of silence; while the mark is
+    // on, silence is content - start it back up on the same engine.
+    if(micOn){ try{ rec.start(); }catch(err){} }
+  };
   rec.onerror = e => {
     console.debug('[voice] error:', e.error);
     // A fault must never be a DEAD END. Denying the permission prompt once
@@ -2059,7 +2095,33 @@ function startRec(){
       elMic.classList.add('err');
       micNote('no microphone — click to try again');
     }else if(e.error === 'network'){
-      micNote('dictation needs a connection — click to retry');
+      // The cloud recogniser is unreachable. Before blaming the user's
+      // connection (the page itself plainly loaded), try the on-device
+      // recogniser, which never leaves the machine.
+      if(!usingLocal && canProbeLocal){
+        micNote('switching to on-device dictation…');
+        (async () => {
+          if(localSpeech === 'unknown') await probeLocalSpeech();
+          if(localSpeech === 'downloadable' || localSpeech === 'downloading'){
+            micNote('downloading the voice model, one moment…');
+            try{ await SRCls.install({ langs:['en-US'], processLocally:true }); }catch(err){}
+            await probeLocalSpeech();
+          }
+          if(localSpeech === 'available' && micOn){
+            try{ rec.abort(); }catch(err){}
+            startRec(true);
+            micNote(null);
+          }else{
+            micOn = false; updateMic();
+            elMic.classList.add('err');
+            micNote('can\'t reach the speech service — a VPN or blocker may be in the way');
+          }
+        })();
+      }else{
+        micOn = false; updateMic();
+        elMic.classList.add('err');
+        micNote('speech service unreachable — click to retry');
+      }
     }
     // no-speech / aborted fall through to onend's restart
   };
@@ -2077,7 +2139,19 @@ if(!SRCls){
     micOn = !micOn;
     if(micOn){
       micNote('starting…');
-      startRec();
+      // If the on-device model is merely downloadable, fetch it HERE - this
+      // click is a user gesture, and install() can require one. Meanwhile
+      // the cloud engine starts, so dictation works during the download.
+      if(canProbeLocal && (localSpeech === 'downloadable' || localSpeech === 'unknown')){
+        (async () => {
+          if(localSpeech === 'unknown') await probeLocalSpeech();
+          if(localSpeech === 'downloadable'){
+            try{ await SRCls.install({ langs:['en-US'], processLocally:true }); }catch(err){}
+            probeLocalSpeech();
+          }
+        })();
+      }
+      startRec(true);
       // if nothing came back at all, say so rather than sitting silent
       clearTimeout(micWatchdog);
       micWatchdog = setTimeout(() => {
@@ -2090,6 +2164,21 @@ if(!SRCls){
   });
   updateMic();
 }
+
+/* A one-call status readout: run penVoice() in the console and read it
+   back. Faults in this piece are drawn small and quiet by design, so
+   there needs to be a way to ask the page plainly what it thinks. */
+window.penVoice = () => ({
+  recogniserPresent: !!SRCls,
+  onDeviceSupported: canProbeLocal,
+  onDeviceStatus: localSpeech,
+  currentlyUsingOnDevice: usingLocal,
+  listening: micOn,
+  heardAudio,
+  label: elMic.querySelector('.lbl').textContent.trim() || '(the hand-drawn label)',
+  online: navigator.onLine,
+  secureContext: window.isSecureContext,
+});
 
 /* ============================== REPLAY ================================ */
 
