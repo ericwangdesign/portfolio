@@ -137,6 +137,17 @@
     font-size:16px; background:transparent; color:transparent;
     caret-color:transparent; z-index:-1;
   }
+  /* On a phone the capture field COVERS the paper, so a tap lands on a real
+     input and iOS opens the keyboard itself. Focusing a field from a tap
+     handler instead looks like it works and then doesn't: the tap's own
+     default action moves focus to the body a moment later and the keyboard
+     drops straight back down. Native focus is never taken away like that.
+     Kept under #panel (z 50) so the controls still take their own taps. */
+  body.touch #hidden{
+    left:0; top:0; width:100%; height:100%;
+    z-index:20;
+    -webkit-user-select:text; user-select:text;
+  }
 
   #panel{
     position:fixed; right:22px; top:22px; z-index:50;
@@ -1667,6 +1678,21 @@ function focusInput(){
   try{ elHidden.focus({ preventScroll:true }); }catch(e){ elHidden.focus(); }
 }
 
+/* With the field covering the paper, taps no longer reach the glyphs - and
+   tapping a word is how you revise it. Forward the tap: lift the field out
+   of the way for one hit-test, find what was really under the finger, and
+   hand it the mousedown the revision code already listens for. */
+function forwardTap(x, y){
+  if(!elHidden) return;
+  elHidden.style.pointerEvents = 'none';
+  const el = document.elementFromPoint(x, y);
+  elHidden.style.pointerEvents = '';
+  if(el && el !== elHidden)
+    el.dispatchEvent(new MouseEvent('mousedown', {
+      bubbles:true, cancelable:true, clientX:x, clientY:y,
+    }));
+}
+
 if(elHidden && !THUMB){
   elHidden.addEventListener('beforeinput', e => {
     if(replaying) return;
@@ -1694,17 +1720,20 @@ if(elHidden && !THUMB){
   // keep the field empty so the keyboard never thinks there is text to edit
   elHidden.addEventListener('input', () => { if(elHidden.value) elHidden.value = ''; });
 
-  // A tap anywhere on the paper is how you pick the pen up. pointerdown
-  // (not click) so the keyboard begins opening within the gesture - iOS
-  // only honours focus() while a user gesture is being handled.
-  document.addEventListener('pointerdown', e => {
-    if(e.target.closest && e.target.closest('#panel')) return;
+  if(TOUCH){
+    document.body.classList.add('touch');
+    // the field is the surface now, so iOS focuses it on its own; all we do
+    // is pass the tap through to whatever was underneath
+    elHidden.addEventListener('click', e => forwardTap(e.clientX, e.clientY));
+  }else{
+    // A desktop visitor never taps: take focus at boot, and again on any
+    // click, so the first keystroke always lands.
+    document.addEventListener('pointerdown', e => {
+      if(e.target.closest && e.target.closest('#panel')) return;
+      focusInput();
+    }, true);
     focusInput();
-  }, true);
-
-  // a desktop visitor never taps: take focus at boot so the first keystroke
-  // lands (harmless there, and iOS ignores it without a gesture anyway)
-  if(!TOUCH) focusInput();
+  }
 }
 
 /* ============================== REPLAY ================================ */
