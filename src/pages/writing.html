@@ -216,7 +216,7 @@
   </div>
 </div>
 <div id="hint">type slow or fast</div>
-<textarea id="hidden" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+<textarea id="hidden" autofocus autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
 
 <div id="panel">
   <h4>Pen &amp; Paper</h4>
@@ -262,8 +262,20 @@ const THUMB = new URLSearchParams(location.search).get('chrome') === 'off';
 let   COL_W    = 800;          // writing column width
 let   PAD_TOP  = 132;          // top of page padding
 const PAD_BOT  = 180;
-const FAST_MS  = 70;           // dt considered "fast"
-const SLOW_MS  = 620;          // dt considered "deliberate"
+/* The pace scale. Thumbs are not fingers: a quick phone typist runs about
+   170-250ms per character where a quick desktop typist runs 70-120, so on
+   the desktop numbers a phone can never reach the hurried hand at all - it
+   would sit in the careful half no matter how fast anyone typed. Touch gets
+   its own scale, stretched to what thumbs can actually do: full mess around
+   170ms/char, the careful end holding until roughly half a second.
+
+   THUMB (the card demo) deliberately keeps the DESKTOP numbers, so the loop
+   looks the same whether the portfolio is being read on a laptop or a
+   phone - its tape is written against those intervals. */
+const TOUCH_PACE = matchMedia('(hover: none) and (pointer: coarse)').matches &&
+                   !new URLSearchParams(location.search).get('chrome');
+const FAST_MS  = TOUCH_PACE ? 170 : 70;    // dt considered "fast"
+const SLOW_MS  = TOUCH_PACE ? 840 : 620;   // dt considered "deliberate"
 const DT_CAP   = 1400;         // dt above this doesn't loosen the hand further
 // The hand stays PERFECTLY regular until the pen is genuinely moving, then
 // breaks down fast. SCRAP_KNEE is that threshold on the 0..1 pace scale:
@@ -1725,6 +1737,15 @@ if(elHidden && !THUMB){
     // the field is the surface now, so iOS focuses it on its own; all we do
     // is pass the tap through to whatever was underneath
     elHidden.addEventListener('click', e => forwardTap(e.clientX, e.clientY));
+
+    /* Raise the keyboard on arrival, if the browser will allow it.
+       iOS will NOT: WebKit opens the keyboard only inside a real user
+       gesture, and Chrome on iOS is WebKit underneath, so neither honours
+       this. Some Android browsers do. It costs nothing to ask, and nothing
+       depends on it - the label reads "tap to write" until the first
+       character lands, and one tap anywhere raises it for certain. */
+    focusInput();
+    window.addEventListener('pageshow', focusInput);   // and on back-navigation
   }else{
     // A desktop visitor never taps: take focus at boot, and again on any
     // click, so the first keystroke always lands.
