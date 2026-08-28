@@ -29,6 +29,12 @@ const cjkInSignature = [...new Set(footerQuote.match(/[\u4e00-\u9fff]/g) ?? [])]
 const CJK_HREF =
   `https://fonts.googleapis.com/css2?family=${CJK_FONT.replace(/ /g, "+")}` +
   `&text=${encodeURIComponent(cjkInSignature)}&display=swap`;
+// Social scrapers won't resolve a relative og:image, and several refuse a
+// relative canonical outright, so both are built against `site` from the Astro
+// config rather than written as paths.
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const ogImage = new URL('/og-image.png', Astro.site).href;
+
 const handleChars = [...HANDLE];
 const bitrev = (x: number, bits: number) => {
   let r = 0;
@@ -131,18 +137,28 @@ const cardTops = experimentColumns.map((column) => {
       name="description"
       content="Eric Wang is a designer at Google Maps, working on navigation and cartography, thinking about how the world gets drawn for billions of users."
     />
+    <link rel="canonical" href={canonical} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Eric Wang" />
     <meta property="og:title" content="Eric Wang Design" />
     <meta
       property="og:description"
       content="Designer at Google Maps, working on navigation and cartography."
     />
-    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="3220" />
+    <meta property="og:image:height" content="1616" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Eric Wang Design" />
     <meta
       name="twitter:description"
       content="Designer at Google Maps, working on navigation and cartography."
     />
+    <meta name="twitter:image" content={ogImage} />
+    <meta name="theme-color" content="#0f0f0f" />
     <link rel="icon" type="image/png" href="/favicon-darkbg.png" />
+    <link rel="apple-touch-icon" href="/favicon-darkbg.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

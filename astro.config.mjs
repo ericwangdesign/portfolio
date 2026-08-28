@@ -1,5 +1,6 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
+import sitemap from '@astrojs/sitemap';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -34,6 +35,24 @@ function publicDirectoryIndex() {
 
 // https://astro.build/config
 export default defineConfig({
+  // Canonical origin. `www` is canonical and the apex 308-redirects to it, so
+  // every absolute URL the site emits — canonicals, og:image, the sitemap —
+  // has to be built on this exact host or it points at a redirect.
+  site: 'https://www.ericwangdesign.com',
+  integrations: [
+    sitemap({
+      // The pieces that live in public/ are copied verbatim, so Astro never
+      // sees them as routes and can't discover them. Listed by hand — adding a
+      // piece under public/ means adding it here too.
+      customPages: [
+        'https://www.ericwangdesign.com/cities/',
+        'https://www.ericwangdesign.com/water/',
+      ],
+      // The journal is an unfinished placeholder carrying `noindex`; keeping it
+      // out of the sitemap keeps the two signals from contradicting each other.
+      filter: (page) => !page.includes('/journal'),
+    }),
+  ],
   vite: {
     plugins: [publicDirectoryIndex()],
   },

@@ -1,0 +1,8 @@
+# ericwangdesign.com
+User-agent: *
+Allow: /
+
+# An unfinished placeholder — it also carries a noindex meta tag.
+Disallow: /journal
+
+Sitemap: https://www.ericwangdesign.com/sitemap-index.xml

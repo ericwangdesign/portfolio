@@ -1,0 +1,366 @@
+---
+// 404 — built from the same parts as the landing page, deliberately.
+//
+// The homepage's signature gesture is the handle resolving letter by letter in
+// bit-reversed order: the ordered-dither sequence, the same one that decides
+// what lands first when a map is drawn coarse and then refined. Here that
+// gesture is pointed at the address the visitor asked for, which is the one
+// thing on this page that *didn't* resolve.
+//
+// Rules borrowed from index.astro and not to be broken here either:
+// one typeface, one type size — hierarchy comes from ink, not family or scale.
+// The single exception is the path itself, set in --mono, because it is a URL
+// the visitor typed rather than something I wrote.
+import Analytics from "../components/Analytics.astro";
+import { experimentColumns, footerQuote, footerLinks } from "../data/site";
+
+// The brush face for the 旭飞 in the footer — kept in step with index.astro.
+const CJK_FONT = "Liu Jian Mao Cao";
+const cjkInSignature = [
+  ...new Set(footerQuote.match(/[一-鿿]/g) ?? []),
+].join("");
+const CJK_HREF =
+  `https://fonts.googleapis.com/css2?family=${CJK_FONT.replace(/ /g, "+")}` +
+  `&text=${encodeURIComponent(cjkInSignature)}&display=swap`;
+
+// The list of somewhere-elses is read from the same data the homepage renders,
+// so a piece added there shows up here without anyone remembering to do it.
+const elsewhere = [
+  { title: "Home", href: "/", date: "" },
+  ...experimentColumns.flat().map(({ title, href, date }) => ({
+    title,
+    href: href ?? "",
+    date: date ?? "",
+  })).filter((c) => c.href),
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Not on the map — Eric Wang Design</title>
+    <meta
+      name="description"
+      content="Nothing is drawn at this address."
+    />
+    <!-- A 404 that gets indexed is a 404 that keeps being found. -->
+    <meta name="robots" content="noindex" />
+    <meta name="theme-color" content="#0f0f0f" />
+    <link rel="icon" type="image/png" href="/favicon-darkbg.png" />
+    <link rel="apple-touch-icon" href="/favicon-darkbg.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    {cjkInSignature && <link href={CJK_HREF} rel="stylesheet" />}
+    <Analytics piece="404" />
+  </head>
+
+  <body>
+    <main>
+      <div class="stack">
+        <section class="intro">
+          <div class="namerow">
+            <a class="name rv" style="--i:0" href="/">Eric Wang</a>
+            <p class="status rv" style="--i:0">404</p>
+          </div>
+
+          <!-- Filled in and dithered by the script below. Server-rendered with
+               the raw text so that with JS off it still says what failed. -->
+          <p class="path rv" id="path" style="--i:1"></p>
+
+          <div class="bio">
+            <p class="rv" style="--i:2">
+              Nothing is drawn at this address. Either it moved, or it was never
+              on the map — I rename things more often than I should.
+            </p>
+            <p class="rv" style="--i:3">
+              If you followed a link to get here, I'd genuinely like to know: <a
+                class="u"
+                href="mailto:ericwanguxdesign@gmail.com?subject=Broken%20link%20on%20ericwangdesign.com"
+                >tell me</a
+              >.
+            </p>
+          </div>
+        </section>
+
+        <section class="section">
+          <p class="label rv" style="--i:4">Still here</p>
+          <div class="group">
+            <div class="rows">
+              {
+                elsewhere.map((item, n) => (
+                  <a class="row link rv" href={item.href} style={`--i:${5 + n}`}>
+                    <span class="title">{item.title}</span>
+                    <span class="arrow" aria-hidden="true">
+                      ↗
+                    </span>
+                    <span class="year">{item.date}</span>
+                  </a>
+                ))
+              }
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <footer class="rv" style={`--i:${5 + elsewhere.length}`}>
+        <p class="quote">
+          {
+            footerQuote
+              .split(/([一-鿿]+)/)
+              .map((part) =>
+                /[一-鿿]/.test(part) ? <span class="cjk">{part}</span> : part,
+              )
+          }
+        </p>
+        <div class="links">
+          {
+            footerLinks.map((link) => (
+              <a href={link.href} target="_blank" rel="noreferrer">
+                {link.label}
+              </a>
+            ))
+          }
+        </div>
+      </footer>
+    </main>
+
+    <script is:inline>
+      // The address bar is the only place this page can learn what was asked
+      // for, so the path is written in at runtime rather than at build time.
+      (function () {
+        var el = document.getElementById("path");
+        if (!el) return;
+
+        var raw = location.pathname + location.search;
+        if (raw.length > 64) raw = raw.slice(0, 63) + "…";
+        el.textContent = raw;
+
+        var reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if (reduced) return;
+
+        // The same bit-reversal the homepage uses on the handle: letters land
+        // in dispersed order rather than left to right, so the line resolves
+        // the way a dithered image does instead of typing itself out.
+        var chars = Array.from(raw);
+        var bits = Math.max(1, Math.ceil(Math.log2(chars.length || 2)));
+        function bitrev(x) {
+          var r = 0;
+          for (var i = 0; i < bits; i++) r = (r << 1) | ((x >> i) & 1);
+          return r;
+        }
+        var order = chars.map(function (_, i) { return i; })
+          .sort(function (a, b) { return bitrev(a) - bitrev(b) || a - b; });
+        var beat = [];
+        order.forEach(function (charIndex, n) { beat[charIndex] = n; });
+
+        el.textContent = "";
+        chars.forEach(function (ch, i) {
+          var s = document.createElement("span");
+          s.className = "ch";
+          s.textContent = ch === " " ? " " : ch;
+          s.style.setProperty("--s", beat[i]);
+          el.appendChild(s);
+        });
+        el.classList.add("dither");
+      })();
+    </script>
+
+    <style is:global>
+      /* Tokens are copied rather than shared: index.astro keeps its CSS inline
+         and self-contained, and this page follows that pattern. Anything
+         changed there has to be changed here — the two are meant to look like
+         one site. */
+      :root {
+        --bg: #0f0f0f;
+        --ink: #ffffff;
+        --ink-2: #e6e6e6;
+        --ink-3: #cccccc;
+        --ink-4: #999999;
+        --hair: rgba(255, 255, 255, 0.1);
+        --sans: "Geist", system-ui, -apple-system, sans-serif;
+        --mono: ui-monospace, "SF Mono", Menlo, monospace;
+        --cjk: "Liu Jian Mao Cao";
+
+        --dither-dur: 380ms;
+        --dither-stag: 26ms;
+        --dither-steps: 4;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--sans);
+        font-size: 14px;
+        line-height: 1.3;
+        letter-spacing: -0.01em;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+
+      main {
+        min-height: 100svh;
+        max-width: 680px;
+        margin: 0 auto;
+        padding: 160px 20px 80px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 96px;
+      }
+      .stack { display: flex; flex-direction: column; gap: 64px; }
+
+      /* ---------- intro ---------- */
+      .intro { display: flex; flex-direction: column; gap: 20px; }
+      .namerow { display: flex; align-items: flex-start; gap: 16px; }
+      .name {
+        margin: 0;
+        flex: 1 0 0;
+        min-width: 0;
+        color: var(--ink);
+        text-decoration: none;
+      }
+      .name:hover { color: var(--ink-3); }
+      .status {
+        margin: 0;
+        width: 128px;
+        flex-shrink: 0;
+        text-align: right;
+        color: var(--ink-4);
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* The one place a second family is allowed: this is a string the visitor
+         typed, not a line I wrote, and the monospace says so without needing a
+         label or a second type size. */
+      .path {
+        margin: 0;
+        color: var(--ink-2);
+        font-family: var(--mono);
+        font-size: 13px;
+        letter-spacing: 0;
+        word-break: break-all;
+      }
+
+      .bio { display: flex; flex-direction: column; gap: 12px; }
+      .bio p { margin: 0; color: var(--ink-4); }
+      a.u {
+        color: inherit;
+        text-decoration: underline;
+        text-underline-position: from-font;
+        transition: color 0.15s ease;
+      }
+      a.u:hover { color: var(--ink-2); }
+
+      /* ---------- the list ---------- */
+      .section { display: flex; flex-direction: column; gap: 12px; }
+      .label { margin: 0; color: var(--ink-2); }
+      /* Lifted wholesale from the work list on the landing page: a hairline
+         above, rows indented under it, no rule between them. Reproduced rather
+         than approximated — a list that is nearly the row treatment reads as a
+         different site more loudly than one that is obviously something else. */
+      .group { position: relative; padding-top: 8px; padding-bottom: 8px; }
+      .group::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: var(--hair);
+      }
+      /* The 12px between rows is padding inside each row, not a gap between
+         them, so the rows tile and the hover dimming never falls through a
+         dead strip. Same reasoning as the landing page. */
+      .rows { display: flex; flex-direction: column; gap: 0; margin: -6px 0; }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 0 6px 16px;
+        color: var(--ink-4);
+        text-decoration: none;
+        white-space: nowrap;
+        transition: opacity 0.15s ease, color 0.15s ease;
+      }
+      .row .title { flex-shrink: 0; }
+      .row .year {
+        margin-left: auto;
+        flex-shrink: 0;
+        font-variant-numeric: tabular-nums;
+      }
+      .row .arrow {
+        opacity: 0;
+        transform: translateX(-4px);
+        transition: opacity 0.15s ease, transform 0.15s ease;
+      }
+      .row.link { cursor: pointer; }
+      @media (hover: hover) and (pointer: fine) {
+        .rows:has(.row:hover) .row { opacity: 0.3; }
+        .rows .row:hover { opacity: 1; color: var(--ink); }
+        .rows .row:hover .arrow { opacity: 1; transform: none; }
+      }
+
+      /* ---------- footer ---------- */
+      footer {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .quote { margin: 0; flex: 1 0 0; min-width: 0; color: var(--ink-3); }
+      .quote .cjk {
+        font-family: var(--cjk), var(--sans);
+        font-size: 0.92em;
+        letter-spacing: 0.02em;
+      }
+      .links { display: flex; gap: 12px; flex-shrink: 0; white-space: nowrap; }
+      .links a { color: var(--ink-4); text-decoration: none; }
+      .links a:hover { color: var(--ink); }
+
+      :where(a):focus-visible {
+        outline: 1px solid var(--ink-4);
+        outline-offset: 2px;
+        border-radius: 2px;
+      }
+
+      /* ---------- entrance ----------
+         Base state is the finished state, so with JS off or motion reduced the
+         page simply renders. Same blur-up and the same easing as the homepage,
+         on a flat stagger — this page is short enough not to need the beat
+         arithmetic the landing page does. */
+      @keyframes a-blurup {
+        from { opacity: 0; filter: blur(8px); transform: translateY(16px); }
+      }
+      @keyframes a-fade { from { opacity: 0; } }
+
+      .rv {
+        animation: a-blurup 600ms cubic-bezier(0.4, 0, 0.2, 1) both;
+        animation-delay: calc(var(--i, 0) * 42ms);
+      }
+      /* The path holds still while its own letters resolve — animating both
+         would put a blur over the dither and neither would be readable. */
+      .path.dither { animation: none; opacity: 1; }
+      .path.dither .ch {
+        animation: a-fade var(--dither-dur) steps(var(--dither-steps), end) both;
+        animation-delay: calc(80ms + var(--s, 0) * var(--dither-stag));
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .rv, .path.dither .ch { animation: none; }
+      }
+
+      @media (max-width: 520px) {
+        main { padding: 96px 20px 56px; gap: 64px; }
+        .status { width: auto; }
+        footer { flex-direction: column; gap: 20px; }
+      }
+    </style>
+  </body>
+</html>
