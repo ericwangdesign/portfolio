@@ -40,13 +40,24 @@ const CJK_HREF =
     <meta name="theme-color" content="#0f0f0f" />
     <link rel="icon" type="image/png" href="/favicon-darkbg.png" />
     <link rel="apple-touch-icon" href="/favicon-darkbg.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&display=swap"
-      rel="stylesheet"
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      href="/fonts/geist-latin-wght-normal.woff2"
+      crossorigin
     />
-    {cjkInSignature && <link href={CJK_HREF} rel="stylesheet" />}
+    {
+      /* The brush face is the one thing still fetched from Google: it is a
+         handful of glyphs pulled with &text=, and only the footer needs it. */
+      cjkInSignature && (
+        <>
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+          <link href={CJK_HREF} rel="stylesheet" />
+        </>
+      )
+    }
     <Analytics piece="404" />
   </head>
 
@@ -146,6 +157,26 @@ const CJK_HREF =
     </script>
 
     <style is:global>
+      /* Geist is served from this origin rather than fonts.googleapis.com. The
+         Google stylesheet was a render-blocking request to a third party on
+         every page: two handshakes and a round trip before the first paint,
+         to fetch a CSS file whose only job was to point at a woff2.
+         One variable file covers 400 and 500. Italic is not shipped — the only
+         <em> on the site is inside the dev-only tuner panel.
+         Subset and unicode-range are @fontsource-variable/geist 5.3.0's own
+         (see devDependencies); it deliberately omits the arrows ↗ and ←, which
+         fall back to system-ui exactly as they did under the Google subset. */
+      @font-face {
+        font-family: "Geist";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 400 500;
+        src: url("/fonts/geist-latin-wght-normal.woff2") format("woff2");
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+          U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+          U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+
       /* Tokens are copied rather than shared: index.astro keeps its CSS inline
          and self-contained, and this page follows that pattern. Anything
          changed there has to be changed here — the two are meant to look like
