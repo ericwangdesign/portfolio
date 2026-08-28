@@ -12,7 +12,7 @@
 // The single exception is the path itself, set in --mono, because it is a URL
 // the visitor typed rather than something I wrote.
 import Analytics from "../components/Analytics.astro";
-import { experimentColumns, footerQuote, footerLinks } from "../data/site";
+import { footerQuote, footerLinks } from "../data/site";
 
 // The brush face for the 旭飞 in the footer — kept in step with index.astro.
 const CJK_FONT = "Liu Jian Mao Cao";
@@ -23,16 +23,6 @@ const CJK_HREF =
   `https://fonts.googleapis.com/css2?family=${CJK_FONT.replace(/ /g, "+")}` +
   `&text=${encodeURIComponent(cjkInSignature)}&display=swap`;
 
-// The list of somewhere-elses is read from the same data the homepage renders,
-// so a piece added there shows up here without anyone remembering to do it.
-const elsewhere = [
-  { title: "Home", href: "/", date: "" },
-  ...experimentColumns.flat().map(({ title, href, date }) => ({
-    title,
-    href: href ?? "",
-    date: date ?? "",
-  })).filter((c) => c.href),
-];
 ---
 
 <!doctype html>
@@ -75,8 +65,8 @@ const elsewhere = [
 
           <div class="bio">
             <p class="rv" style="--i:2">
-              Nothing is drawn at this address. Either it moved, or it was never
-              on the map — I rename things more often than I should.
+              Nothing is drawn at this address. Either it moved, or it was
+              never on the map; I rename things more often than I should.
             </p>
             <p class="rv" style="--i:3">
               If you followed a link to get here, I'd genuinely like to know: <a
@@ -88,27 +78,11 @@ const elsewhere = [
           </div>
         </section>
 
-        <section class="section">
-          <p class="label rv" style="--i:4">Still here</p>
-          <div class="group">
-            <div class="rows">
-              {
-                elsewhere.map((item, n) => (
-                  <a class="row link rv" href={item.href} style={`--i:${5 + n}`}>
-                    <span class="title">{item.title}</span>
-                    <span class="arrow" aria-hidden="true">
-                      ↗
-                    </span>
-                    <span class="year">{item.date}</span>
-                  </a>
-                ))
-              }
-            </div>
-          </div>
-        </section>
+        <a class="back rv" style="--i:4" href="/">← Back to home</a>
+
       </div>
 
-      <footer class="rv" style={`--i:${5 + elsewhere.length}`}>
+      <footer class="rv" style="--i:5">
         <p class="quote">
           {
             footerQuote
@@ -258,53 +232,19 @@ const elsewhere = [
       }
       a.u:hover { color: var(--ink-2); }
 
-      /* ---------- the list ---------- */
-      .section { display: flex; flex-direction: column; gap: 12px; }
-      .label { margin: 0; color: var(--ink-2); }
-      /* Lifted wholesale from the work list on the landing page: a hairline
-         above, rows indented under it, no rule between them. Reproduced rather
-         than approximated — a list that is nearly the row treatment reads as a
-         different site more loudly than one that is obviously something else. */
-      .group { position: relative; padding-top: 8px; padding-bottom: 8px; }
-      .group::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 1px;
-        background: var(--hair);
-      }
-      /* The 12px between rows is padding inside each row, not a gap between
-         them, so the rows tile and the hover dimming never falls through a
-         dead strip. Same reasoning as the landing page. */
-      .rows { display: flex; flex-direction: column; gap: 0; margin: -6px 0; }
-      .row {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 0 6px 16px;
+      /* One way out, worded the way the journal placeholder already words it.
+         A menu of everywhere else would only be the homepage, retyped. */
+      .back {
+        align-self: flex-start;
         color: var(--ink-4);
         text-decoration: none;
-        white-space: nowrap;
-        transition: opacity 0.15s ease, color 0.15s ease;
+        border-bottom: 1px solid var(--hair);
+        padding-bottom: 2px;
+        transition: color 0.15s ease, border-color 0.15s ease;
       }
-      .row .title { flex-shrink: 0; }
-      .row .year {
-        margin-left: auto;
-        flex-shrink: 0;
-        font-variant-numeric: tabular-nums;
-      }
-      .row .arrow {
-        opacity: 0;
-        transform: translateX(-4px);
-        transition: opacity 0.15s ease, transform 0.15s ease;
-      }
-      .row.link { cursor: pointer; }
-      @media (hover: hover) and (pointer: fine) {
-        .rows:has(.row:hover) .row { opacity: 0.3; }
-        .rows .row:hover { opacity: 1; color: var(--ink); }
-        .rows .row:hover .arrow { opacity: 1; transform: none; }
+      .back:hover {
+        color: var(--ink);
+        border-bottom-color: var(--ink-4);
       }
 
       /* ---------- footer ---------- */
