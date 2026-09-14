@@ -7,7 +7,7 @@
  * actually *played* with a piece, and which work they reached for.
  *
  * Include it once per page, before </head>:
- *   <script defer src="/track.js" data-piece="shape"></script>
+ *   <script defer src="/track.js" data-piece="cities"></script>
  *
  * `data-piece` names the event prefix. Without it the pathname is used, so a
  * missing attribute degrades to something readable rather than to nothing.
@@ -16,7 +16,7 @@
   var CLARITY_ID = "xprgtw49pv";
 
   /* The homepage tiles run the pieces live in iframes. Left alone, every visit
-     to the homepage would log a pageview and a session on /writing and
+     to the homepage would log a pageview and a session on /cities and
      /cities that nobody actually opened. A framed page reports nothing. */
   if (window.top !== window.self) return;
 

@@ -75,16 +75,14 @@ export type ExperimentCard = {
   alignEnd?: boolean;
 };
 
-// Heights are chosen so both columns total 648px and the grid sits flush at the
-// top and the bottom: 324 + 8 + 316 on the left, 240 + 8 + 400 on the right.
-// Change one and its column-mate has to move to match.
+// Two tiles side by side, one per column, both 400 tall so the grid sits
+// flush. Water keeps the height it had so the phone recording crops the same;
+// Cities is a live preview and takes whatever height it is given.
 export const experimentColumns: ExperimentCard[][] = [
   [
-    { title: "Writing", date: "Jul 2026", height: 324, href: "/writing" },
-    { title: "Shape", date: "Aug 2026", height: 316, href: "/shape" },
+    { title: "Cities", date: "Jun 2026", height: 400, href: "/cities" },
   ],
   [
-    { title: "Cities", date: "Jun 2026", height: 240, href: "/cities" },
     // Water absorbed the old "Liquid" card — same project, later milestone.
     // The June phone recording stands in for the live preview: it shows the
     // thing being *used*, which an iframe of the page cannot.
