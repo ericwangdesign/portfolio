@@ -214,7 +214,10 @@ const cardTops = experimentColumns.map((column) => {
         <section class="intro">
           <div class="namerow">
             <p class="name rv" style={rvHead()}>Eric Wang</p>
-            <a class="handle rv" href={HANDLE_URL} target="_blank" rel="noreferrer" style={rvHead()}>{handleChars.map((ch, n) => <span class="ch" style={`--s:${stepOf[n]}`}>{ch === " " ? "\u00A0" : ch}</span>)}</a>
+            <button type="button" class="sw rv" id="theme-switch" aria-label="Switch to day" style={rvHead()}>
+              <svg class="sun" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></svg>
+              <svg class="moon" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><path d="M13.6 9.9A5.6 5.6 0 0 1 6.1 2.4a5.6 5.6 0 1 0 7.5 7.5z"/></svg>
+            </button>
           </div>
 
           <div class="bio">
@@ -243,8 +246,7 @@ const cardTops = experimentColumns.map((column) => {
               >.
             </p>
             <div class="loc rv" style={rv(3, GAP.block)}>
-              <img src="/pin.png" alt="" width="16" height="16" />
-              <p id="loc-text"><a class="u" href="https://www.google.com/maps/search/?api=1&query=San+Francisco%2C+CA" target="_blank" rel="noreferrer">San Francisco</a></p>
+              <p id="loc-text">Recently spotted near <a class="u" href="https://www.google.com/maps/search/?api=1&query=San+Francisco%2C+CA" target="_blank" rel="noreferrer">San Francisco</a></p>
             </div>
           </div>
         </section>
@@ -1011,6 +1013,7 @@ const cardTops = experimentColumns.map((column) => {
       )
     }
 
+
     <style is:global>
       /* Geist is served from this origin rather than fonts.googleapis.com. The
          Google stylesheet was a render-blocking request to a third party on
@@ -1030,6 +1033,18 @@ const cardTops = experimentColumns.map((column) => {
         unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
           U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
           U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+
+      /* Light palette — sketch for the theme switch. Pure neutral, to match the dark. */
+      :root[data-mode="light"] {
+        --bg: #f2f2f2;
+        --card: #fafafa;
+        --card-hover: #f3f3f3;
+        --ink: #0f0f0f;
+        --ink-2: #2e2e2e;
+        --ink-3: #4a4a4a;
+        --ink-4: #767676;
+        --hair: rgba(0, 0, 0, 0.1);
       }
 
       :root {
@@ -1155,15 +1170,22 @@ const cardTops = experimentColumns.map((column) => {
       .loc {
         display: flex;
         align-items: center;
-        gap: 4px;
-      }
-      .loc img {
-        width: 16px;
-        height: 16px;
-        opacity: 0.6;
-        flex-shrink: 0;
+        gap: 10px;
       }
       .loc p { margin: 0; color: var(--ink-4); }
+      /* the theme switch: a sun by day, a moon by night, one turning into the other */
+      .sw {
+        position: relative; width: 16px; height: 16px; flex-shrink: 0;
+        background: none; border: 0; padding: 0; cursor: pointer; color: var(--ink-4);
+      }
+      .sw:hover { color: var(--ink-2); }
+      .sw:focus-visible { outline: 2px solid var(--ink-2); outline-offset: 3px; border-radius: 2px; }
+      .sw svg { position: absolute; inset: 0; transition: opacity .5s cubic-bezier(.4,0,.2,1), transform .5s cubic-bezier(.4,0,.2,1); }
+      .sw .sun  { opacity: 0; transform: rotate(-90deg) scale(.6); }
+      .sw .moon { opacity: 1; transform: none; }
+      :root[data-mode="light"] .sw .sun  { opacity: 1; transform: none; }
+      :root[data-mode="light"] .sw .moon { opacity: 0; transform: rotate(90deg) scale(.6); }
+      .namerow .sw { margin-left: auto; align-self: center; }
 
       /* ---------- sections ---------- */
       .section {
@@ -1683,14 +1705,27 @@ const cardTops = experimentColumns.map((column) => {
       }
 
       /** Built as nodes rather than innerHTML so the city name is never parsed as markup. */
-      function render(el: HTMLElement, lead: string, city: CitySpec) {
+      function render(el: HTMLElement, lead: string, city: CitySpec, tail = "") {
         const link = document.createElement("a");
         link.className = "u";
         link.href = mapsUrl(city);
         link.target = "_blank";
         link.rel = "noreferrer";
         link.textContent = city.name;
-        el.replaceChildren(lead, link);
+        el.replaceChildren(lead, link, tail);
+      }
+
+      /** One word for the sky, from the WMO weather code and the wind. */
+      function skyWord(code: number, mph: number): string {
+        if (code === 45 || code === 48) return "foggy";
+        if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return "raining";
+        if ((code >= 71 && code <= 77) || code >= 85 && code <= 86) return "snowing";
+        if (code >= 95) return "stormy";
+        if (mph >= 14) return "windy";
+        if (mph >= 7) return "breezy";
+        if (code === 0) return "clear";
+        if (code === 1) return "mostly clear";
+        return "cloudy";
       }
 
       async function loadWeather() {
@@ -1700,15 +1735,16 @@ const cardTops = experimentColumns.map((column) => {
         const city = hour === null || (hour >= 9 && hour < 20) ? SF : OAKLAND;
         try {
           const res = await fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m&temperature_unit=fahrenheit`,
+            `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,wind_speed_10m,weather_code&temperature_unit=fahrenheit&wind_speed_unit=mph`,
           );
           if (!res.ok) return;
           const data = await res.json();
           const temp = Math.round(data?.current?.temperature_2m);
           if (!Number.isFinite(temp)) return;
-          render(el, `${temp}° in `, city);
+          const sky = skyWord(Number(data?.current?.weather_code ?? -1), Number(data?.current?.wind_speed_10m ?? 0));
+          render(el, "Recently spotted near ", city, `, where it's ${temp}° and ${sky}`);
         } catch {
-          render(el, "", city); // still swap the city even if the fetch fails
+          render(el, "Recently spotted near ", city); // still swap the city even if the fetch fails
         }
       }
       loadWeather();
@@ -1809,5 +1845,41 @@ const cardTops = experimentColumns.map((column) => {
       }
 
     </script>
+    <!-- ---- theme switch: a calm crossfade between night and day ---- -->
+    <style is:global>
+      /* While a switch is in flight, every colour on the page eases together. */
+      html.theming, html.theming *, html.theming *::before, html.theming *::after {
+        transition-property: background-color, color, border-color, fill, stroke, box-shadow, text-decoration-color !important;
+        transition-duration: .7s !important;
+        transition-timing-function: cubic-bezier(.4, 0, .2, 1) !important;
+      }
+      html.theming .sw svg { transition-property: opacity, transform !important; transition-duration: .5s !important; }
+    </style>
+    <script is:inline>
+    (() => {
+      const root = document.documentElement;
+      const sw = document.getElementById("theme-switch");
+      if (!sw) return;
+      if (!root.dataset.mode) root.dataset.mode = "dark";
+      const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      let busy = false;
+      function apply(mode) {
+        root.dataset.mode = mode;
+        sw.setAttribute("aria-label", mode === "dark" ? "Switch to day" : "Switch to night");
+      }
+      sw.addEventListener("click", () => {
+        if (busy) return;
+        const to = root.dataset.mode === "dark" ? "light" : "dark";
+        if (RM) { apply(to); return; }
+        busy = true;
+        root.classList.add("theming");
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          apply(to);
+          setTimeout(() => { root.classList.remove("theming"); busy = false; }, 760);
+        }));
+      });
+    })();
+    </script>
+
   </body>
 </html>
