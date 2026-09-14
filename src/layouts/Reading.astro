@@ -1,0 +1,684 @@
+---
+// The reading surface. One column, one typeface, a rail that says where you are.
+//
+// The homepage rule holds here: Geist only, hierarchy from size and ink rather
+// than from a second family — and the web font ships weights 400–500, so there
+// is no bold to lean on even if it were wanted.
+import Analytics from "../components/Analytics.astro";
+
+export type TocItem = { depth: number; slug: string; text: string };
+export type PieceLink = { slug: string; title: string; date: Date };
+
+interface Props {
+  title: string;
+  kind: string;
+  /** Left off on pages that aren't a dated piece — the index, mainly. */
+  date?: Date;
+  standfirst: string;
+  toc?: TocItem[];
+  pieces?: PieceLink[];
+  current?: string;
+  /** Article pages want the piece title; the index wants its own. */
+  documentTitle?: string;
+}
+
+const {
+  title,
+  kind,
+  date,
+  standfirst,
+  toc = [],
+  pieces = [],
+  current,
+  documentTitle,
+} = Astro.props;
+
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const ogImage = new URL("/og-image.png", Astro.site).href;
+// Dates in frontmatter are plain days, parsed as UTC midnight. Formatted in
+// local time they slip back a day west of Greenwich, so both ends stay in UTC.
+const fmt = (d: Date) =>
+  d.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+const iso = (d: Date) => d.toISOString().slice(0, 10);
+// Only the top two levels get a rail entry. An h3 is a turn inside a section,
+// not a place you navigate to, and listing them makes the rail longer than
+// the thing it indexes.
+// The footnote list is given an h2 by GFM. It's an apparatus, not a section.
+const railToc = toc.filter((h) => h.depth === 2 && h.slug !== "footnote-label");
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{documentTitle ?? `${title} — Eric Wang Design`}</title>
+    <meta name="description" content={standfirst} />
+    <link rel="canonical" href={canonical} />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Eric Wang" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={standfirst} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={standfirst} />
+    <meta name="twitter:image" content={ogImage} />
+    <meta name="theme-color" content="#0f0f0f" />
+    <link rel="icon" type="image/png" href="/favicon-darkbg.png" />
+    <link rel="apple-touch-icon" href="/favicon-darkbg.png" />
+    <link
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      href="/fonts/geist-latin-wght-normal.woff2"
+      crossorigin
+    />
+    <Analytics piece="journal" />
+  </head>
+
+  <body>
+    <a class="skip" href="#piece">Skip to the writing</a>
+
+    <div class="page">
+      <!-- The rail. Two things only: where you are in this piece, and what
+           else there is. It sits outside the column so the column stays
+           optically centred in the window. -->
+      <a class="home" href="/">Eric Wang Design</a>
+
+      <nav class="rail" aria-label="Journal">
+        {
+          railToc.length > 0 && (
+            <div class="rail-group">
+              <p class="rail-head">Contents</p>
+              <ul class="rail-list" data-toc>
+                {railToc.map((h) => (
+                  <li>
+                    <a href={`#${h.slug}`} data-toc-link={h.slug}>
+                      {h.text}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        }
+
+        {
+          pieces.length > 0 && (
+            <div class="rail-group">
+              <p class="rail-head">
+                <a href="/journal/">Journal</a>
+              </p>
+              <ul class="rail-list">
+                {pieces.map((p) => (
+                  <li>
+                    <a
+                      href={`/journal/${p.slug}/`}
+                      aria-current={p.slug === current ? "page" : undefined}
+                    >
+                      {p.title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        }
+      </nav>
+
+      <main id="piece" class="piece">
+        <header class="head">
+          <p class="meta">
+            <span>{kind}</span>
+            {date && <time datetime={iso(date)}>{fmt(date)}</time>}
+          </p>
+          <h1>{title}</h1>
+          <p class="standfirst">{standfirst}</p>
+        </header>
+
+        <article class="prose">
+          <slot />
+        </article>
+
+        <slot name="after" />
+      </main>
+    </div>
+
+    <script is:inline>
+      // The rail tracks the heading you are actually reading under, which is
+      // the last one whose top has passed the reading line — a third of the way
+      // down the window, roughly where the eye sits. Watching for intersection
+      // instead gets this wrong on short sections and on the way back up.
+      (function () {
+        var links = document.querySelectorAll("[data-toc-link]");
+        if (!links.length) return;
+        var heads = [];
+        links.forEach(function (a) {
+          var el = document.getElementById(a.getAttribute("data-toc-link"));
+          if (el) heads.push({ el: el, link: a });
+        });
+        if (!heads.length) return;
+
+        var current = null;
+        var queued = false;
+
+        function mark() {
+          queued = false;
+          var line = window.innerHeight * 0.3;
+          var found = heads[0];
+          for (var i = 0; i < heads.length; i++) {
+            if (heads[i].el.getBoundingClientRect().top <= line) found = heads[i];
+          }
+          // Past the end of the writing, nothing is "current" — the rail
+          // shouldn't claim you're still in the last section while you read
+          // the footnotes.
+          if (found === current) return;
+          if (current) current.link.removeAttribute("aria-current");
+          found.link.setAttribute("aria-current", "true");
+          current = found;
+        }
+
+        function onScroll() {
+          if (queued) return;
+          queued = true;
+          requestAnimationFrame(mark);
+        }
+
+        mark();
+        window.addEventListener("scroll", onScroll, { passive: true });
+        window.addEventListener("resize", onScroll, { passive: true });
+      })();
+    </script>
+
+    <style is:inline>
+      @font-face {
+        font-family: "Geist";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 400 500;
+        src: url("/fonts/geist-latin-wght-normal.woff2") format("woff2");
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+          U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+          U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+
+      :root {
+        --bg: #0f0f0f;
+        --card: #1a1a1a;
+        --ink: #ffffff;
+        --ink-2: #e6e6e6;
+        --ink-3: #cccccc;
+        --ink-4: #999999;
+        --ink-5: #6e6e6e;
+        --hair: rgba(255, 255, 255, 0.1);
+        --hair-soft: rgba(255, 255, 255, 0.06);
+        --sans: "Geist", system-ui, -apple-system, sans-serif;
+        --mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+        /* The two numbers everything else is measured against.
+           620px of Geist at 17px runs about 68 characters — long enough to
+           carry an argument, short enough that the eye finds the next line. */
+        --measure: 620px;
+        --rail: 188px;
+        --rail-left: calc(
+          50% - var(--measure) / 2 - var(--gutter) - var(--rail)
+        );
+        /* Air between the rail and the column. Below this the rail reads as
+           part of the text block instead of as an instrument beside it. */
+        --gutter: 72px;
+      }
+
+      * { box-sizing: border-box; }
+
+      html { scroll-behavior: smooth; }
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink-3);
+        font-family: var(--sans);
+        font-size: 17px;
+        line-height: 1.68;
+        letter-spacing: -0.011em;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+
+      .skip {
+        position: fixed;
+        top: 8px;
+        left: 8px;
+        z-index: 10;
+        padding: 8px 12px;
+        background: var(--card);
+        border-radius: 6px;
+        color: var(--ink);
+        font-size: 13px;
+        text-decoration: none;
+        transform: translateY(-200%);
+      }
+      .skip:focus { transform: none; }
+
+      /* ---------- shell ----------
+         The column is centred in the window and the rail hangs off its left,
+         so the writing keeps the middle of the screen no matter how wide the
+         monitor is. Centring the pair instead pushes the text right. */
+      .page {
+        /* border-box, so the padding has to be added back or the column comes
+           out 48px narrower than the measure it is named after. */
+        max-width: calc(var(--measure) + 48px);
+        margin: 0 auto;
+        padding: 160px 24px 160px;
+      }
+
+      .home,
+      .rail {
+        position: fixed;
+        left: var(--rail-left);
+        width: var(--rail);
+      }
+
+      .home {
+        top: 160px;
+        color: var(--ink-4);
+        font-size: 13px;
+        letter-spacing: -0.005em;
+        text-decoration: none;
+      }
+      .home:hover { color: var(--ink); }
+      .home:focus-visible {
+        outline: 1px solid var(--ink-4);
+        outline-offset: 2px;
+        border-radius: 2px;
+      }
+
+      .rail {
+        top: 224px;
+        max-height: calc(100svh - 284px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        font-size: 13px;
+        line-height: 1.45;
+        letter-spacing: -0.005em;
+        scrollbar-width: none;
+      }
+      .rail::-webkit-scrollbar { display: none; }
+
+      .rail a {
+        color: var(--ink-5);
+        text-decoration: none;
+      }
+      .rail a:hover { color: var(--ink-2); }
+      .rail a:focus-visible {
+        outline: 1px solid var(--ink-4);
+        outline-offset: 2px;
+        border-radius: 2px;
+      }
+
+      .rail-group + .rail-group { margin-top: 36px; }
+
+      .rail-head {
+        margin: 0 0 12px;
+        color: var(--ink-5);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .rail-head a { color: inherit; }
+
+      .rail-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      /* The marker is a rule in the gutter rather than a colour swap, so the
+         list keeps one weight and one colour and the eye still lands. */
+      .rail-list a {
+        display: block;
+        padding-left: 12px;
+        border-left: 1px solid transparent;
+        transition: color 120ms linear, border-color 120ms linear;
+      }
+      .rail-list a[aria-current] {
+        color: var(--ink-2);
+        border-left-color: var(--ink-4);
+      }
+
+      /* ---------- the head of the piece ---------- */
+      .head { margin-bottom: 72px; }
+
+      .meta {
+        display: flex;
+        gap: 16px;
+        margin: 0 0 24px;
+        color: var(--ink-5);
+        font-size: 13px;
+        letter-spacing: 0;
+      }
+      .meta span::first-letter { text-transform: uppercase; }
+      .meta time { font-variant-numeric: tabular-nums; }
+
+      h1 {
+        margin: 0;
+        max-width: 14ch;
+        color: var(--ink);
+        font-size: 42px;
+        font-weight: 500;
+        line-height: 1.08;
+        letter-spacing: -0.032em;
+        text-wrap: balance;
+      }
+
+      .standfirst {
+        margin: 24px 0 0;
+        color: var(--ink-4);
+        font-size: 19px;
+        line-height: 1.5;
+        letter-spacing: -0.016em;
+        text-wrap: pretty;
+      }
+
+      /* ---------- the writing ----------
+         Headings carry their space above, never below: the gap belongs to the
+         break in the argument, and a heading should sit close to the thing it
+         names. */
+      .prose > * { margin: 0 0 26px; }
+      .prose > *:last-child { margin-bottom: 0; }
+
+      .prose h2 {
+        margin: 72px 0 18px;
+        color: var(--ink);
+        font-size: 23px;
+        font-weight: 500;
+        line-height: 1.26;
+        letter-spacing: -0.022em;
+        scroll-margin-top: 120px;
+        text-wrap: balance;
+      }
+
+      .prose h3 {
+        margin: 44px 0 10px;
+        color: var(--ink-2);
+        font-size: 17px;
+        font-weight: 500;
+        line-height: 1.4;
+        letter-spacing: -0.014em;
+        scroll-margin-top: 120px;
+      }
+
+      .prose p { text-wrap: pretty; }
+
+      .prose strong { color: var(--ink); font-weight: 500; }
+      .prose em { font-style: italic; }
+
+      /* Underline sits below the descenders and thins out — a rule under the
+         words rather than a line through them. */
+      .prose a {
+        color: var(--ink-2);
+        text-decoration: underline;
+        text-decoration-color: var(--ink-5);
+        text-decoration-thickness: 1px;
+        text-underline-offset: 3px;
+        transition: color 120ms linear, text-decoration-color 120ms linear;
+      }
+      .prose a:hover {
+        color: var(--ink);
+        text-decoration-color: var(--ink-3);
+      }
+      .prose a:focus-visible {
+        outline: 1px solid var(--ink-4);
+        outline-offset: 2px;
+        border-radius: 2px;
+      }
+
+      /* `.bare` is the opt-out: a list that is navigation rather than prose —
+         the journal index, mainly — keeps the markup and loses the marks. */
+      .prose .bare,
+      .prose .bare li {
+        padding-left: 0;
+        margin: 0;
+        list-style: none;
+      }
+      .prose .bare li::before { content: none; }
+
+      .prose ul,
+      .prose ol {
+        padding-left: 0;
+        list-style: none;
+        counter-reset: item;
+      }
+      .prose li {
+        position: relative;
+        padding-left: 26px;
+        margin-bottom: 10px;
+      }
+      .prose ul > li::before {
+        content: "";
+        position: absolute;
+        left: 6px;
+        top: 0.82em;
+        width: 4px;
+        height: 1px;
+        background: var(--ink-5);
+      }
+      .prose ol > li {
+        counter-increment: item;
+      }
+      .prose ol > li::before {
+        content: counter(item);
+        position: absolute;
+        left: 0;
+        color: var(--ink-5);
+        font-variant-numeric: tabular-nums;
+      }
+      .prose li > ul,
+      .prose li > ol { margin: 10px 0 0; }
+
+      /* A quote is set in from the column and loses its rule — the indent is
+         already the signal, and a bar plus an indent says it twice. */
+      .prose blockquote {
+        margin: 44px 0;
+        padding-left: 26px;
+        border-left: 1px solid var(--hair);
+        color: var(--ink-4);
+      }
+      .prose blockquote p { margin-bottom: 12px; }
+      .prose blockquote p:last-child { margin-bottom: 0; }
+
+      .prose hr {
+        margin: 64px auto;
+        width: 72px;
+        height: 0;
+        border: 0;
+        border-top: 1px solid var(--hair);
+      }
+
+      .prose code {
+        font-family: var(--mono);
+        font-size: 0.86em;
+        letter-spacing: 0;
+        color: var(--ink-2);
+        background: var(--card);
+        padding: 2px 5px;
+        border-radius: 4px;
+      }
+      .prose pre {
+        margin: 32px 0;
+        padding: 20px 22px;
+        background: var(--card) !important;
+        border: 1px solid var(--hair-soft);
+        border-radius: 8px;
+        overflow-x: auto;
+        font-size: 13.5px;
+        line-height: 1.6;
+        letter-spacing: 0;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+      }
+      .prose pre::-webkit-scrollbar { height: 8px; }
+      .prose pre::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.16);
+        border-radius: 4px;
+      }
+      .prose pre::-webkit-scrollbar-track { background: transparent; }
+      .prose pre code {
+        background: none;
+        padding: 0;
+        font-size: inherit;
+      }
+
+      /* ---------- figures ----------
+         Three widths: in the column, a step wider than the column, and edge to
+         edge. A diagram that has to be squinted at isn't worth the words it
+         replaced, so anything with structure in it should take `wide`. */
+      .prose figure { margin: 56px 0; }
+
+      .prose figure img,
+      .prose figure svg,
+      .prose figure video {
+        display: block;
+        width: 100%;
+        height: auto;
+        border-radius: 8px;
+      }
+
+      .prose figure.plain img,
+      .prose figure.plain svg { border-radius: 0; }
+
+      .prose figcaption {
+        margin-top: 14px;
+        color: var(--ink-5);
+        font-size: 13px;
+        line-height: 1.5;
+        letter-spacing: 0;
+        text-wrap: pretty;
+      }
+      .prose figcaption strong {
+        color: var(--ink-4);
+        font-weight: 400;
+      }
+
+      .prose .wide {
+        width: min(880px, calc(100vw - 48px));
+        margin-left: calc(50% - min(880px, calc(100vw - 48px)) / 2);
+      }
+      .prose .bleed {
+        width: 100vw;
+        margin-left: calc(50% - 50vw);
+      }
+      .prose .bleed figcaption,
+      .prose .bleed > figcaption {
+        width: var(--measure);
+        max-width: calc(100vw - 48px);
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      /* A figure on the site's own ground needs a plate under it, or a diagram
+         with a transparent background floats loose in the page. */
+      .prose .plate {
+        background: var(--card);
+        border: 1px solid var(--hair-soft);
+        border-radius: 10px;
+        padding: 28px;
+      }
+      .prose .plate img,
+      .prose .plate svg { border-radius: 0; }
+
+      /* ---------- footnotes (GFM) ---------- */
+      .prose .footnotes {
+        margin-top: 80px;
+        padding-top: 28px;
+        border-top: 1px solid var(--hair-soft);
+        font-size: 14px;
+        line-height: 1.6;
+        color: var(--ink-5);
+      }
+      .prose .footnotes h2 {
+        margin: 0 0 16px;
+        color: var(--ink-5);
+        font-size: 11px;
+        font-weight: 400;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .prose .footnotes li { margin-bottom: 8px; }
+      .prose .footnotes p { margin: 0; }
+      .prose .footnotes a { color: var(--ink-4); }
+      .prose sup a {
+        text-decoration: none;
+        color: var(--ink-4);
+        font-size: 11px;
+        padding: 0 1px 0 2px;
+      }
+      .prose sup a:hover { color: var(--ink); }
+      :target { scroll-margin-top: 120px; }
+
+      /* ---------- narrow ----------
+         Under ~1080px the rail has nowhere to hang, so it stops being a rail:
+         it folds to the top of the page as a plain list you can leave alone.
+         A drawer or an overlay would be a second thing to design badly. */
+      @media (max-width: 1080px) {
+        /* The rail has nowhere to hang, so it stops being a rail. The contents
+           of a piece you can already see the whole of are noise, so they go;
+           the other pieces move to the end, where you want them. A drawer or a
+           slide-over would be a second thing to design badly. */
+        .page {
+          padding-top: 56px;
+          display: flex;
+          flex-direction: column;
+        }
+        .home { position: static; width: auto; order: 0; margin-bottom: 56px; }
+        .piece { order: 1; }
+        .rail {
+          position: static;
+          order: 2;
+          width: auto;
+          max-height: none;
+          margin-top: 88px;
+          padding-top: 32px;
+          border-top: 1px solid var(--hair-soft);
+        }
+        .rail [data-toc] { display: none; }
+        .rail-group:has([data-toc]) { display: none; }
+        .rail-group + .rail-group { margin-top: 0; }
+        .rail-list a { padding-left: 0; border-left: 0; }
+        .rail-list a[aria-current] { color: var(--ink-5); }
+      }
+
+      @media (max-width: 640px) {
+        body { font-size: 16.5px; }
+        .page { padding: 44px 20px 96px; }
+        .head { margin-bottom: 52px; }
+        h1 { font-size: 32px; max-width: none; }
+        .standfirst { font-size: 17.5px; }
+        .prose h2 { margin-top: 56px; font-size: 21px; }
+        .prose .wide,
+        .prose .bleed {
+          width: 100%;
+          margin-left: 0;
+        }
+        .prose .plate { padding: 18px; }
+      }
+
+      @media print {
+        .rail, .skip { display: none; }
+        body { background: #fff; color: #111; }
+      }
+    </style>
+  </body>
+</html>

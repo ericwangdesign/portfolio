@@ -48,11 +48,15 @@ export default defineConfig({
         'https://www.ericwangdesign.com/cities/',
         'https://www.ericwangdesign.com/water/',
       ],
-      // The journal is an unfinished placeholder carrying `noindex`; keeping it
-      // out of the sitemap keeps the two signals from contradicting each other.
-      filter: (page) => !page.includes('/journal'),
     }),
   ],
+  markdown: {
+    shikiConfig: {
+      // Muted enough to sit inside the writing rather than shout over it.
+      theme: 'vitesse-dark',
+      wrap: false,
+    },
+  },
   vite: {
     plugins: [publicDirectoryIndex()],
   },

@@ -1,134 +1,110 @@
 ---
-// Journal — temporarily a work-in-progress placeholder.
-// The full canvas journal is preserved in git history (and in ./[slug].astro
-// / src/data/journal.ts). Restore this file from git when the journal is ready
-// to publish.
-import Analytics from "../../components/Analytics.astro";
+import { getCollection } from "astro:content";
+import Reading from "../../layouts/Reading.astro";
+
+const pieces = (await getCollection("journal", (e) => e.data.published)).sort(
+  (a, b) => b.data.date.getTime() - a.data.date.getTime(),
+);
+
+const year = (d: Date) => d.getUTCFullYear();
+const day = (d: Date) =>
+  d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });
+
+// Grouped by year so the list has a spine. A flat run of dates reads as a feed.
+const years = [...new Set(pieces.map((p) => year(p.data.date)))];
 ---
 
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Journal — Coming soon — Eric Wang Design</title>
-    <meta name="description" content="The journal is a work in progress." />
-    <meta name="robots" content="noindex" />
-    <link rel="icon" type="image/png" href="/favicon-lightbg.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Spectral:wght@300;400;500;600&display=swap"
-      rel="stylesheet"
-    />
-    <link
-      href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&display=swap"
-      rel="stylesheet"
-    />
-    <Analytics piece="journal" />
-  </head>
-  <body>
-    <main class="wip">
-      <a class="home-link" href="/">Eric Wang Design</a>
-      <div class="center">
-        <p class="eyebrow">Journal</p>
-        <h1>A work in progress.</h1>
-        <p class="note">
-          I'm still building this out. Come back a little later.
-        </p>
-        <a class="back" href="/">← Back to home</a>
-      </div>
-    </main>
+<Reading
+  title="Journal"
+  kind="index"
+  standfirst="Notes on drawing maps, building interfaces, and the things that only become clear once they're written down."
+  documentTitle="Journal — Eric Wang Design"
+>
+  {
+    pieces.length === 0 ? (
+      <p>Nothing published yet.</p>
+    ) : (
+      years.map((y) => (
+        <section class="year">
+          <p class="year-mark">{y}</p>
+          <ul class="list bare">
+            {pieces
+              .filter((p) => year(p.data.date) === y)
+              .map((p) => (
+                <li>
+                  <a href={`/journal/${p.id}/`}>
+                    <time datetime={p.data.date.toISOString().slice(0, 10)}>
+                      {day(p.data.date)}
+                    </time>
+                    <span class="t">{p.data.title}</span>
+                    <span class="s">{p.data.standfirst}</span>
+                  </a>
+                </li>
+              ))}
+          </ul>
+        </section>
+      ))
+    )
+  }
+</Reading>
 
-    <style is:global>
-      :root {
-        --ink: #17120d;
-        --muted: #6c6258;
-        --desk: #e7d8bd;
-        --desk-deep: #c5aa7f;
-        --serif: "Spectral", Georgia, "Times New Roman", serif;
-        --sans: "General Sans", "Inter", system-ui, sans-serif;
-      }
+<style is:inline>
+  .year { margin-bottom: 64px; }
+  .year:last-child { margin-bottom: 0; }
 
-      * { box-sizing: border-box; }
+  .year-mark {
+    margin: 0 0 20px;
+    color: #6e6e6e;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    font-variant-numeric: tabular-nums;
+  }
 
-      body {
-        margin: 0;
-        min-height: 100svh;
-        color: var(--ink);
-        background:
-          linear-gradient(120deg, rgba(255,255,255,0.36), transparent 34%),
-          radial-gradient(circle at 20% 10%, rgba(255, 122, 89, 0.22), transparent 28%),
-          radial-gradient(circle at 80% 20%, rgba(47, 127, 117, 0.18), transparent 30%),
-          linear-gradient(135deg, var(--desk), var(--desk-deep));
-        font-family: var(--serif);
-        -webkit-font-smoothing: antialiased;
-        text-rendering: optimizeLegibility;
-      }
+  .list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .list li { border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
 
-      .wip {
-        position: relative;
-        min-height: 100svh;
-        display: grid;
-        place-items: center;
-        padding: 32px;
-      }
+  /* The date is a fixed column on the left so the titles line up as a stack —
+     the same shape as the work rows on the homepage. */
+  .list a {
+    display: grid;
+    grid-template-columns: 68px 1fr;
+    gap: 0 20px;
+    padding: 20px 0;
+    text-decoration: none;
+  }
+  .list time {
+    color: #6e6e6e;
+    font-size: 13px;
+    line-height: 1.62;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+  }
+  .list .t {
+    color: #e6e6e6;
+    font-size: 19px;
+    line-height: 1.35;
+    letter-spacing: -0.022em;
+    transition: color 120ms linear;
+  }
+  .list .s {
+    grid-column: 2;
+    margin-top: 6px;
+    color: #6e6e6e;
+    font-size: 14.5px;
+    line-height: 1.5;
+    text-wrap: pretty;
+  }
+  .list a:hover .t { color: #ffffff; }
+  .list a:focus-visible { outline: 1px solid #999999; outline-offset: 4px; }
 
-      .home-link {
-        position: fixed;
-        top: 28px;
-        left: 32px;
-        font-family: var(--sans);
-        font-size: 13px;
-        font-weight: 500;
-        color: var(--ink);
-        text-decoration: none;
-      }
-
-      .home-link:hover { opacity: 0.62; }
-
-      .center {
-        text-align: center;
-        max-width: 520px;
-      }
-
-      .eyebrow {
-        margin: 0 0 12px;
-        font-family: var(--sans);
-        font-size: 12px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: var(--muted);
-      }
-
-      h1 {
-        margin: 0;
-        font-size: clamp(40px, 8vw, 68px);
-        font-weight: 300;
-        line-height: 1.02;
-      }
-
-      .note {
-        margin: 20px 0 0;
-        font-size: 19px;
-        line-height: 1.4;
-        color: var(--muted);
-      }
-
-      .back {
-        display: inline-block;
-        margin-top: 32px;
-        font-family: var(--sans);
-        font-size: 14px;
-        font-weight: 500;
-        color: var(--ink);
-        text-decoration: none;
-        border-bottom: 1px solid rgba(23, 18, 13, 0.3);
-        padding-bottom: 2px;
-      }
-
-      .back:hover { opacity: 0.62; }
-    </style>
-  </body>
-</html>
+  @media (max-width: 640px) {
+    .list a { grid-template-columns: 1fr; gap: 4px; }
+    .list .s { grid-column: 1; }
+    .list .t { font-size: 18px; }
+  }
+</style>
