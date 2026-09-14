@@ -1,0 +1,48 @@
+---
+const canonical = new URL('/privacy/', Astro.site).href;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy — Eric Wang Design</title>
+    <meta name="description" content="Privacy information for Eric Wang Design." />
+    <link rel="canonical" href={canonical} />
+    <meta name="robots" content="index,follow" />
+    <meta name="theme-color" content="#0f0f0f" />
+    <link rel="icon" type="image/png" href="/favicon-darkbg.png" />
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/geist-latin-wght-normal.woff2" crossorigin />
+  </head>
+  <body>
+    <main>
+      <a class="home" href="/">Eric Wang Design</a>
+      <p class="eyebrow">Privacy</p>
+      <h1>A small site, with a small amount of data.</h1>
+      <div class="copy">
+        <p>This site uses Microsoft Clarity and Vercel Web Analytics to understand visits and how people interact with the work. These services may process device, browser, approximate-location, referral, and interaction data.</p>
+        <p>Private work is protected by Cloudflare Access. If you sign in, Cloudflare and the selected identity provider process the information needed to authenticate you, such as your email address.</p>
+        <p>No personal information collected through this site is sold. If you have a privacy question or want to request deletion of information associated with you, email <a href="mailto:ericwanguxdesign@gmail.com">ericwanguxdesign@gmail.com</a>.</p>
+      </div>
+      <p class="updated">Updated September 13, 2026</p>
+    </main>
+  </body>
+</html>
+
+<style is:inline>
+  @font-face { font-family: "Geist"; font-style: normal; font-display: swap; font-weight: 400 500; src: url("/fonts/geist-latin-wght-normal.woff2") format("woff2"); }
+  :root { color-scheme: dark; font-family: "Geist", system-ui, sans-serif; background: #0f0f0f; color: #ccc; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; font-size: 16px; line-height: 1.65; letter-spacing: -0.011em; }
+  main { width: min(620px, calc(100% - 40px)); margin: 0 auto; padding: 96px 0 80px; }
+  .home { color: #999; text-decoration: none; }
+  .home:hover, a:hover { color: #fff; }
+  .eyebrow { margin: 96px 0 16px; color: #777; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
+  h1 { margin: 0; color: #f5f5f5; font-size: clamp(28px, 5vw, 42px); line-height: 1.08; font-weight: 450; letter-spacing: -.035em; }
+  .copy { margin-top: 48px; }
+  p { margin: 0 0 20px; }
+  a { color: #ddd; text-underline-offset: 3px; }
+  .updated { margin-top: 64px; color: #666; font-size: 13px; }
+  @media (max-width: 600px) { main { padding-top: 40px; } .eyebrow { margin-top: 72px; } }
+</style>

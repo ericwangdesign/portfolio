@@ -97,4 +97,5 @@ export const footerLinks = [
   { label: "Linkedin", href: "https://www.linkedin.com/in/ericwangdesign/" },
   { label: "X", href: "https://x.com/ericwangdesign" },
   { label: "Email", href: "mailto:ericwanguxdesign@gmail.com" },
+  { label: "Privacy", href: "https://www.ericwangdesign.com/privacy/" },
 ];
