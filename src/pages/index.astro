@@ -220,6 +220,32 @@ const cardTops = experimentColumns.map((column) => {
     </script>
   </head>
   <body>
+    <!-- window light: sun through something — a window, blinds, leaves — falling across the page -->
+    <div class="light" aria-hidden="true"></div>
+    <div class="window" aria-hidden="true"><canvas id="light-canvas"></canvas></div>
+    <aside class="lp" id="light-panel" aria-label="Light" data-dev={showPanel ? "1" : undefined} hidden>
+      <button class="lp-head" id="lp-head" type="button" aria-expanded="true">
+        <span>light</span><span class="lp-chev">▾</span>
+      </button>
+      <div class="lp-body">
+        <div class="lp-shapes" id="lp-shapes">
+          <button type="button" data-shape="window">window</button>
+          <button type="button" data-shape="arch">arch</button>
+          <button type="button" data-shape="blinds">blinds</button>
+          <button type="button" data-shape="leaves">leaves</button>
+          <button type="button" data-shape="prism">prism</button>
+        </div>
+        <label class="lp-row"><span>hour</span><input type="range" data-k="t" min="0" max="1" step="0.01" /><output></output></label>
+        <label class="lp-row"><span>strength</span><input type="range" data-k="strength" min="0" max="2.5" step="0.05" /><output></output></label>
+        <label class="lp-row"><span>softness</span><input type="range" data-k="soft" min="0" max="40" step="1" /><output></output></label>
+        <label class="lp-row"><span>size</span><input type="range" data-k="scale" min="0.5" max="1.8" step="0.05" /><output></output></label>
+        <label class="lp-row"><span>breeze</span><input type="range" data-k="breeze" min="0" max="3" step="0.05" /><output></output></label>
+        <div class="lp-actions">
+          <button type="button" id="lp-now">now</button>
+          <button type="button" id="lp-reset">reset</button>
+        </div>
+      </div>
+    </aside>
     <main>
       <div class="stack">
         <!-- intro -->
@@ -1903,6 +1929,287 @@ const cardTops = experimentColumns.map((column) => {
         if (busy) return;
         fade(e.matches ? "dark" : (saved() === "light" ? "light" : "dark"));
       });
+    })();
+    </script>
+
+    <!-- ---- window light ---- -->
+    <style is:global>
+      /* Over the page, like real light — it falls on the cards too — but under
+         the experiment viewer (40) and the panels (50). Two layers: a faint
+         ambient dim for the room (multiply) and the light itself (screen). */
+      .light, .window {
+        position: fixed;
+        inset: 0;
+        z-index: 30;
+        pointer-events: none;
+        overflow: hidden;
+      }
+      .light { mix-blend-mode: multiply; }
+      .window { mix-blend-mode: screen; filter: blur(var(--soft, 12px)); }
+      .window canvas { width: 100%; height: 100%; display: block; }
+
+      /* ---------- light panel ---------- */
+      .lp[hidden] { display: none; }
+      .lp {
+        position: fixed;
+        left: 16px;
+        bottom: 16px;
+        z-index: 50;
+        width: 220px;
+        background: #141414;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0;
+        color: #999;
+        overflow: hidden;
+      }
+      .lp button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+      .lp-head {
+        display: flex; justify-content: space-between; width: 100%;
+        padding: 8px 10px; color: #e6e6e6 !important;
+      }
+      .lp-chev { transition: transform .2s; }
+      .lp.closed .lp-chev { transform: rotate(-90deg); }
+      .lp.closed .lp-body { display: none; }
+      .lp-body { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 8px; }
+      .lp-shapes { display: flex; flex-wrap: wrap; gap: 4px; }
+      .lp-shapes button {
+        padding: 4px 7px; border-radius: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+      }
+      .lp-shapes button:hover { color: #e6e6e6; }
+      .lp-shapes button[aria-pressed="true"] { background: #e6e6e6; color: #141414; }
+      .lp-row { display: grid; grid-template-columns: 58px 1fr 30px; align-items: center; gap: 6px; }
+      .lp-row input { width: 100%; accent-color: #e6e6e6; margin: 0; }
+      .lp-row output { text-align: right; color: #666; }
+      .lp-actions { display: flex; gap: 4px; }
+      .lp-actions button {
+        flex: 1; padding: 4px; border-radius: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+      }
+      .lp-actions button:hover { color: #e6e6e6; }
+    </style>
+    <script is:inline>
+    (() => {
+      const root = document.documentElement;
+      const cv = document.getElementById("light-canvas");
+      const room = document.querySelector(".light");
+      const win = document.querySelector(".window");
+      if (!cv || !room || !win) return;
+      const ctx = cv.getContext("2d");
+      const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const url = new URL(location.href);
+
+      // Fake sun for now: the visitor's local hour. 7am → 0 (light from the left), 7pm → 1.
+      const hourT = () => {
+        const d = new Date();
+        return Math.min(1, Math.max(0, (d.getHours() + d.getMinutes() / 60 - 7) / 12));
+      };
+      const DEFAULTS = { shape: "window", t: null, strength: 1, soft: 12, scale: 1, breeze: 1 };
+      let P = { ...DEFAULTS };
+      try { Object.assign(P, JSON.parse(localStorage.getItem("ew.light") || "{}")); } catch (e) {}
+      if (url.searchParams.has("sun")) P.t = Math.min(1, Math.max(0, +url.searchParams.get("sun") || 0));
+      if (url.searchParams.has("light")) P.shape = url.searchParams.get("light");
+      const save = () => { try { localStorage.setItem("ew.light", JSON.stringify(P)); } catch (e) {} };
+
+      // Half resolution: it's blurred anyway, and it keeps the leaves cheap.
+      const RES = 0.5;
+      let W = 0, H = 0, VM = 0;
+      function size() {
+        W = innerWidth; H = innerHeight; VM = Math.max(W, H) / 100;
+        cv.width = Math.round(W * RES); cv.height = Math.round(H * RES);
+      }
+      size();
+      addEventListener("resize", () => { size(); dirty = true; });
+
+      // Seeded random so the tree is the same tree on every visit.
+      let seed = 7;
+      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      const LEAVES = [];
+      for (let b = 0; b < 7; b++) {
+        // a branch: a gentle line across the box, leaves strung along it
+        const bx = 0.1 + rnd() * 0.8, by = 0.05 + rnd() * 0.9, ang = rnd() * Math.PI;
+        const n = 16 + Math.floor(rnd() * 10);
+        for (let i = 0; i < n; i++) {
+          const along = (rnd() - 0.5) * 1.1;
+          const off = (rnd() - 0.5) * 0.3;
+          LEAVES.push({
+            b, x: bx + Math.cos(ang) * along * 0.6 - Math.sin(ang) * off,
+            y: by + Math.sin(ang) * along * 0.6 + Math.cos(ang) * off,
+            r: 5 + rnd() * 6, a: rnd() * Math.PI * 2,
+            ph: rnd() * Math.PI * 2, loose: 0.4 + Math.abs(off) * 5,
+          });
+        }
+      }
+
+      const SHAPES = {
+        window(w, h, lit, cut) {
+          const m = 3 * VM * P.scale, mh = 2.4 * VM * P.scale;
+          lit(0, 0, w, h);
+          for (let c = 1; c < 3; c++) cut(c * w / 3 - m / 2, 0, m, h);
+          cut(0, h / 2 - mh / 2, w, mh);
+        },
+        arch(w, h, lit, cut, c) {
+          const gap = 4 * VM * P.scale, aw = (w - gap) / 2, r = aw / 2, m = 1.6 * VM * P.scale;
+          for (let k = 0; k < 2; k++) {
+            const x = k * (aw + gap);
+            c.beginPath();
+            c.moveTo(x, h); c.lineTo(x, r); c.arc(x + r, r, r, Math.PI, 0); c.lineTo(x + aw, h);
+            c.closePath(); c.fill();
+            cut(x + r - m / 2, 0, m, h);
+            cut(x, h * 0.55, aw, m);
+            cut(x, r, aw, m);
+          }
+        },
+        blinds(w, h, lit, cut, c, s) {
+          lit(0, 0, w, h);
+          const slats = 12, per = h / slats;
+          // the slats tilt a little in the breeze, so the gaps breathe
+          const open = 0.55 + 0.1 * Math.sin(s * 0.7);
+          for (let i = 0; i < slats; i++) cut(0, i * per, w, per * (1 - open));
+          cut(w * 0.25, 0, 0.5 * VM, h);
+          cut(w * 0.75, 0, 0.5 * VM, h);
+        },
+        leaves(w, h, lit, cut, c, s) {
+          // No window frame here: a soft pool of sun, broken up by the canopy.
+          const cx = w * 0.5, cy = h * 0.45, R = Math.max(w, h) * 0.62;
+          const g = c.createRadialGradient(cx, cy, R * 0.2, cx, cy, R);
+          g.addColorStop(0, `rgba(${sun},1)`); g.addColorStop(0.6, `rgba(${sun},1)`);
+          g.addColorStop(1, `rgba(${sun},0)`);
+          c.save(); c.fillStyle = g; c.fillRect(-w * 0.4, -h * 0.2, w * 1.8, h * 1.4); c.restore();
+          c.save();
+          c.globalCompositeOperation = "destination-out";
+          c.fillStyle = "#000";
+          const L = VM * P.scale;
+          for (const f of LEAVES) {
+            const gust = Math.sin(s * 0.55 + f.b) * 0.012 + Math.sin(s * 1.3 + f.b * 2) * 0.004;
+            const flutter = Math.sin(s * (1.6 + f.loose * 0.3) + f.ph) * 0.006 * f.loose;
+            const x = (f.x + gust + flutter) * w * 1.6 - w * 0.3;
+            const y = (f.y + gust * 0.4) * h;
+            const len = f.r * L * 2.2, wid = f.r * L;
+            c.save();
+            c.translate(x, y);
+            c.rotate(f.a + Math.sin(s * 1.1 + f.ph) * 0.25 * f.loose);
+            c.beginPath();
+            c.moveTo(-len / 2, 0);
+            c.quadraticCurveTo(0, -wid, len / 2, 0);
+            c.quadraticCurveTo(0, wid, -len / 2, 0);
+            c.fill();
+            c.restore();
+          }
+          c.restore();
+        },
+        prism(w, h, lit, cut, c, s) {
+          // a faint window behind, then a rainbow thrown off a glass on the sill
+          c.save(); c.globalAlpha *= 0.45; SHAPES.window(w, h, lit, cut, c, s); c.restore();
+          const ox = w * 0.2, oy = h * 0.25, len = h * 0.9;
+          const HUES = [[255, 70, 60], [255, 160, 40], [255, 235, 60], [80, 220, 110], [60, 150, 255], [150, 90, 255]];
+          const base = 1.0 + Math.sin(s * 0.3) * 0.03, spread = 0.035;
+          c.save();
+          c.globalCompositeOperation = "lighter";
+          HUES.forEach(([r, g, b], i) => {
+            const a0 = base + i * spread, a1 = a0 + spread;
+            c.fillStyle = `rgba(${r},${g},${b},${Math.min(1, alpha * 3.2)})`;
+            c.beginPath();
+            c.moveTo(ox, oy);
+            c.lineTo(ox + Math.cos(a0) * len, oy + Math.sin(a0) * len);
+            c.lineTo(ox + Math.cos(a1) * len, oy + Math.sin(a1) * len);
+            c.closePath(); c.fill();
+          });
+          // the caustic: a bright wobbling ring where the light pools through the water
+          c.strokeStyle = `rgba(255,250,235,${Math.min(1, alpha * 4)})`;
+          c.lineWidth = 1.2 * VM;
+          c.beginPath();
+          c.ellipse(ox + 2 * VM, oy - 4 * VM, 6 * VM * (1 + 0.04 * Math.sin(s * 2)), 2.4 * VM, 0.2, 0, Math.PI * 2);
+          c.stroke();
+          c.restore();
+        },
+      };
+
+      // Night and day are eased into each other, so the switch crossfades the light too.
+      let day = root.dataset.mode === "light" ? 1 : 0;
+      let alpha = 0, sun = "255,232,200";
+      const lerp = (a, b, k) => a + (b - a) * k;
+      let dirty = true, last = 0;
+
+      function frame(now) {
+        requestAnimationFrame(frame);
+        const target = root.dataset.mode === "light" ? 1 : 0;
+        const easing = Math.abs(target - day) > 0.001;
+        // An open experiment covers the page; no point lighting what nobody can see.
+        const moving = !RM && P.breeze > 0 && !document.body.classList.contains("viewer-open");
+        if (!moving && !easing && !dirty) return;
+        if (now - last < 33) return; // ~30fps is plenty for light
+        last = now;
+        if (easing) day = lerp(day, target, 0.12); else day = target;
+        dirty = false;
+
+        const s = (RM ? 0 : now / 1000) * P.breeze;
+        const t = P.t == null ? hourT() : P.t;
+        // clouds: two slow breaths that rarely line up
+        const cloud = RM ? 1 : 0.86 + 0.08 * Math.sin(s * 0.17) + 0.06 * Math.sin(s * 0.061 + 1);
+        alpha = lerp(0.075, 0.32, day) * P.strength * cloud;
+        const [r, g, b] = [255, lerp(232, 240, day), lerp(200, 215, day)];
+        room.style.background = `rgba(70,55,40,${(0.1 * day * Math.min(P.strength, 1.6)).toFixed(3)})`;
+        win.style.setProperty("--soft", `${lerp(P.soft, P.soft * 0.85, day)}px`);
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, cv.width, cv.height);
+        ctx.scale(RES, RES);
+        const w = 48 * VM * P.scale, h = 90 * VM * P.scale;
+        const drift = RM ? 0 : Math.sin(s * 0.045) * 2.5 * VM;
+        const x0 = W * (0.08 + t * 0.3) + drift;
+        // Morning light comes in from the left, evening from the right, longest at either end.
+        ctx.translate(x0 + w / 2, -0.2 * H);
+        ctx.rotate(((25 - 50 * t) * Math.PI) / 180);
+        ctx.transform(1, 0, Math.tan(((15 - 30 * t) * Math.PI) / 180), 1, 0, 0);
+        ctx.translate(-w / 2, 0);
+
+        sun = `${r},${g | 0},${b | 0}`;
+        ctx.fillStyle = `rgba(${sun},1)`;
+        ctx.globalAlpha = Math.min(1, alpha);
+        const lit = (x, y, ww, hh) => ctx.fillRect(x, y, ww, hh);
+        // Cutting has to happen in its own layer, or a mullion would punch through a neighbour.
+        const cut = (x, y, ww, hh) => {
+          ctx.save();
+          ctx.globalCompositeOperation = "destination-out";
+          ctx.globalAlpha = 1;
+          ctx.fillRect(x, y, ww, hh);
+          ctx.restore();
+        };
+        (SHAPES[P.shape] || SHAPES.window)(w, h, lit, cut, ctx, s);
+      }
+      requestAnimationFrame(frame);
+
+      // ---------- panel: local dev, or ?light=… on the live site ----------
+      const panel = document.getElementById("light-panel");
+      if (!panel || !(panel.dataset.dev || url.searchParams.has("light") || url.searchParams.has("sun"))) return;
+      panel.hidden = false;
+      const shapes = panel.querySelectorAll("[data-shape]");
+      const inputs = panel.querySelectorAll("input[data-k]");
+      const fmt = (k, v) => k === "t"
+        ? (() => { const h = 7 + v * 12; return `${Math.floor(h)}:${String(Math.round((h % 1) * 60)).padStart(2, "0")}`; })()
+        : k === "soft" ? String(v) : (+v).toFixed(2);
+      function sync() {
+        shapes.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.shape === P.shape)));
+        inputs.forEach((i) => {
+          const v = i.dataset.k === "t" && P.t == null ? hourT() : P[i.dataset.k];
+          i.value = v;
+          i.nextElementSibling.textContent = fmt(i.dataset.k, v);
+        });
+      }
+      shapes.forEach((b) => b.addEventListener("click", () => { P.shape = b.dataset.shape; save(); sync(); dirty = true; }));
+      inputs.forEach((i) => i.addEventListener("input", () => { P[i.dataset.k] = +i.value; save(); sync(); dirty = true; }));
+      document.getElementById("lp-now").addEventListener("click", () => { P.t = null; save(); sync(); dirty = true; });
+      document.getElementById("lp-reset").addEventListener("click", () => { P = { ...DEFAULTS }; save(); sync(); dirty = true; });
+      const head = document.getElementById("lp-head");
+      head.addEventListener("click", () => {
+        const closed = panel.classList.toggle("closed");
+        head.setAttribute("aria-expanded", String(!closed));
+      });
+      sync();
     })();
     </script>
 
