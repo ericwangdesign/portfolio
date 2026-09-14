@@ -178,6 +178,18 @@ const cardTops = experimentColumns.map((column) => {
       )
     }
     <Analytics piece="home" />
+    <script is:inline>
+      // Theme, before anything paints. Dark is the default. Light only if the device is light
+      // and the person switched to light here before — a light choice on a dark device doesn't stick.
+      (() => {
+        let mode = "dark";
+        try {
+          const deviceLight = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches;
+          if (deviceLight && localStorage.getItem("theme") === "light") mode = "light";
+        } catch (e) {}
+        document.documentElement.dataset.mode = mode;
+      })();
+    </script>
     <script is:inline define:vars={{ DEFAULT_ANIM }}>
       // Runs before first paint so the page never flashes visible, then hides.
       (function () {
@@ -1862,21 +1874,34 @@ const cardTops = experimentColumns.map((column) => {
       if (!sw) return;
       if (!root.dataset.mode) root.dataset.mode = "dark";
       const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const device = matchMedia("(prefers-color-scheme: dark)");
       let busy = false;
+      const saved = () => { try { return localStorage.getItem("theme"); } catch (e) { return null; } };
       function apply(mode) {
         root.dataset.mode = mode;
         sw.setAttribute("aria-label", mode === "dark" ? "Switch to day" : "Switch to night");
       }
-      sw.addEventListener("click", () => {
-        if (busy) return;
-        const to = root.dataset.mode === "dark" ? "light" : "dark";
-        if (RM) { apply(to); return; }
+      function fade(to) {
+        if (RM || root.dataset.mode === to) { apply(to); return; }
         busy = true;
         root.classList.add("theming");
         requestAnimationFrame(() => requestAnimationFrame(() => {
           apply(to);
           setTimeout(() => { root.classList.remove("theming"); busy = false; }, 760);
         }));
+      }
+      apply(root.dataset.mode);
+      sw.addEventListener("click", () => {
+        if (busy) return;
+        const to = root.dataset.mode === "dark" ? "light" : "dark";
+        try { localStorage.setItem("theme", to); } catch (e) {}
+        fade(to);
+      });
+      // The device setting changed while the page was open. Dark device: dark. Light device: light
+      // only if light was chosen here.
+      device.addEventListener("change", (e) => {
+        if (busy) return;
+        fade(e.matches ? "dark" : (saved() === "light" ? "light" : "dark"));
       });
     })();
     </script>
