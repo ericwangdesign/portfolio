@@ -183,13 +183,14 @@ const cardTops = experimentColumns.map((column) => {
     }
     <Analytics piece="home" />
     <script is:inline>
-      // Theme, before anything paints. Dark is the default. Light only if the device is light
-      // and the person switched to light here before — a light choice on a dark device doesn't stick.
+      // Theme, before anything paints. Dark by default; whatever was picked last sticks, on any
+      // device. Kept in a cookie on .ericwangdesign.com so the vault and studio share the choice.
       (() => {
         let mode = "dark";
         try {
-          const deviceLight = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches;
-          if (deviceLight && localStorage.getItem("theme") === "light") mode = "light";
+          let c = (document.cookie.match(/(?:^|; )theme=(light|dark)/) || [])[1];
+          if (!c) c = localStorage.getItem("theme");
+          if (c === "light") mode = "light";
         } catch (e) {}
         document.documentElement.dataset.mode = mode;
       })();
@@ -1108,9 +1109,9 @@ const cardTops = experimentColumns.map((column) => {
         --card: #fafafa;
         --card-hover: #f3f3f3;
         --ink: #0f0f0f;
-        --ink-2: #2e2e2e;
-        --ink-3: #4a4a4a;
-        --ink-4: #767676;
+        --ink-2: #1f1f1f;
+        --ink-3: #333333;
+        --ink-4: #5c5c5c;
         --hair: rgba(0, 0, 0, 0.1);
       }
 
@@ -2042,9 +2043,7 @@ const cardTops = experimentColumns.map((column) => {
       if (!sw) return;
       if (!root.dataset.mode) root.dataset.mode = "dark";
       const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const device = matchMedia("(prefers-color-scheme: dark)");
       let busy = false;
-      const saved = () => { try { return localStorage.getItem("theme"); } catch (e) { return null; } };
       function apply(mode) {
         root.dataset.mode = mode;
         sw.setAttribute("aria-label", mode === "dark" ? "Switch to day" : "Switch to night");
@@ -2063,13 +2062,9 @@ const cardTops = experimentColumns.map((column) => {
         if (busy) return;
         const to = root.dataset.mode === "dark" ? "light" : "dark";
         try { localStorage.setItem("theme", to); } catch (e) {}
+        const d = /(^|\.)ericwangdesign\.com$/.test(location.hostname) ? ";domain=.ericwangdesign.com" : "";
+        document.cookie = "theme=" + to + d + ";path=/;max-age=31536000;samesite=lax";
         fade(to);
-      });
-      // The device setting changed while the page was open. Dark device: dark. Light device: light
-      // only if light was chosen here.
-      device.addEventListener("change", (e) => {
-        if (busy) return;
-        fade(e.matches ? "dark" : (saved() === "light" ? "light" : "dark"));
       });
     })();
     </script>

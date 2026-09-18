@@ -1,0 +1,32 @@
+---
+// The site-wide day/night rule for pages other than the home page (which has its own
+// switch). Dark by default; the last choice sticks, read from the `theme` cookie on
+// .ericwangdesign.com (shared with the vault and studio) or localStorage.
+// Pages opt in by using the --bg / --ink ladder; the light values match index.astro.
+---
+<script is:inline>
+  (() => {
+    let mode = "dark";
+    try {
+      let c = (document.cookie.match(/(?:^|; )theme=(light|dark)/) || [])[1];
+      if (!c) c = localStorage.getItem("theme");
+      if (c === "light") mode = "light";
+    } catch (e) {}
+    document.documentElement.dataset.mode = mode;
+    if (mode === "light") {
+      const m = document.querySelector('meta[name="theme-color"]');
+      if (m) m.content = "#f2f2f2";
+    }
+  })();
+</script>
+<style is:global>
+  :root[data-mode="light"] {
+    color-scheme: light;
+    --bg: #f2f2f2;
+    --ink: #0f0f0f;
+    --ink-2: #1f1f1f;
+    --ink-3: #333333;
+    --ink-4: #5c5c5c;
+    --hair: rgba(0, 0, 0, 0.1);
+  }
+</style>
