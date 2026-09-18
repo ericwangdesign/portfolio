@@ -1248,6 +1248,7 @@ const cardTops = experimentColumns.map((column) => {
       .bio p {
         margin: 0;
         color: var(--ink-4);
+        text-wrap: pretty; /* no one-word last lines */
       }
       /* Links carry one step more ink than the sentence, no underline. */
       a.u {
@@ -1885,7 +1886,7 @@ const cardTops = experimentColumns.map((column) => {
           const temp = Math.round(data?.current?.temperature_2m);
           if (!Number.isFinite(temp)) return;
           const sky = skyWord(Number(data?.current?.weather_code ?? -1), Number(data?.current?.wind_speed_10m ?? 0));
-          render(el, "Recently spotted near ", city, `, where it's ${temp}° and ${sky}`);
+          render(el, "Recently spotted near ", city, `, where it's ${temp}°\u00a0and\u00a0${sky}`);
         } catch {
           render(el, "Recently spotted near ", city); // still swap the city even if the fetch fails
         }

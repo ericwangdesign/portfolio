@@ -27,7 +27,7 @@ export const workGroups: WorkGroup[] = [
       {
         title: "Ads in Google Map",
         year: "2026",
-        href: "https://business.google.com/us/accelerate/announcements/google-maps-in-demand-gen/",
+        href: "https://business.google.com/uk/resources/articles/get-the-most-out-of-advertising-on-google-maps/",
       },
       {
         title: "Gemini in Maps",
