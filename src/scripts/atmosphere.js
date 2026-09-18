@@ -118,13 +118,24 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
   const bezier=(t,x1,y1,x2,y2)=>{ let lo=0,hi=1,u=t;
     for(let i=0;i<22;i++){u=(lo+hi)/2;const x=3*(1-u)*(1-u)*u*x1+3*(1-u)*u*u*x2+u*u*u;x<t?lo=u:hi=u;}
     return 3*(1-u)*(1-u)*u*y1+3*(1-u)*u*u*y2+u*u*u; };
-  const pointer={x:.72,y:.22};
+  // Until the mouse is known the lamp sits toward the bottom-left, a quarter in from
+  // each edge, so the window is thrown at an angle. Dead-centre or straight-on made
+  // the panes square to the page, which looks flat.
+  const pointer={x:.25,y:.75};
   const pointerEase={...pointer};
-  addEventListener('pointermove',event=>{
+  // A browser won't say where the mouse is until something happens under it. Moving is
+  // one such thing; but a page that has just laid out also gets over/enter events for
+  // whatever is already under a resting cursor, and they carry its position — so a
+  // mouse that never moves is still found, a moment after load.
+  const seePointer=event=>{
+    if(event.pointerType && event.pointerType!=='mouse')return;
     if(event.target instanceof Element && event.target.closest('#light-panel'))return;
+    if(!Number.isFinite(event.clientX) || (event.clientX===0 && event.clientY===0))return;
     pointer.x=event.clientX/innerWidth;pointer.y=event.clientY/innerHeight;
     if(followMouse)dirty=true;
-  },{passive:true});
+  };
+  for(const type of ['pointermove','pointerover','pointerenter','mouseover','mouseenter'])
+    document.addEventListener(type,seePointer,{passive:true,capture:true});
   const resize = () => {
     width=innerWidth; height=innerHeight;
     const column=document.querySelector('main').getBoundingClientRect();
