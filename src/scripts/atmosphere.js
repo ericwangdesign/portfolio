@@ -105,6 +105,11 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
   // and to the right of the patch, and travels across the page away from it, a soft
   // front that reaches the near panes first and the far corner last.
   let warmStart=null, warm=0, lift=0;
+  // Local dev only: a brightness boost for the night light, so it reads on a screen
+  // recording after compression. The live site is always 1. Slider in the ⌘⇧D panel.
+  const isDev=!!document.getElementById('light-panel')?.dataset.dev;
+  let demo=1;
+  if(isDev){demo=1.6;try{const v=Number(localStorage.getItem('ew.demo'));if(v>=1&&v<=4)demo=v;}catch{}}
   const SOURCE={x:160,y:-260}, REACH=1150; // in the projection's own units
   // Tunable from the ⌘D panel's "arrival" section, then baked back here.
   //   dur      seconds, start to finish
@@ -407,7 +412,7 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
     shadeCtx.globalCompositeOperation='source-in';shadeCtx.fillStyle='rgb(74,66,50)';
     shadeCtx.fillRect(0,0,width,height);shadeCtx.restore();
     reset(ctx);
-    ctx.globalAlpha=sun.intensity*(1-day);
+    ctx.globalAlpha=Math.min(1,sun.intensity*demo)*(1-day);
     ctx.drawImage(mask,0,0,width,height);
     ctx.globalAlpha=(p.shape==='leaves'?.5:.2)*day;ctx.drawImage(shade,0,0,width,height);
     if(p.shape==='window'){ctx.globalAlpha=.42*day;ctx.drawImage(frame,0,0,width,height);}
@@ -508,6 +513,9 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
     (function tick(){const t=Number(canvas.dataset.arrival||1);play.setAttribute('cx',X(t));play.setAttribute('cy',Y(t>=1?1:bezier(t,W.x1,W.y1,W.x2,W.y2)));requestAnimationFrame(tick);})();
     draw();
   }
+  const boost=document.getElementById('lp-demo');
+  if(boost){boost.value=demo;boost.nextElementSibling.textContent=demo.toFixed(2);
+    boost.addEventListener('input',()=>{demo=+boost.value;boost.nextElementSibling.textContent=demo.toFixed(2);try{localStorage.setItem('ew.demo',String(demo));}catch{}dirty=true;});}
   const head=document.getElementById('lp-head');
   head.addEventListener('click',()=>head.setAttribute('aria-expanded',String(!panel.classList.toggle('closed'))));
   refreshControls=sync;

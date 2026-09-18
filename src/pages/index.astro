@@ -265,6 +265,9 @@ const cardTops = experimentColumns.map((column) => {
         <label class="lp-row"><span>lamp</span><input type="range" data-k="lamp" min="0" max="1" step="0.05" /><output></output></label>
         <div class="lp-actions"><button type="button" id="lp-follow" aria-pressed="false">lamp at mouse</button></div>
         <div class="lp-source" id="lp-motion" role="status">leaves swaying</div>
+        {showPanel && (
+          <label class="lp-row"><span>demo boost</span><input type="range" id="lp-demo" min="1" max="4" step="0.05" /><output></output></label>
+        )}
         <div class="lp-arrival" id="lp-arrival">
           <div class="lp-source"><span>arrival</span><span>how the light comes up</span></div>
           <svg viewBox="0 0 120 160" width="100%" aria-label="Arrival curve">
