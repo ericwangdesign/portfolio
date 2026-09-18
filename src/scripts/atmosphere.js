@@ -104,8 +104,20 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
   // It is directional, the way light actually arrives: it enters at the window, up
   // and to the right of the patch, and travels across the page away from it, a soft
   // front that reaches the near panes first and the far corner last.
-  const WARM=5000; let warmStart=null, warm=0;
-  const SOURCE={x:160,y:-260}, REACH=1150, FEATHER=300; // in the projection's own units
+  let warmStart=null, warm=0, lift=0;
+  const SOURCE={x:160,y:-260}, REACH=1150; // in the projection's own units
+  // Tunable from the ⌘D panel's "arrival" section, then baked back here.
+  //   dur      seconds, start to finish
+  //   x1…y2    the front's travel as a cubic-bezier, like a CSS easing
+  //   head     how far along the front already is at t=0 (0 = out at the source, off the patch)
+  //   feather  softness of the front's edge
+  //   lift     how fast overall brightness comes up behind the front (1 = with it, 5 = almost at once)
+  const warmDefaults={dur:5,x1:.42,y1:0,x2:.58,y2:1,head:0,feather:300,lift:2.5};
+  let W={...warmDefaults};
+  try{Object.assign(W,JSON.parse(localStorage.getItem('ew.arrival')||'{}'));}catch{}
+  const bezier=(t,x1,y1,x2,y2)=>{ let lo=0,hi=1,u=t;
+    for(let i=0;i<22;i++){u=(lo+hi)/2;const x=3*(1-u)*(1-u)*u*x1+3*(1-u)*u*u*x2+u*u*u;x<t?lo=u:hi=u;}
+    return 3*(1-u)*(1-u)*u*y1+3*(1-u)*u*u*y2+u*u*u; };
   const pointer={x:.72,y:.22};
   const pointerEase={...pointer};
   addEventListener('pointermove',event=>{
@@ -280,7 +292,7 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
           if(x>=0 && x<96 && y>=0 && y<72){const sample=pixels[(y*96+x)*4+3]/255;exposure+=sample;peak=Math.max(peak,sample);count++;}
         }
       }
-      const light=Math.min(1,(count?exposure/count*.65+peak*.35:0)*Math.min(p.strength,1.5)*veil*Math.min(1,warm*2.5)); // the glow on the type arrives with the front, since it samples the same mask
+      const light=Math.min(1,(count?exposure/count*.65+peak*.35:0)*Math.min(p.strength,1.5)*veil*lift); // the glow on the type arrives with the front, since it samples the same mask
       element.style.setProperty('--light-brightness',String(1+light*(.95-1.13*day)));
       element.style.setProperty('--light-rim',String(light*(.68-.36*day)));
       element.style.setProperty('--light-glow',String(light*.42*(1-day)));
@@ -309,7 +321,9 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
     tracking+= (trackingTarget-tracking)*chase;
     if(aim){pointerEase.x+=(aim.x-pointerEase.x)*chase;pointerEase.y+=(aim.y-pointerEase.y)*chase;}
     if(warmStart===null)warmStart=now;
-    { const w=reduced?1:Math.min(1,(now-warmStart)/WARM); warm=w*w*(3-2*w); }
+    { const w=reduced?1:Math.min(1,(now-warmStart)/(W.dur*1000));
+      warm=w>=1?1:Math.max(0,bezier(w,W.x1,W.y1,W.x2,W.y2)); lift=w>=1?1:Math.min(1,warm*W.lift);
+      canvas.dataset.arrival=w.toFixed(3); }
     veil+=(veilTarget-veil)*(reduced?1:1-Math.exp(-dt*7));
     if(veilTarget===0 && veil<.03) {
       // dark enough: change rooms, start the new one where its lamp rests, and come back
@@ -330,7 +344,7 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
     const rgb=sun.colour.join(",");
 
     const breathing=reduced?1:.96+.025*Math.sin(time*.19)+.015*Math.sin(time*.073);
-    surface.style.opacity=String(Math.min(p.strength,1.5)*breathing*veil*Math.min(1,warm*2.5));
+    surface.style.opacity=String(Math.min(p.strength,1.5)*breathing*veil*lift);
     room.style.background='transparent';
     reset(m);
     m.save(); project(m,t);
@@ -367,7 +381,7 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
       edge.addColorStop(0,'black');edge.addColorStop(.45,'rgba(0,0,0,.85)');edge.addColorStop(1,'transparent');
       layer.fillStyle=edge;layer.fillRect(-2000,-2000,4000,4000);
       if(warm<1) {
-        const front=warm*REACH;
+        const front=(W.head+warm*(1-W.head))*REACH, FEATHER=Math.max(1,W.feather);
         const reach=layer.createRadialGradient(SOURCE.x,SOURCE.y,0,SOURCE.x,SOURCE.y,front+FEATHER);
         reach.addColorStop(0,'black');reach.addColorStop(front/(front+FEATHER),'black');reach.addColorStop(1,'transparent');
         layer.fillStyle=reach;layer.fillRect(-4000,-4000,8000,8000);
@@ -446,6 +460,40 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
   inputs.forEach(i=>i.addEventListener('input',()=>{p[i.dataset.k]=+i.value;if(i.dataset.k==='breeze' && p.breeze>0)allowMotion=true;if(i.dataset.k==='density')plant();save();sync();dirty=true;}));
   document.getElementById('lp-now').addEventListener('click',()=>{p.t=null;save();sync();dirty=true;});
   document.getElementById('lp-reset').addEventListener('click',()=>{const room=roomNow();P[room]={...rooms[room]};p=P[room];plant();followMouse=p.follow;allowMotion=false;save();sync();dirty=true;});
+  // ---- arrival tuner: drag the two handles, or the sliders; replay to watch it again ----
+  const arr=document.getElementById('lp-arrival');
+  if(arr) {
+    const svg=arr.querySelector('svg'), path=svg.querySelector('.ac-curve'), l1=svg.querySelector('.ac-l1'), l2=svg.querySelector('.ac-l2');
+    const h1=svg.querySelector('.ac-h1'), h2=svg.querySelector('.ac-h2'), play=svg.querySelector('.ac-play'), read=document.getElementById('lp-arrival-read');
+    const sliders=arr.querySelectorAll('input[data-w]');
+    const X=v=>10+v*100, Y=v=>130-v*100; // y runs −0.2 … 1.2 so an overshoot can be drawn
+    const replay=()=>{warmStart=null;warm=0;lift=0;dirty=true;};
+    const draw=()=>{
+      path.setAttribute('d',`M${X(0)} ${Y(0)} C${X(W.x1)} ${Y(W.y1)} ${X(W.x2)} ${Y(W.y2)} ${X(1)} ${Y(1)}`);
+      l1.setAttribute('x2',X(W.x1));l1.setAttribute('y2',Y(W.y1));l2.setAttribute('x2',X(W.x2));l2.setAttribute('y2',Y(W.y2));
+      h1.setAttribute('cx',X(W.x1));h1.setAttribute('cy',Y(W.y1));h2.setAttribute('cx',X(W.x2));h2.setAttribute('cy',Y(W.y2));
+      sliders.forEach(i=>{i.value=W[i.dataset.w];i.nextElementSibling.textContent=i.dataset.w==='feather'?String(W.feather):Number(W[i.dataset.w]).toFixed(2);});
+      read.textContent=`${W.dur.toFixed(1)}s · cubic-bezier(${[W.x1,W.y1,W.x2,W.y2].map(v=>+v.toFixed(2)).join(', ')}) · head ${W.head.toFixed(2)} · feather ${W.feather} · lift ${W.lift.toFixed(1)}`;
+      try{localStorage.setItem('ew.arrival',JSON.stringify(W));}catch{}
+    };
+    for(const [handle,kx,ky] of [[h1,'x1','y1'],[h2,'x2','y2']]) {
+      handle.addEventListener('pointerdown',e=>{handle.setPointerCapture(e.pointerId);e.preventDefault();});
+      handle.addEventListener('pointermove',e=>{
+        if(!handle.hasPointerCapture(e.pointerId))return;
+        const box=svg.getBoundingClientRect(), sx=120/box.width, sy=160/box.height;
+        W[kx]=Math.min(1,Math.max(0,((e.clientX-box.left)*sx-10)/100));
+        W[ky]=Math.min(1.2,Math.max(-.2,(130-(e.clientY-box.top)*sy)/100));
+        draw();
+      });
+      handle.addEventListener('pointerup',replay);
+    }
+    sliders.forEach(i=>{i.addEventListener('input',()=>{W[i.dataset.w]=+i.value;draw();});i.addEventListener('change',replay);});
+    document.getElementById('lp-arrival-replay').addEventListener('click',replay);
+    document.getElementById('lp-arrival-reset').addEventListener('click',()=>{W={...warmDefaults};draw();replay();});
+    // a dot rides the curve while the light arrives, so the curve and the page can be read together
+    (function tick(){const t=Number(canvas.dataset.arrival||1);play.setAttribute('cx',X(t));play.setAttribute('cy',Y(t>=1?1:bezier(t,W.x1,W.y1,W.x2,W.y2)));requestAnimationFrame(tick);})();
+    draw();
+  }
   const head=document.getElementById('lp-head');
   head.addEventListener('click',()=>head.setAttribute('aria-expanded',String(!panel.classList.toggle('closed'))));
   refreshControls=sync;

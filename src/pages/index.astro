@@ -265,6 +265,27 @@ const cardTops = experimentColumns.map((column) => {
         <label class="lp-row"><span>lamp</span><input type="range" data-k="lamp" min="0" max="1" step="0.05" /><output></output></label>
         <div class="lp-actions"><button type="button" id="lp-follow" aria-pressed="false">lamp at mouse</button></div>
         <div class="lp-source" id="lp-motion" role="status">leaves swaying</div>
+        <div class="lp-arrival" id="lp-arrival">
+          <div class="lp-source"><span>arrival</span><span>how the light comes up</span></div>
+          <svg viewBox="0 0 120 160" width="100%" aria-label="Arrival curve">
+            <rect x="10" y="30" width="100" height="100" class="ac-box" />
+            <line x1="10" y1="130" x2="10" y2="130" class="ac-l1 ac-arm" />
+            <line x1="110" y1="30" x2="110" y2="30" class="ac-l2 ac-arm" />
+            <path class="ac-curve" d="" />
+            <circle class="ac-play" r="2.5" />
+            <circle class="ac-h1 ac-handle" r="5" />
+            <circle class="ac-h2 ac-handle" r="5" />
+          </svg>
+          <label class="lp-row"><span>seconds</span><input type="range" data-w="dur" min="0.5" max="10" step="0.1" /><output></output></label>
+          <label class="lp-row"><span>head</span><input type="range" data-w="head" min="0" max="0.6" step="0.01" /><output></output></label>
+          <label class="lp-row"><span>feather</span><input type="range" data-w="feather" min="20" max="900" step="10" /><output></output></label>
+          <label class="lp-row"><span>lift</span><input type="range" data-w="lift" min="1" max="8" step="0.1" /><output></output></label>
+          <div class="lp-source" id="lp-arrival-read" role="status"></div>
+          <div class="lp-actions">
+            <button type="button" id="lp-arrival-replay">replay</button>
+            <button type="button" id="lp-arrival-reset">reset curve</button>
+          </div>
+        </div>
         <div class="lp-actions">
           <button type="button" id="lp-now" data-hourly>now</button>
           <button type="button" id="lp-reset">reset</button>
@@ -2123,6 +2144,7 @@ const cardTops = experimentColumns.map((column) => {
         padding: 8px 10px; color: #e6e6e6 !important;
       }
       .lp-chev { transition: transform .2s; }
+      .lp { max-height: calc(100vh - 32px); overflow-y: auto; scrollbar-width: thin; }
       .lp.closed .lp-chev { transform: rotate(-90deg); }
       .lp.closed .lp-body { display: none; }
       .lp.closed { width: 196px; }
@@ -2138,6 +2160,14 @@ const cardTops = experimentColumns.map((column) => {
       .lp-source { display: flex; justify-content: space-between; color: #aaa; font-size: 10px; padding-top: 4px; }
       .lp-hour { grid-template-columns: 30px 1fr 58px; }
       .lp-hour output { white-space: nowrap; color: #aaa; }
+      .lp-arrival { display: flex; flex-direction: column; gap: 8px; padding-top: 6px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+      .lp-arrival svg { display: block; touch-action: none; max-width: 170px; margin: 0 auto; overflow: visible; }
+      .lp-arrival .ac-box { fill: none; stroke: rgba(255, 255, 255, 0.14); stroke-width: 0.6; }
+      .lp-arrival .ac-arm { stroke: rgba(255, 255, 255, 0.35); stroke-width: 0.6; }
+      .lp-arrival .ac-curve { fill: none; stroke: #e6e6e6; stroke-width: 1.4; }
+      .lp-arrival .ac-handle { fill: #e6e6e6; cursor: grab; }
+      .lp-arrival .ac-play { fill: #ff4da6; }
+      #lp-arrival-read { display: block; color: #aaa; line-height: 1.5; white-space: normal; }
       .lp-row input { width: 100%; accent-color: #e6e6e6; margin: 0; }
       .lp-row output { text-align: right; color: #666; }
       .lp-actions { display: flex; gap: 4px; }
