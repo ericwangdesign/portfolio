@@ -34,15 +34,6 @@
     y = l.getElementsByTagName(r)[0]; y.parentNode.insertBefore(t, y);
   })(window, document, "clarity", "script", CLARITY_ID);
 
-  /* ---- Vercel Web Analytics ------------------------------------------
-     Served by the platform at this path once Web Analytics is switched on in
-     the Vercel dashboard. Until then the request 404s and nothing breaks. */
-  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
-  var va = document.createElement("script");
-  va.defer = true;
-  va.src = "/_vercel/insights/script.js";
-  document.head.appendChild(va);
-
   /* ---- Reporting -----------------------------------------------------
      Clarity events carry a name only; anything with a value goes through
      `set`, which becomes a filter dimension in the dashboard. */
