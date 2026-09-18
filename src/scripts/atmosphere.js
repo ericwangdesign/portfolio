@@ -99,6 +99,9 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
   let followMouse=p.follow, tracking=0, allowMotion=false;
   // Changing rooms: the light dims out, the room changes behind it, and it comes back.
   let veil=1, veilTarget=1;
+  // First load: the light comes up slowly, over three seconds, like a lamp warming —
+  // the page's one loading gesture. Skipped for reduced motion.
+  const WARM=3000; let warmStart=null, warm=0;
   const pointer={x:.72,y:.22};
   const pointerEase={...pointer};
   addEventListener('pointermove',event=>{
@@ -273,7 +276,7 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
           if(x>=0 && x<96 && y>=0 && y<72){const sample=pixels[(y*96+x)*4+3]/255;exposure+=sample;peak=Math.max(peak,sample);count++;}
         }
       }
-      const light=Math.min(1,(count?exposure/count*.65+peak*.35:0)*Math.min(p.strength,1.5));
+      const light=Math.min(1,(count?exposure/count*.65+peak*.35:0)*Math.min(p.strength,1.5)*veil*warm); // the glow on the type comes up with the light
       element.style.setProperty('--light-brightness',String(1+light*(.95-1.13*day)));
       element.style.setProperty('--light-rim',String(light*(.68-.36*day)));
       element.style.setProperty('--light-glow',String(light*.42*(1-day)));
@@ -293,7 +296,7 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
     const aim=followMouse?pointer:p.rest;
     const trackingTarget=aim?1:0;
     const trackingMoving=Math.abs(tracking-trackingTarget)>.002 || (aim && (Math.abs(pointerEase.x-aim.x)+Math.abs(pointerEase.y-aim.y)>.001));
-    const veiling=Math.abs(veil-veilTarget)>.004;
+    const veiling=Math.abs(veil-veilTarget)>.004 || warm<1;
     if (!dirty && !easing && !trackingMoving && !veiling && (reduced || p.breeze===0)) { last=now; return; }
     if (now-last<40) return;
     const dt=Math.min((now-last)/1000,.08); last=now;
@@ -301,6 +304,8 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
     const chase=reduced?1:1-Math.exp(-dt*9);
     tracking+= (trackingTarget-tracking)*chase;
     if(aim){pointerEase.x+=(aim.x-pointerEase.x)*chase;pointerEase.y+=(aim.y-pointerEase.y)*chase;}
+    if(warmStart===null)warmStart=now;
+    { const w=reduced?1:Math.min(1,(now-warmStart)/WARM); warm=w*w*(3-2*w); }
     veil+=(veilTarget-veil)*(reduced?1:1-Math.exp(-dt*7));
     if(veilTarget===0 && veil<.03) {
       // dark enough: change rooms, start the new one where its lamp rests, and come back
@@ -320,7 +325,7 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
     const rgb=sun.colour.join(",");
 
     const breathing=reduced?1:.96+.025*Math.sin(time*.19)+.015*Math.sin(time*.073);
-    surface.style.opacity=String(Math.min(p.strength,1.5)*breathing*veil);
+    surface.style.opacity=String(Math.min(p.strength,1.5)*breathing*veil*warm);
     room.style.background='transparent';
     reset(m);
     m.save(); project(m,t);
@@ -372,7 +377,7 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
     ctx.globalAlpha=1;
     ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.globalCompositeOperation='destination-in';
     ctx.fillStyle=grainPattern;ctx.fillRect(0,0,canvas.width,canvas.height);ctx.restore();
-    reflectText(now,day,changed||easing);
+    reflectText(now,day,changed||easing||warm<1);
 
   }
   requestAnimationFrame(render);
