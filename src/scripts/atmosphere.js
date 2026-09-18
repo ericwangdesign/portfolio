@@ -24,11 +24,13 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
   // up and to the right, off the text — unless the mouse is asked to take over.
   const shared = { shape: 'window', pane: 'four', leaf: 'ginkgo', t: null, strength: 1, soft: 8, scale: 1, breeze: 1, lamp: 1, density: 1, follow: false, rest: null };
   const rooms = {
-    dark:  { ...shared, shape: 'window', pane: 'four', strength: .75, soft: 5, scale: 1, lamp: .8, follow: true },
+    // Night is locked: the hour is held at 7:34 PM, so the window never moves with the
+    // clock — the only thing that changes it is the lamp following the mouse.
+    dark:  { ...shared, shape: 'window', pane: 'four', t: (19+34/60-7)/24, strength: 1, soft: 6, scale: 1, lamp: .8, follow: true },
     light: { ...shared, shape: 'leaves', leaf: 'ginkgo', strength: .6, soft: 10, scale: 2.5, density: 1, breeze: 1, lamp: .25, rest: { x: 0, y: 1 } },
   };
   const panes = ['four','tall','grid','arch','round','blinds'];
-  const key = 'ew.atmosphere.v5'; // v5: Eric's locked numbers for both rooms become the defaults
+  const key = 'ew.atmosphere.v7'; // v6: Eric's locked numbers for both rooms become the defaults
   const leaves = ['willow','birch','ginkgo','maple','olive','eucalyptus','bamboo'];
   const scenes = ['window', 'leaves'];
   const P = { dark: { ...rooms.dark }, light: { ...rooms.light } };
@@ -424,8 +426,8 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
   kinds.forEach(b=>b.addEventListener('click',()=>{p.pane=b.dataset.pane;save();sync();dirty=true;}));
   // One press for the look Eric pointed at: a big, soft, slow canopy with near and far.
   document.getElementById('lp-canopy').addEventListener('click',()=>{Object.assign(p,{shape:'leaves',leaf:'willow',scale:2.3,soft:16,density:1.7,breeze:.6});allowMotion=true;plant();save();sync();dirty=true;});
-  inputs.forEach(i=>i.addEventListener('input',()=>{p[i.dataset.k]=+i.value;if(i.dataset.k==='t')P.dark.t=P.light.t=p.t;if(i.dataset.k==='breeze' && p.breeze>0)allowMotion=true;if(i.dataset.k==='density')plant();save();sync();dirty=true;}));
-  document.getElementById('lp-now').addEventListener('click',()=>{P.dark.t=P.light.t=null;save();sync();dirty=true;});
+  inputs.forEach(i=>i.addEventListener('input',()=>{p[i.dataset.k]=+i.value;if(i.dataset.k==='breeze' && p.breeze>0)allowMotion=true;if(i.dataset.k==='density')plant();save();sync();dirty=true;}));
+  document.getElementById('lp-now').addEventListener('click',()=>{p.t=null;save();sync();dirty=true;});
   document.getElementById('lp-reset').addEventListener('click',()=>{const room=roomNow();P[room]={...rooms[room]};p=P[room];plant();followMouse=p.follow;allowMotion=false;save();sync();dirty=true;});
   const head=document.getElementById('lp-head');
   head.addEventListener('click',()=>head.setAttribute('aria-expanded',String(!panel.classList.toggle('closed'))));
