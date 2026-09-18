@@ -45,11 +45,12 @@ export const workGroups: WorkGroup[] = [
     company: "Tesla",
     items: [
       {
-        title: "Robotaxi App",
+        title: "Robotaxi",
         year: "2025",
         href: "https://www.tesla.com/robotaxi",
       },
       { title: "Internal Knowledge Search", year: "2025", locked: true },
+      { title: "Finance Dashboard", year: "2025", locked: true },
     ],
   },
 ];

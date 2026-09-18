@@ -379,7 +379,16 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
   setInterval(()=>{if(p.t===null){dirty=true;refreshControls();}},10000);
   const panel=document.getElementById('light-panel');
   if(!panel || !(panel.dataset.dev || url.searchParams.has('light') || url.searchParams.has('sun')))return;
-  panel.hidden=false;
+  // On the live site the panel only appears when the URL asks for it. In local dev it
+  // stays out of the way, so localhost looks like what ships, until ⌘D (or Ctrl+D).
+  const asked=url.searchParams.has('light') || url.searchParams.has('sun');
+  panel.hidden=!asked;
+  if(panel.dataset.dev) addEventListener('keydown',event=>{
+    if(!(event.metaKey||event.ctrlKey) || event.altKey || event.shiftKey || event.code!=='KeyD')return;
+    event.preventDefault();
+    panel.hidden=!panel.hidden;
+    if(!panel.hidden){panel.classList.remove('closed');document.getElementById('lp-head').setAttribute('aria-expanded','true');}
+  });
   const buttons=panel.querySelectorAll('[data-shape]'), inputs=panel.querySelectorAll('input[data-k]');
   const varieties=panel.querySelectorAll('[data-leaf]');
   const kinds=panel.querySelectorAll('[data-pane]');

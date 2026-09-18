@@ -39,6 +39,8 @@ export default defineConfig({
   // every absolute URL the site emits — canonicals, og:image, the sitemap —
   // has to be built on this exact host or it points at a redirect.
   site: 'https://www.ericwangdesign.com',
+  // Localhost should look like what ships: no Astro toolbar floating over the page.
+  devToolbar: { enabled: false },
   integrations: [
     sitemap({
       // The pieces that live in public/ are copied verbatim, so Astro never
