@@ -101,7 +101,11 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
   let veil=1, veilTarget=1;
   // First load: the light comes up slowly, over three seconds, like a lamp warming —
   // the page's one loading gesture. Skipped for reduced motion.
-  const WARM=3000; let warmStart=null, warm=0;
+  // It is directional, the way light actually arrives: it enters at the window, up
+  // and to the right of the patch, and travels across the page away from it, a soft
+  // front that reaches the near panes first and the far corner last.
+  const WARM=5000; let warmStart=null, warm=0;
+  const SOURCE={x:160,y:-260}, REACH=1150, FEATHER=300; // in the projection's own units
   const pointer={x:.72,y:.22};
   const pointerEase={...pointer};
   addEventListener('pointermove',event=>{
@@ -276,7 +280,7 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
           if(x>=0 && x<96 && y>=0 && y<72){const sample=pixels[(y*96+x)*4+3]/255;exposure+=sample;peak=Math.max(peak,sample);count++;}
         }
       }
-      const light=Math.min(1,(count?exposure/count*.65+peak*.35:0)*Math.min(p.strength,1.5)*veil*warm); // the glow on the type comes up with the light
+      const light=Math.min(1,(count?exposure/count*.65+peak*.35:0)*Math.min(p.strength,1.5)*veil*Math.min(1,warm*2.5)); // the glow on the type arrives with the front, since it samples the same mask
       element.style.setProperty('--light-brightness',String(1+light*(.95-1.13*day)));
       element.style.setProperty('--light-rim',String(light*(.68-.36*day)));
       element.style.setProperty('--light-glow',String(light*.42*(1-day)));
@@ -326,7 +330,7 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
     const rgb=sun.colour.join(",");
 
     const breathing=reduced?1:.96+.025*Math.sin(time*.19)+.015*Math.sin(time*.073);
-    surface.style.opacity=String(Math.min(p.strength,1.5)*breathing*veil*warm);
+    surface.style.opacity=String(Math.min(p.strength,1.5)*breathing*veil*Math.min(1,warm*2.5));
     room.style.background='transparent';
     reset(m);
     m.save(); project(m,t);
@@ -361,7 +365,14 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
       layer.save();layer.globalCompositeOperation='destination-in';project(layer,t);
       const edge=layer.createRadialGradient(-50,25,30,-50,25,350);
       edge.addColorStop(0,'black');edge.addColorStop(.45,'rgba(0,0,0,.85)');edge.addColorStop(1,'transparent');
-      layer.fillStyle=edge;layer.fillRect(-2000,-2000,4000,4000);layer.restore();
+      layer.fillStyle=edge;layer.fillRect(-2000,-2000,4000,4000);
+      if(warm<1) {
+        const front=warm*REACH;
+        const reach=layer.createRadialGradient(SOURCE.x,SOURCE.y,0,SOURCE.x,SOURCE.y,front+FEATHER);
+        reach.addColorStop(0,'black');reach.addColorStop(front/(front+FEATHER),'black');reach.addColorStop(1,'transparent');
+        layer.fillStyle=reach;layer.fillRect(-4000,-4000,8000,8000);
+      }
+      layer.restore();
     }
     // On pale paper the occluder casts a shadow (leaves, or the window's frame and
     // surround); on dark paper the light reveals its silhouette. Subtract the lit
