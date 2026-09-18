@@ -2106,6 +2106,8 @@ const cardTops = experimentColumns.map((column) => {
         overflow: hidden;
       }
       .light { mix-blend-mode: multiply; }
+      /* No window light on phones; atmosphere.js stops drawing at the same width. */
+      @media (max-width: 680px) { .light, .window { display: none; } }
       /* Starts dark and is driven frame by frame from the script. It had a 1.2s CSS
          transition, which began at the default opacity of 1 — so the light flashed on
          at full before its warm-up could bring it up from nothing. */

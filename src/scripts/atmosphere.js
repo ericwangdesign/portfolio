@@ -18,6 +18,7 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
   const frameCtx=frame.getContext('2d');
   if (!ctx || !m || !f || !shadeCtx) return;
   const motion = matchMedia('(prefers-reduced-motion: reduce)');
+  const phone = matchMedia('(max-width: 680px)'); let phoneOff=false;
   // Night and day are two different rooms, each with its own settings. Night is
   // the window, and the lamp follows the mouse. Day is a big soft ginkgo bough, and
   // its light rests where a lamp held at the bottom-left corner would throw it —
@@ -320,6 +321,10 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
   let day=root.dataset.mode==='light'?1:0;
   function render(now) {
     requestAnimationFrame(render);
+    // No light on phones (Eric, 2026-09-18): at that width the window and the bough never sat right.
+    // The CSS hides both layers; this stops the drawing and lets go of the glow on the text.
+    if (phone.matches) { if(!phoneOff){phoneOff=true;for(const el of textSurfaces)for(const k of ['--light-brightness','--light-rim','--light-glow'])el.style.removeProperty(k);} last=now; return; }
+    if (phoneOff) { phoneOff=false; dirty=true; }
     if (document.hidden || document.body.classList.contains('viewer-open') || !canvas.width || !canvas.height) { last=now; return; }
     const target=root.dataset.mode==='light'?1:0;
     const easing=Math.abs(day-target)>.002;
