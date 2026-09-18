@@ -2082,7 +2082,10 @@ const cardTops = experimentColumns.map((column) => {
         overflow: hidden;
       }
       .light { mix-blend-mode: multiply; }
-      .window { mix-blend-mode: screen; transition: opacity 1.2s ease; }
+      /* Starts dark and is driven frame by frame from the script. It had a 1.2s CSS
+         transition, which began at the default opacity of 1 — so the light flashed on
+         at full before its warm-up could bring it up from nothing. */
+      .window { mix-blend-mode: screen; opacity: 0; }
       :root[data-mode="light"] .window { mix-blend-mode: multiply; }
       .window canvas { width: 100%; height: 100%; display: block; }
 

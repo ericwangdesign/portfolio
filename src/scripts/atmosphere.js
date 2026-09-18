@@ -309,7 +309,8 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
     veil+=(veilTarget-veil)*(reduced?1:1-Math.exp(-dt*7));
     if(veilTarget===0 && veil<.03) {
       // dark enough: change rooms, start the new one where its lamp rests, and come back
-      p=P[roomNow()]; followMouse=p.follow; plant(); veilTarget=1;
+      // …and the new room warms up from nothing, the same three seconds as a first load.
+      p=P[roomNow()]; followMouse=p.follow; plant(); veilTarget=1; veil=1; warmStart=now; warm=0;
       const at=followMouse?pointer:p.rest; if(at){pointerEase.x=at.x;pointerEase.y=at.y;} tracking=at?1:0;
       refreshControls();
     }
