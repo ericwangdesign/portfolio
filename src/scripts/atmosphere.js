@@ -107,9 +107,9 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
   // front that reaches the near panes first and the far corner last.
   let warmStart=null, warm=0, lift=0;
   // Local dev only: a brightness boost for the night light, so it reads on a screen
-  // recording after compression. The live site is always 1. Slider in the ⌘⇧D panel.
+  // recording after compression. The live site is always 1.2. Slider in the ⌘⇧D panel.
   const isDev=!!document.getElementById('light-panel')?.dataset.dev;
-  let demo=1;
+  let demo=1.2;
   if(isDev){demo=1.6;try{const v=Number(localStorage.getItem('ew.demo'));if(v>=1&&v<=4)demo=v;}catch{}}
   const SOURCE={x:160,y:-260}, REACH=1150; // in the projection's own units
   // Tunable from the ⌘D panel's "arrival" section, then baked back here.
