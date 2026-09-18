@@ -112,9 +112,9 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
   //   head     how far along the front already is at t=0 (0 = out at the source, off the patch)
   //   feather  softness of the front's edge
   //   lift     how fast overall brightness comes up behind the front (1 = with it, 5 = almost at once)
-  const warmDefaults={dur:5,x1:.42,y1:0,x2:.58,y2:1,head:0,feather:300,lift:2.5};
+  const warmDefaults={dur:5,x1:.24,y1:0,x2:.85,y2:1,head:0,feather:400,lift:5}; // Eric's tuning, both rooms
   let W={...warmDefaults};
-  try{Object.assign(W,JSON.parse(localStorage.getItem('ew.arrival')||'{}'));}catch{}
+  try{Object.assign(W,JSON.parse(localStorage.getItem('ew.arrival.v2')||'{}'));}catch{}
   const bezier=(t,x1,y1,x2,y2)=>{ let lo=0,hi=1,u=t;
     for(let i=0;i<22;i++){u=(lo+hi)/2;const x=3*(1-u)*(1-u)*u*x1+3*(1-u)*u*u*x2+u*u*u;x<t?lo=u:hi=u;}
     return 3*(1-u)*(1-u)*u*y1+3*(1-u)*u*u*y2+u*u*u; };
@@ -485,7 +485,7 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
       h1.setAttribute('cx',X(W.x1));h1.setAttribute('cy',Y(W.y1));h2.setAttribute('cx',X(W.x2));h2.setAttribute('cy',Y(W.y2));
       sliders.forEach(i=>{i.value=W[i.dataset.w];i.nextElementSibling.textContent=i.dataset.w==='feather'?String(W.feather):Number(W[i.dataset.w]).toFixed(2);});
       read.textContent=`${W.dur.toFixed(1)}s · cubic-bezier(${[W.x1,W.y1,W.x2,W.y2].map(v=>+v.toFixed(2)).join(', ')}) · head ${W.head.toFixed(2)} · feather ${W.feather} · lift ${W.lift.toFixed(1)}`;
-      try{localStorage.setItem('ew.arrival',JSON.stringify(W));}catch{}
+      try{localStorage.setItem('ew.arrival.v2',JSON.stringify(W));}catch{}
     };
     for(const [handle,kx,ky] of [[h1,'x1','y1'],[h2,'x2','y2']]) {
       handle.addEventListener('pointerdown',e=>{handle.setPointerCapture(e.pointerId);e.preventDefault();});
