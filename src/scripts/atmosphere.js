@@ -105,7 +105,7 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
   // and to the right of the patch, and travels across the page away from it, a soft
   // front that reaches the near panes first and the far corner last.
   const WARM=5000; let warmStart=null, warm=0;
-  const SOURCE={x:160,y:-260}, REACH=1150, FEATHER=300; // in the projection's own units
+  const SOURCE={x:160,y:-260}, START=140, REACH=1150, FEATHER=300; // in the projection's own units
   const pointer={x:.72,y:.22};
   const pointerEase={...pointer};
   addEventListener('pointermove',event=>{
@@ -309,7 +309,7 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
     tracking+= (trackingTarget-tracking)*chase;
     if(aim){pointerEase.x+=(aim.x-pointerEase.x)*chase;pointerEase.y+=(aim.y-pointerEase.y)*chase;}
     if(warmStart===null)warmStart=now;
-    { const w=reduced?1:Math.min(1,(now-warmStart)/WARM); warm=w*w*(3-2*w); }
+    { const w=reduced?1:Math.min(1,(now-warmStart)/WARM); warm=1-Math.pow(1-w,2.2); } // quick to arrive, slow to settle — an ease-in left the first two seconds empty
     veil+=(veilTarget-veil)*(reduced?1:1-Math.exp(-dt*7));
     if(veilTarget===0 && veil<.03) {
       // dark enough: change rooms, start the new one where its lamp rests, and come back
@@ -367,7 +367,7 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
       edge.addColorStop(0,'black');edge.addColorStop(.45,'rgba(0,0,0,.85)');edge.addColorStop(1,'transparent');
       layer.fillStyle=edge;layer.fillRect(-2000,-2000,4000,4000);
       if(warm<1) {
-        const front=warm*REACH;
+        const front=START+warm*(REACH-START); // begins at the patch's near edge, not out at the source
         const reach=layer.createRadialGradient(SOURCE.x,SOURCE.y,0,SOURCE.x,SOURCE.y,front+FEATHER);
         reach.addColorStop(0,'black');reach.addColorStop(front/(front+FEATHER),'black');reach.addColorStop(1,'transparent');
         layer.fillStyle=reach;layer.fillRect(-4000,-4000,8000,8000);
