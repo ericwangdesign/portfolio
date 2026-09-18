@@ -424,12 +424,15 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
   const panel=document.getElementById('light-panel');
   if(!panel || !(panel.dataset.dev || url.searchParams.has('light') || url.searchParams.has('sun')))return;
   // On the live site the panel only appears when the URL asks for it. In local dev it
-  // stays out of the way, so localhost looks like what ships, until ⌘D (or Ctrl+D).
+  // stays out of the way, so localhost looks like what ships, until ⌘⇧D (or Ctrl+Shift+D).
   const asked=url.searchParams.has('light') || url.searchParams.has('sun');
   panel.hidden=!asked;
   if(panel.dataset.dev) addEventListener('keydown',event=>{
-    if(!(event.metaKey||event.ctrlKey) || event.altKey || event.shiftKey || event.code!=='KeyD')return;
+    if(!(event.metaKey||event.ctrlKey) || event.altKey || event.code!=='KeyD')return;
     event.preventDefault();
+    // ⌘D replays the light's arrival from nothing, as on a fresh load, without reloading
+    // the page — for recording it. ⌘⇧D is the panel.
+    if(!event.shiftKey){warmStart=null;warm=0;lift=0;surface.style.opacity='0';dirty=true;return;}
     panel.hidden=!panel.hidden;
     if(!panel.hidden){panel.classList.remove('closed');document.getElementById('lp-head').setAttribute('aria-expanded','true');}
   });
