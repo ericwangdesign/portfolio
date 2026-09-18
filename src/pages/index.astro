@@ -52,9 +52,13 @@ dispersed.forEach((charIndex, beat) => (stepOf[charIndex] = beat));
 // The tuner is kept, but hidden. It only exists locally, and even there it stays
 // closed until you ask for it with ?dev in the URL or the ⌥D shortcut.
 const showPanel = import.meta.env.DEV;
+// The day page colour (--bg under data-mode="light"), without the hash. A live
+// tile that draws its own ground is handed this so it sits on the page.
+const DAY_BG = "f2f2f2";
+const NIGHT_BG = "0f0f0f";
 
 const ANIMS = [
-  { id: "signature", label: "Signature", note: "name, dither, then blur" },
+  { id: "signature", label: "Signature", note: "name and bio, one continuous entrance" },
   { id: "fade-up", label: "Fade up", note: "rises 8px, staggered" },
   { id: "blur-up", label: "Blur up", note: "blur 8px + rise" },
   { id: "cascade", label: "Cascade", note: "line by line, fast" },
@@ -80,10 +84,10 @@ const PX_PER_BEAT = 16;
 /** Mirrors the gaps in the CSS below — the two have to be changed together. */
 const GAP = {
   tight: 0, // .rows — work rows sit flush against each other
-  line: 12, // .bio, .section, .group — one line of air
-  block: 20, // .intro, and label-to-company (12 + 8 of padding)
-  group: 28, // company to company (8 + 12 + 8)
-  section: 64, // .stack — intro, Work, Experiments, footer
+  line: 16, // .bio, .section, .group — one line of air
+  block: 24, // .intro, and label-to-company (16 + 8 of padding)
+  group: 34, // company to company (8 + 16 + 10)
+  section: 72, // .stack — intro, Work, Experiments, footer
 };
 
 // The masonry is a second axis: vertical distance across two columns, not the
@@ -223,25 +227,45 @@ const cardTops = experimentColumns.map((column) => {
     <!-- window light: sun through something — a window, blinds, leaves — falling across the page -->
     <div class="light" aria-hidden="true"></div>
     <div class="window" aria-hidden="true"><canvas id="light-canvas"></canvas></div>
-    <aside class="lp" id="light-panel" aria-label="Light" data-dev={showPanel ? "1" : undefined} hidden>
-      <button class="lp-head" id="lp-head" type="button" aria-expanded="true">
-        <span>light</span><span class="lp-chev">▾</span>
+    <aside class="lp closed" id="light-panel" aria-label="Light" data-dev={showPanel ? "1" : undefined} hidden>
+      <button class="lp-head" id="lp-head" type="button" aria-expanded="false">
+        <span>light & shadow</span><span class="lp-chev">▾</span>
       </button>
       <div class="lp-body">
         <div class="lp-shapes" id="lp-shapes">
           <button type="button" data-shape="window">window</button>
-          <button type="button" data-shape="arch">arch</button>
-          <button type="button" data-shape="blinds">blinds</button>
           <button type="button" data-shape="leaves">leaves</button>
-          <button type="button" data-shape="prism">prism</button>
         </div>
-        <label class="lp-row"><span>hour</span><input type="range" data-k="t" min="0" max="1" step="0.01" /><output></output></label>
-        <label class="lp-row"><span>strength</span><input type="range" data-k="strength" min="0" max="2.5" step="0.05" /><output></output></label>
+        <div class="lp-shapes" id="lp-panes" role="group" aria-label="Kind of window" hidden>
+          <button type="button" data-pane="four">four panes</button>
+          <button type="button" data-pane="tall">tall</button>
+          <button type="button" data-pane="grid">grid</button>
+          <button type="button" data-pane="arch">arch</button>
+          <button type="button" data-pane="round">round</button>
+          <button type="button" data-pane="blinds">blinds</button>
+        </div>
+        <div class="lp-shapes" id="lp-leaves" role="group" aria-label="Leaf variety" hidden>
+          <button type="button" data-leaf="willow">willow</button>
+          <button type="button" data-leaf="birch">birch</button>
+          <button type="button" data-leaf="ginkgo">ginkgo</button>
+          <button type="button" data-leaf="maple">maple</button>
+          <button type="button" data-leaf="olive">olive</button>
+          <button type="button" data-leaf="eucalyptus">eucalyptus</button>
+          <button type="button" data-leaf="bamboo">bamboo</button>
+        </div>
+        <div class="lp-source" data-hourly><span id="lp-source">sunlight</span><span>24 hours</span></div>
+        <label class="lp-row lp-hour" data-hourly><span>hour</span><input type="range" data-k="t" min="0" max="1" step="0.0006944444444444445" /><output></output></label>
+        <label class="lp-row"><span>strength</span><input type="range" data-k="strength" min="0" max="1.5" step="0.05" /><output></output></label>
         <label class="lp-row"><span>softness</span><input type="range" data-k="soft" min="0" max="40" step="1" /><output></output></label>
-        <label class="lp-row"><span>size</span><input type="range" data-k="scale" min="0.5" max="1.8" step="0.05" /><output></output></label>
-        <label class="lp-row"><span>breeze</span><input type="range" data-k="breeze" min="0" max="3" step="0.05" /><output></output></label>
+        <label class="lp-row"><span>size</span><input type="range" data-k="scale" min="0.5" max="3" step="0.05" /><output></output></label>
+        <label class="lp-row" data-only="leaves"><span>density</span><input type="range" data-k="density" min="0.5" max="2.5" step="0.1" /><output></output></label>
+        <label class="lp-row" data-only="leaves"><span>speed</span><input type="range" data-k="breeze" min="0" max="3" step="0.05" /><output></output></label>
+        <div class="lp-actions" data-only="leaves"><button type="button" id="lp-canopy">big soft canopy</button></div>
+        <label class="lp-row"><span>lamp</span><input type="range" data-k="lamp" min="0" max="1" step="0.05" /><output></output></label>
+        <div class="lp-actions"><button type="button" id="lp-follow" aria-pressed="false">lamp at mouse</button></div>
+        <div class="lp-source" id="lp-motion" role="status">leaves swaying</div>
         <div class="lp-actions">
-          <button type="button" id="lp-now">now</button>
+          <button type="button" id="lp-now" data-hourly>now</button>
           <button type="button" id="lp-reset">reset</button>
         </div>
       </div>
@@ -270,18 +294,8 @@ const cardTops = experimentColumns.map((column) => {
               reaches the people moving through it.
             </p>
             <p class="rv" style={rv(3, GAP.line)}>
-              Before this, I designed at <a
-                class="u"
-                href="https://www.tesla.com"
-                target="_blank"
-                rel="noreferrer">Tesla</a
-              >, did independent agency work helping startups grow from 0 to 1,
-              and studied cognitive science at <a
-                class="u"
-                href="https://www.google.com/maps/search/?api=1&query=UC%20Berkeley"
-                target="_blank"
-                rel="noreferrer">UC Berkeley</a
-              >.
+              Before this, I designed at Tesla, did independent agency work helping
+              startups grow from 0 to 1, and studied cognitive science at UC Berkeley.
             </p>
             <div class="loc rv" style={rv(3, GAP.block)}>
               <p id="loc-text">Recently spotted near <a class="u" href="https://www.google.com/maps/search/?api=1&query=San+Francisco%2C+CA" target="_blank" rel="noreferrer">San Francisco</a></p>
@@ -369,7 +383,7 @@ const cardTops = experimentColumns.map((column) => {
                         class:list={[
                           "card",
                           "rv",
-                          { link: card.href, motion },
+                          { link: card.href, motion, "day-live": card.liveInDay },
                         ]}
                         href={card.href}
                         style={`--h:${card.height};${rvCard(cardTops[c][n])}`}
@@ -399,6 +413,16 @@ const cardTops = experimentColumns.map((column) => {
                             tabindex="-1"
                             scrolling="no"
                             loading="lazy"
+                          />
+                        )}
+                        {card.liveInDay && card.href && (
+                          <iframe
+                            class="preview day"
+                            data-day={`${card.href}?chrome=off&paper=${DAY_BG}&night=${NIGHT_BG}`}
+                            title=""
+                            aria-hidden="true"
+                            tabindex="-1"
+                            scrolling="no"
                           />
                         )}
                         <div class:list={["caption", { end: card.alignEnd }]}>
@@ -538,7 +562,7 @@ const cardTops = experimentColumns.map((column) => {
               </label>
               <label class="dev-slider">
                 <span>body lead</span>
-                <input type="range" min="200" max="2400" step="10" data-var="--sig-body-lead" data-unit="ms" />
+                <input type="range" min="0" max="2400" step="10" data-var="--sig-body-lead" data-unit="ms" />
                 <em>920</em>
               </label>
               <label class="dev-slider">
@@ -826,21 +850,26 @@ const cardTops = experimentColumns.map((column) => {
 
             /* ---------- signature tuner ---------- */
             var DEFAULTS = {
-              "--sig-name-dur": "640ms",
-              "--sig-name-ease": "cubic-bezier(0.4, 0, 0.2, 1)",
+              "--sig-name-dur": "520ms",
+              "--sig-name-ease": "cubic-bezier(0.22, 0.61, 0.36, 1)",
               "--sig-dither-start": "380ms",
               "--sig-dither-stag": "30ms",
               "--sig-dither-dur": "380ms",
               "--sig-dither-steps": "4",
-              "--sig-body-lead": "1260ms",
-              "--sig-body-stag": "32ms",
-              "--sig-body-dur": "600ms",
-              "--sig-body-ease": "cubic-bezier(0.4, 0, 0.2, 1)",
+              "--sig-body-lead": "180ms",
+              "--sig-body-stag": "28ms",
+              "--sig-body-dur": "560ms",
+              "--sig-body-ease": "cubic-bezier(0.22, 0.61, 0.36, 1)",
             };
             var EASE_VAR = { name: "--sig-name-ease", body: "--sig-body-ease" };
             var tune = {};
             try {
               tune = JSON.parse(localStorage.getItem("ew.sig") || "{}");
+              if(localStorage.getItem("ew.sig.intro")!=="2") {
+                ["--sig-name-dur","--sig-name-ease","--sig-body-lead","--sig-body-dur","--sig-body-ease","--sig-body-stag"].forEach(k=>delete tune[k]);
+                localStorage.setItem("ew.sig",JSON.stringify(tune));
+                localStorage.setItem("ew.sig.intro","2");
+              }
             } catch (e) {}
 
             function readVar(k) {
@@ -1100,25 +1129,25 @@ const cardTops = experimentColumns.map((column) => {
         --cjk: "Liu Jian Mao Cao";
 
         /* Signature entrance — tunable live from the dev panel. */
-        --sig-name-dur: 640ms;
+        --sig-name-dur: 520ms;
         /* A gentler curve than the old (.2,.8,.2,1): that one rushed to nearly
            full opacity and then crawled, which reads as fast however long it
            runs. This spreads the change evenly, so things emerge instead of
            snapping and then waiting. */
-        --sig-name-ease: cubic-bezier(0.4, 0, 0.2, 1);
+        --sig-name-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
         --sig-dither-start: 380ms;
         --sig-dither-stag: 30ms;
         --sig-dither-dur: 380ms;
         --sig-dither-steps: 4;
-        --sig-body-lead: 1260ms;
-        --sig-body-stag: 32ms;
+        --sig-body-lead: 180ms;
+        --sig-body-stag: 28ms;
         /* Each element's own blur has to finish faster than the beat that
            follows it, or the rhythm can't be heard: at 1200ms every line in a
            section was still resolving while the next section opened, and the
            column smeared into one long dissolve. Just under half that lets a
            section land before the next one starts. */
-        --sig-body-dur: 600ms;
-        --sig-body-ease: cubic-bezier(0.4, 0, 0.2, 1);
+        --sig-body-dur: 560ms;
+        --sig-body-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
       }
       * { box-sizing: border-box; }
       body {
@@ -1126,19 +1155,22 @@ const cardTops = experimentColumns.map((column) => {
         background: var(--bg);
         color: var(--ink);
         font-family: var(--sans);
-        font-size: 14px;
-        line-height: 1.3;
-        letter-spacing: -0.01em;
+        /* 16/24 at a touch over regular: studied off benji.org, where the
+           size is ordinary and the leading and weight do the work. */
+        font-size: 16px;
+        line-height: 24px;
+        font-weight: 430;
+        letter-spacing: -0.011em;
         -webkit-font-smoothing: antialiased;
         text-rendering: optimizeLegibility;
       }
 
-      /* 640px column, 160px from the top, footer near the floor */
+      /* 640px column, 144px from the top, footer near the floor */
       main {
         min-height: 100svh;
         max-width: 680px; /* 640 + 20px padding each side */
         margin: 0 auto;
-        padding: 160px 20px 80px;
+        padding: 144px 20px 80px;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
@@ -1147,14 +1179,14 @@ const cardTops = experimentColumns.map((column) => {
       .stack {
         display: flex;
         flex-direction: column;
-        gap: 64px;
+        gap: 72px;
       }
 
       /* ---------- intro ---------- */
       .intro {
         display: flex;
         flex-direction: column;
-        gap: 20px;
+        gap: 24px;
       }
       .namerow {
         display: flex;
@@ -1186,20 +1218,20 @@ const cardTops = experimentColumns.map((column) => {
       .bio {
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 16px;
       }
       .bio p {
         margin: 0;
         color: var(--ink-4);
       }
+      /* Links carry one step more ink than the sentence, no underline. */
       a.u {
-        color: inherit;
+        color: var(--ink-3);
         cursor: pointer;
-        text-decoration: underline;
-        text-underline-position: from-font;
+        text-decoration: none;
         transition: color 0.15s ease;
       }
-      a.u:hover { color: var(--ink-2); }
+      a.u:hover { color: var(--ink); }
       a.u:focus-visible {
         outline: 1px solid var(--ink-4);
         outline-offset: 2px;
@@ -1213,12 +1245,12 @@ const cardTops = experimentColumns.map((column) => {
       .loc p { margin: 0; color: var(--ink-4); }
       /* the theme switch: a sun by day, a moon by night, one turning into the other */
       .sw {
-        position: relative; width: 16px; height: 16px; flex-shrink: 0;
+        position: relative; width: 17px; height: 17px; flex-shrink: 0;
         background: none; border: 0; padding: 0; cursor: pointer; color: var(--ink-4);
       }
       .sw:hover { color: var(--ink-2); }
       .sw:focus-visible { outline: 2px solid var(--ink-2); outline-offset: 3px; border-radius: 2px; }
-      .sw svg { position: absolute; inset: 0; transition: opacity .5s cubic-bezier(.4,0,.2,1), transform .5s cubic-bezier(.4,0,.2,1); }
+      .sw svg { position: absolute; inset: 0; width: 100%; height: 100%; transition: opacity .5s cubic-bezier(.4,0,.2,1), transform .5s cubic-bezier(.4,0,.2,1); }
       .sw .sun  { opacity: 0; transform: rotate(-90deg) scale(.6); }
       .sw .moon { opacity: 1; transform: none; }
       :root[data-mode="light"] .sw .sun  { opacity: 1; transform: none; }
@@ -1229,7 +1261,7 @@ const cardTops = experimentColumns.map((column) => {
       .section {
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 16px;
       }
       .label {
         margin: 0;
@@ -1240,13 +1272,13 @@ const cardTops = experimentColumns.map((column) => {
       .group {
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 16px;
         padding-bottom: 8px;
       }
       .company {
         position: relative;
         margin: 0;
-        padding-top: 8px;
+        padding-top: 10px;
         color: var(--ink-3);
       }
       .company::before {
@@ -1259,22 +1291,22 @@ const cardTops = experimentColumns.map((column) => {
         background: var(--hair);
         transform-origin: left center;
       }
-      /* No gap between rows: the 12px sits inside each row as padding instead,
-         with the container pulled back 6px top and bottom. Geometry is identical
-         to a 12px gap, but the rows now tile with no dead space between them —
+      /* No gap between rows: the 16px sits inside each row as padding instead,
+         with the container pulled back 8px top and bottom. Geometry is identical
+         to a 16px gap, but the rows now tile with no dead space between them —
          so moving down the list never passes through a gap where nothing is
          hovered, which is what made the dimming flicker. */
       .rows {
         display: flex;
         flex-direction: column;
         gap: 0;
-        margin: -6px 0;
+        margin: -8px 0;
       }
       .row {
         display: flex;
         align-items: center;
         gap: 6px;
-        padding: 6px 0 6px 16px;
+        padding: 8px 0 8px 16px;
         color: var(--ink-4);
         text-decoration: none;
         white-space: nowrap;
@@ -1371,6 +1403,42 @@ const cardTops = experimentColumns.map((column) => {
         transition: opacity 0.4s ease;
       }
       .card .preview.ready { opacity: 1; }
+      /* Day mode. A recording shot in the dark can't be relit, so the tile runs
+         the piece itself at its real size, and you can push it around. It is
+         mounted and parked (display: none, so it costs nothing) until day, and
+         crossfades with the recording on the page's own curve, so both tiles
+         turn with the page rather than after it. */
+      .card .preview.day {
+        width: 100%;
+        height: 100%;
+        transform: none;
+        transition: opacity 0.7s cubic-bezier(.4, 0, .2, 1);
+      }
+      .card .preview.day.on { opacity: 1; pointer-events: auto; }
+      .card .preview.day.parked { display: none; }
+      /* On a phone the tile is as wide as the screen and the piece takes every touch
+         (touch-action: none), so a thumb landing on it could no longer scroll the
+         page. There it is something to look at; a tap opens it like any other tile. */
+      @media (pointer: coarse) {
+        .card .preview.day.on { pointer-events: none; }
+      }
+      /* A live tile has no colour of its own, night or day: it sits on the page and
+         the divider's hairline gives it an edge by day (never at night), so the window light crosses it
+         the way it crosses everything else. The pieces draw on transparency (or,
+         Water, in the page's colour), which also means a tile turns with the page
+         exactly — there is one colour changing, not two layers trading places.
+         The recording was shot on black; screened, its black is the page. */
+      .card.motion { background: var(--bg); }
+      .card.motion .media { mix-blend-mode: screen; }
+      :root[data-mode="light"] .card.motion::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        border-radius: inherit;
+        pointer-events: none;
+        box-shadow: inset 0 0 0 1px var(--hair);
+      }
       .caption {
         position: relative;
         z-index: 1;
@@ -1379,6 +1447,7 @@ const cardTops = experimentColumns.map((column) => {
         justify-content: space-between;
         gap: 12px;
         width: 100%;
+        font-size: 15px;
         line-height: 1;
         white-space: nowrap;
       }
@@ -1400,6 +1469,12 @@ const cardTops = experimentColumns.map((column) => {
         opacity: 0;
         transition: opacity 0.18s ease;
         pointer-events: none;
+      }
+      :root[data-mode="light"] .card.motion::after {
+        background: linear-gradient(rgba(242, 242, 242, 0), rgba(242, 242, 242, 0.86));
+      }
+      :root:not([data-mode="light"]) .card.motion::after {
+        background: linear-gradient(rgba(15, 15, 15, 0), rgba(15, 15, 15, 0.8));
       }
       .card.motion:hover .caption,
       .card.motion:focus-visible .caption {
@@ -1580,7 +1655,10 @@ const cardTops = experimentColumns.map((column) => {
       }
       @keyframes a-line { from { transform: scaleX(0); } }
 
-      /* 00 signature — name lands, handle dithers in, everything else blurs up */
+      @keyframes a-intro {
+        from { opacity: 0; transform: translateY(6px); filter: blur(3px) brightness(var(--light-brightness, 1)); }
+      }
+      /* Name and switch arrive together; the bio overlaps their gentle settle. */
       html[data-anim="signature"] .rv {
         animation-name: a-blurup;
         /* --b is the beat this element lands on, and a beat is a distance:
@@ -1592,8 +1670,10 @@ const cardTops = experimentColumns.map((column) => {
         animation-duration: var(--sig-body-dur);
         animation-timing-function: var(--sig-body-ease);
       }
-      html[data-anim="signature"] .name {
-        animation: a-fadeup var(--sig-name-dur) var(--sig-name-ease) both;
+      html[data-anim="signature"] .intro .rv { animation-name: a-intro; }
+      html[data-anim="signature"] .name,
+      html[data-anim="signature"] #theme-switch {
+        animation: a-fadeup var(--sig-name-dur) var(--sig-name-ease) backwards;
         animation-delay: 0ms;
       }
       html[data-anim="signature"] .handle {
@@ -1649,7 +1729,7 @@ const cardTops = experimentColumns.map((column) => {
         mask-position: top left;
         --stag: 30ms;
         --dur: 0.5s;
-        --ease: cubic-bezier(0.4, 0, 0.2, 1);
+        --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
       }
 
       /* 07 dither resolve — quantized, like a halftone finding its level */
@@ -1796,7 +1876,9 @@ const cardTops = experimentColumns.map((column) => {
           if (f.dataset.mounted) return;
           f.dataset.mounted = "1";
           f.addEventListener("load", () => f.classList.add("ready"), { once: true });
-          f.src = f.dataset.preview!;
+          // a tile that knows about day and night starts in the page's mode
+          const day = document.documentElement.dataset.mode === "light";
+          f.src = f.dataset.preview! + (day ? "&mode=light" : "");
         };
         if ("IntersectionObserver" in window) {
           const io = new IntersectionObserver(
@@ -1813,6 +1895,52 @@ const cardTops = experimentColumns.map((column) => {
         } else {
           frames.forEach(mount);
         }
+      }
+
+      // ---- tiles follow day and night ----------------------------------
+      // Live previews are told the mode and tween their own palette; a tile
+      // with a night-only recording swaps it for the running piece by day.
+      {
+        const root = document.documentElement;
+        const dayFrames = Array.from(
+          document.querySelectorAll<HTMLIFrameElement>("iframe[data-day]"),
+        );
+        let parting: number | undefined;
+        const syncTiles = () => {
+          const mode = root.dataset.mode === "light" ? "light" : "dark";
+          frames.forEach((f) => {
+            if (f.dataset.mounted)
+              f.contentWindow?.postMessage({ ewMode: mode }, location.origin);
+          });
+          clearTimeout(parting);
+          dayFrames.forEach((f) => {
+            const video = f.parentElement?.querySelector("video");
+            f.contentWindow?.postMessage({ ewMode: mode }, location.origin);
+            if (mode === "light") {
+              f.classList.remove("parked");
+              void f.offsetWidth; // so the fade starts from 0, not from nothing
+              f.classList.add("on");
+              // covered once the fade lands; no need to keep decoding under it
+              parting = window.setTimeout(() => video?.pause(), 760);
+            } else {
+              f.classList.remove("on");
+              video?.play().catch(() => {});
+              // once it has faded, park it: a hidden frame stops drawing
+              parting = window.setTimeout(() => f.classList.add("parked"), 760);
+            }
+          });
+        };
+        // loaded ahead of time, so day has nothing to wait for
+        dayFrames.forEach((f) => {
+          if (root.dataset.mode !== "light") f.classList.add("parked");
+          f.src = f.dataset.day!;
+        });
+        new MutationObserver(syncTiles).observe(root, {
+          attributes: true,
+          attributeFilter: ["data-mode"],
+        });
+        [...frames, ...dayFrames].forEach((f) => f.addEventListener("load", syncTiles));
+        syncTiles();
       }
 
       // ---- experiment viewer -------------------------------------------
@@ -1875,6 +2003,16 @@ const cardTops = experimentColumns.map((column) => {
           });
         });
 
+        // A live tile takes its own pointer, so it can't be clicked like a
+        // link. It asks instead: a still tap on its empty surface opens it.
+        window.addEventListener("message", (e) => {
+          if (e.origin !== location.origin || !e.data?.ewOpen) return;
+          const card = document.querySelector<HTMLAnchorElement>(
+            `a.card[data-title="${CSS.escape(String(e.data.ewOpen))}"]`,
+          );
+          if (card) openViewer(card.dataset.src!, card.dataset.title || "Experiment");
+        });
+
         vClose.addEventListener("click", closeViewer);
         viewer.querySelector("[data-close]")?.addEventListener("click", closeViewer);
         document.addEventListener("keydown", (e) => {
@@ -1891,6 +2029,10 @@ const cardTops = experimentColumns.map((column) => {
         transition-duration: .7s !important;
         transition-timing-function: cubic-bezier(.4, 0, .2, 1) !important;
       }
+      /* The rule above takes opacity off everything while the page turns, which made
+         the Water tile snap while the rest faded. Its recording and its live frame
+         trade places on opacity, so they keep it — same duration and curve. */
+      html.theming .card .preview.day { transition-property: opacity !important; }
       html.theming .sw svg { transition-property: opacity, transform !important; transition-duration: .5s !important; }
     </style>
     <script is:inline>
@@ -1945,18 +2087,30 @@ const cardTops = experimentColumns.map((column) => {
         overflow: hidden;
       }
       .light { mix-blend-mode: multiply; }
-      .window { mix-blend-mode: screen; filter: blur(var(--soft, 12px)); }
+      .window { mix-blend-mode: screen; transition: opacity 1.2s ease; }
+      :root[data-mode="light"] .window { mix-blend-mode: multiply; }
       .window canvas { width: 100%; height: 100%; display: block; }
 
+      /* A fine warm edge and a restrained bloom, sampled from the light canvas. */
+      .light-receiver {
+        filter: brightness(var(--light-brightness, 1));
+        text-shadow: 0 .35px .6px rgba(246, 228, 190, var(--light-rim, 0)),
+          0 0 3px rgba(245, 225, 185, var(--light-glow, 0));
+      }
+      @media (forced-colors: active) {
+        .light-receiver { filter: none; text-shadow: none; }
+      }
+
       /* ---------- light panel ---------- */
-      .lp[hidden] { display: none; }
+      .lp[hidden], .lp [hidden] { display: none !important; }
       .lp {
         position: fixed;
         left: 16px;
         bottom: 16px;
         z-index: 50;
         width: 220px;
-        background: #141414;
+        background: rgba(24, 24, 22, .88);
+        backdrop-filter: blur(20px);
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 8px;
         font-family: var(--mono);
@@ -1973,6 +2127,7 @@ const cardTops = experimentColumns.map((column) => {
       .lp-chev { transition: transform .2s; }
       .lp.closed .lp-chev { transform: rotate(-90deg); }
       .lp.closed .lp-body { display: none; }
+      .lp.closed { width: 196px; }
       .lp-body { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 8px; }
       .lp-shapes { display: flex; flex-wrap: wrap; gap: 4px; }
       .lp-shapes button {
@@ -1982,6 +2137,9 @@ const cardTops = experimentColumns.map((column) => {
       .lp-shapes button:hover { color: #e6e6e6; }
       .lp-shapes button[aria-pressed="true"] { background: #e6e6e6; color: #141414; }
       .lp-row { display: grid; grid-template-columns: 58px 1fr 30px; align-items: center; gap: 6px; }
+      .lp-source { display: flex; justify-content: space-between; color: #aaa; font-size: 10px; padding-top: 4px; }
+      .lp-hour { grid-template-columns: 30px 1fr 58px; }
+      .lp-hour output { white-space: nowrap; color: #aaa; }
       .lp-row input { width: 100%; accent-color: #e6e6e6; margin: 0; }
       .lp-row output { text-align: right; color: #666; }
       .lp-actions { display: flex; gap: 4px; }
@@ -1989,228 +2147,11 @@ const cardTops = experimentColumns.map((column) => {
         flex: 1; padding: 4px; border-radius: 4px;
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
       }
+      .lp-actions button[aria-pressed="true"] { background: #ded9cc; color: #171715; }
       .lp-actions button:hover { color: #e6e6e6; }
     </style>
-    <script is:inline>
-    (() => {
-      const root = document.documentElement;
-      const cv = document.getElementById("light-canvas");
-      const room = document.querySelector(".light");
-      const win = document.querySelector(".window");
-      if (!cv || !room || !win) return;
-      const ctx = cv.getContext("2d");
-      const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const url = new URL(location.href);
-
-      // Fake sun for now: the visitor's local hour. 7am → 0 (light from the left), 7pm → 1.
-      const hourT = () => {
-        const d = new Date();
-        return Math.min(1, Math.max(0, (d.getHours() + d.getMinutes() / 60 - 7) / 12));
-      };
-      const DEFAULTS = { shape: "window", t: null, strength: 1, soft: 12, scale: 1, breeze: 1 };
-      let P = { ...DEFAULTS };
-      try { Object.assign(P, JSON.parse(localStorage.getItem("ew.light") || "{}")); } catch (e) {}
-      if (url.searchParams.has("sun")) P.t = Math.min(1, Math.max(0, +url.searchParams.get("sun") || 0));
-      if (url.searchParams.has("light")) P.shape = url.searchParams.get("light");
-      const save = () => { try { localStorage.setItem("ew.light", JSON.stringify(P)); } catch (e) {} };
-
-      // Half resolution: it's blurred anyway, and it keeps the leaves cheap.
-      const RES = 0.5;
-      let W = 0, H = 0, VM = 0;
-      function size() {
-        W = innerWidth; H = innerHeight; VM = Math.max(W, H) / 100;
-        cv.width = Math.round(W * RES); cv.height = Math.round(H * RES);
-      }
-      size();
-      addEventListener("resize", () => { size(); dirty = true; });
-
-      // Seeded random so the tree is the same tree on every visit.
-      let seed = 7;
-      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-      const LEAVES = [];
-      for (let b = 0; b < 7; b++) {
-        // a branch: a gentle line across the box, leaves strung along it
-        const bx = 0.1 + rnd() * 0.8, by = 0.05 + rnd() * 0.9, ang = rnd() * Math.PI;
-        const n = 16 + Math.floor(rnd() * 10);
-        for (let i = 0; i < n; i++) {
-          const along = (rnd() - 0.5) * 1.1;
-          const off = (rnd() - 0.5) * 0.3;
-          LEAVES.push({
-            b, x: bx + Math.cos(ang) * along * 0.6 - Math.sin(ang) * off,
-            y: by + Math.sin(ang) * along * 0.6 + Math.cos(ang) * off,
-            r: 5 + rnd() * 6, a: rnd() * Math.PI * 2,
-            ph: rnd() * Math.PI * 2, loose: 0.4 + Math.abs(off) * 5,
-          });
-        }
-      }
-
-      const SHAPES = {
-        window(w, h, lit, cut) {
-          const m = 3 * VM * P.scale, mh = 2.4 * VM * P.scale;
-          lit(0, 0, w, h);
-          for (let c = 1; c < 3; c++) cut(c * w / 3 - m / 2, 0, m, h);
-          cut(0, h / 2 - mh / 2, w, mh);
-        },
-        arch(w, h, lit, cut, c) {
-          const gap = 4 * VM * P.scale, aw = (w - gap) / 2, r = aw / 2, m = 1.6 * VM * P.scale;
-          for (let k = 0; k < 2; k++) {
-            const x = k * (aw + gap);
-            c.beginPath();
-            c.moveTo(x, h); c.lineTo(x, r); c.arc(x + r, r, r, Math.PI, 0); c.lineTo(x + aw, h);
-            c.closePath(); c.fill();
-            cut(x + r - m / 2, 0, m, h);
-            cut(x, h * 0.55, aw, m);
-            cut(x, r, aw, m);
-          }
-        },
-        blinds(w, h, lit, cut, c, s) {
-          lit(0, 0, w, h);
-          const slats = 12, per = h / slats;
-          // the slats tilt a little in the breeze, so the gaps breathe
-          const open = 0.55 + 0.1 * Math.sin(s * 0.7);
-          for (let i = 0; i < slats; i++) cut(0, i * per, w, per * (1 - open));
-          cut(w * 0.25, 0, 0.5 * VM, h);
-          cut(w * 0.75, 0, 0.5 * VM, h);
-        },
-        leaves(w, h, lit, cut, c, s) {
-          // No window frame here: a soft pool of sun, broken up by the canopy.
-          const cx = w * 0.5, cy = h * 0.45, R = Math.max(w, h) * 0.62;
-          const g = c.createRadialGradient(cx, cy, R * 0.2, cx, cy, R);
-          g.addColorStop(0, `rgba(${sun},1)`); g.addColorStop(0.6, `rgba(${sun},1)`);
-          g.addColorStop(1, `rgba(${sun},0)`);
-          c.save(); c.fillStyle = g; c.fillRect(-w * 0.4, -h * 0.2, w * 1.8, h * 1.4); c.restore();
-          c.save();
-          c.globalCompositeOperation = "destination-out";
-          c.fillStyle = "#000";
-          const L = VM * P.scale;
-          for (const f of LEAVES) {
-            const gust = Math.sin(s * 0.55 + f.b) * 0.012 + Math.sin(s * 1.3 + f.b * 2) * 0.004;
-            const flutter = Math.sin(s * (1.6 + f.loose * 0.3) + f.ph) * 0.006 * f.loose;
-            const x = (f.x + gust + flutter) * w * 1.6 - w * 0.3;
-            const y = (f.y + gust * 0.4) * h;
-            const len = f.r * L * 2.2, wid = f.r * L;
-            c.save();
-            c.translate(x, y);
-            c.rotate(f.a + Math.sin(s * 1.1 + f.ph) * 0.25 * f.loose);
-            c.beginPath();
-            c.moveTo(-len / 2, 0);
-            c.quadraticCurveTo(0, -wid, len / 2, 0);
-            c.quadraticCurveTo(0, wid, -len / 2, 0);
-            c.fill();
-            c.restore();
-          }
-          c.restore();
-        },
-        prism(w, h, lit, cut, c, s) {
-          // a faint window behind, then a rainbow thrown off a glass on the sill
-          c.save(); c.globalAlpha *= 0.45; SHAPES.window(w, h, lit, cut, c, s); c.restore();
-          const ox = w * 0.2, oy = h * 0.25, len = h * 0.9;
-          const HUES = [[255, 70, 60], [255, 160, 40], [255, 235, 60], [80, 220, 110], [60, 150, 255], [150, 90, 255]];
-          const base = 1.0 + Math.sin(s * 0.3) * 0.03, spread = 0.035;
-          c.save();
-          c.globalCompositeOperation = "lighter";
-          HUES.forEach(([r, g, b], i) => {
-            const a0 = base + i * spread, a1 = a0 + spread;
-            c.fillStyle = `rgba(${r},${g},${b},${Math.min(1, alpha * 3.2)})`;
-            c.beginPath();
-            c.moveTo(ox, oy);
-            c.lineTo(ox + Math.cos(a0) * len, oy + Math.sin(a0) * len);
-            c.lineTo(ox + Math.cos(a1) * len, oy + Math.sin(a1) * len);
-            c.closePath(); c.fill();
-          });
-          // the caustic: a bright wobbling ring where the light pools through the water
-          c.strokeStyle = `rgba(255,250,235,${Math.min(1, alpha * 4)})`;
-          c.lineWidth = 1.2 * VM;
-          c.beginPath();
-          c.ellipse(ox + 2 * VM, oy - 4 * VM, 6 * VM * (1 + 0.04 * Math.sin(s * 2)), 2.4 * VM, 0.2, 0, Math.PI * 2);
-          c.stroke();
-          c.restore();
-        },
-      };
-
-      // Night and day are eased into each other, so the switch crossfades the light too.
-      let day = root.dataset.mode === "light" ? 1 : 0;
-      let alpha = 0, sun = "255,232,200";
-      const lerp = (a, b, k) => a + (b - a) * k;
-      let dirty = true, last = 0;
-
-      function frame(now) {
-        requestAnimationFrame(frame);
-        const target = root.dataset.mode === "light" ? 1 : 0;
-        const easing = Math.abs(target - day) > 0.001;
-        // An open experiment covers the page; no point lighting what nobody can see.
-        const moving = !RM && P.breeze > 0 && !document.body.classList.contains("viewer-open");
-        if (!moving && !easing && !dirty) return;
-        if (now - last < 33) return; // ~30fps is plenty for light
-        last = now;
-        if (easing) day = lerp(day, target, 0.12); else day = target;
-        dirty = false;
-
-        const s = (RM ? 0 : now / 1000) * P.breeze;
-        const t = P.t == null ? hourT() : P.t;
-        // clouds: two slow breaths that rarely line up
-        const cloud = RM ? 1 : 0.86 + 0.08 * Math.sin(s * 0.17) + 0.06 * Math.sin(s * 0.061 + 1);
-        alpha = lerp(0.075, 0.32, day) * P.strength * cloud;
-        const [r, g, b] = [255, lerp(232, 240, day), lerp(200, 215, day)];
-        room.style.background = `rgba(70,55,40,${(0.1 * day * Math.min(P.strength, 1.6)).toFixed(3)})`;
-        win.style.setProperty("--soft", `${lerp(P.soft, P.soft * 0.85, day)}px`);
-
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.clearRect(0, 0, cv.width, cv.height);
-        ctx.scale(RES, RES);
-        const w = 48 * VM * P.scale, h = 90 * VM * P.scale;
-        const drift = RM ? 0 : Math.sin(s * 0.045) * 2.5 * VM;
-        const x0 = W * (0.08 + t * 0.3) + drift;
-        // Morning light comes in from the left, evening from the right, longest at either end.
-        ctx.translate(x0 + w / 2, -0.2 * H);
-        ctx.rotate(((25 - 50 * t) * Math.PI) / 180);
-        ctx.transform(1, 0, Math.tan(((15 - 30 * t) * Math.PI) / 180), 1, 0, 0);
-        ctx.translate(-w / 2, 0);
-
-        sun = `${r},${g | 0},${b | 0}`;
-        ctx.fillStyle = `rgba(${sun},1)`;
-        ctx.globalAlpha = Math.min(1, alpha);
-        const lit = (x, y, ww, hh) => ctx.fillRect(x, y, ww, hh);
-        // Cutting has to happen in its own layer, or a mullion would punch through a neighbour.
-        const cut = (x, y, ww, hh) => {
-          ctx.save();
-          ctx.globalCompositeOperation = "destination-out";
-          ctx.globalAlpha = 1;
-          ctx.fillRect(x, y, ww, hh);
-          ctx.restore();
-        };
-        (SHAPES[P.shape] || SHAPES.window)(w, h, lit, cut, ctx, s);
-      }
-      requestAnimationFrame(frame);
-
-      // ---------- panel: local dev, or ?light=… on the live site ----------
-      const panel = document.getElementById("light-panel");
-      if (!panel || !(panel.dataset.dev || url.searchParams.has("light") || url.searchParams.has("sun"))) return;
-      panel.hidden = false;
-      const shapes = panel.querySelectorAll("[data-shape]");
-      const inputs = panel.querySelectorAll("input[data-k]");
-      const fmt = (k, v) => k === "t"
-        ? (() => { const h = 7 + v * 12; return `${Math.floor(h)}:${String(Math.round((h % 1) * 60)).padStart(2, "0")}`; })()
-        : k === "soft" ? String(v) : (+v).toFixed(2);
-      function sync() {
-        shapes.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.shape === P.shape)));
-        inputs.forEach((i) => {
-          const v = i.dataset.k === "t" && P.t == null ? hourT() : P[i.dataset.k];
-          i.value = v;
-          i.nextElementSibling.textContent = fmt(i.dataset.k, v);
-        });
-      }
-      shapes.forEach((b) => b.addEventListener("click", () => { P.shape = b.dataset.shape; save(); sync(); dirty = true; }));
-      inputs.forEach((i) => i.addEventListener("input", () => { P[i.dataset.k] = +i.value; save(); sync(); dirty = true; }));
-      document.getElementById("lp-now").addEventListener("click", () => { P.t = null; save(); sync(); dirty = true; });
-      document.getElementById("lp-reset").addEventListener("click", () => { P = { ...DEFAULTS }; save(); sync(); dirty = true; });
-      const head = document.getElementById("lp-head");
-      head.addEventListener("click", () => {
-        const closed = panel.classList.toggle("closed");
-        head.setAttribute("aria-expanded", String(!closed));
-      });
-      sync();
-    })();
+    <script>
+      import "../scripts/atmosphere.js";
     </script>
 
   </body>

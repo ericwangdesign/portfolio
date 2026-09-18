@@ -69,6 +69,11 @@ export type ExperimentCard = {
    * itself, so the tile is already in motion. Set false to leave it flat.
    */
   preview?: boolean;
+  /**
+   * A `media` card whose recording only suits the night page: in day mode the
+   * tile runs the piece itself, live and touchable, and the recording rests.
+   */
+  liveInDay?: boolean;
   /** Dim the label — used for the "more in the making…" tile. */
   muted?: boolean;
   /** Push the label to the right edge. */
@@ -85,9 +90,10 @@ export const experimentColumns: ExperimentCard[][] = [
   [
     // Water absorbed the old "Liquid" card — same project, later milestone.
     // The June phone recording stands in for the live preview: it shows the
-    // thing being *used*, which an iframe of the page cannot.
+    // thing being *used*, which an iframe of the page cannot. It was shot in a
+    // dark room, so by day the tile is the marble itself instead.
     { title: "Water", date: "Apr 2026", height: 400, href: "/water",
-      media: "/water/card.mp4" },
+      media: "/water/card.mp4", liveInDay: true },
   ],
 ];
 
