@@ -228,6 +228,7 @@ const cardTops = experimentColumns.map((column) => {
     <!-- window light: sun through something — a window, blinds, leaves — falling across the page -->
     <div class="light" aria-hidden="true"></div>
     <div class="window" aria-hidden="true"><canvas id="light-canvas"></canvas></div>
+    {showPanel && <div class="glare" id="glare" aria-hidden="true"></div>}
     <aside class="lp closed" id="light-panel" aria-label="Light" data-dev={showPanel ? "1" : undefined} hidden>
       <button class="lp-head" id="lp-head" type="button" aria-expanded="false">
         <span>light & shadow</span><span class="lp-chev">▾</span>
@@ -257,6 +258,7 @@ const cardTops = experimentColumns.map((column) => {
         <div class="lp-source" data-hourly><span id="lp-source">sunlight</span><span>24 hours</span></div>
         <label class="lp-row lp-hour" data-hourly><span>hour</span><input type="range" data-k="t" min="0" max="1" step="0.0006944444444444445" /><output></output></label>
         <label class="lp-row"><span>strength</span><input type="range" data-k="strength" min="0" max="1.5" step="0.05" /><output></output></label>
+        <label class="lp-row"><span>floor</span><input type="range" data-k="floor" min="0" max="0.6" step="0.01" /><output></output></label>
         <label class="lp-row"><span>softness</span><input type="range" data-k="soft" min="0" max="40" step="1" /><output></output></label>
         <label class="lp-row"><span>size</span><input type="range" data-k="scale" min="0.5" max="3" step="0.05" /><output></output></label>
         <label class="lp-row" data-only="leaves"><span>density</span><input type="range" data-k="density" min="0.5" max="2.5" step="0.1" /><output></output></label>
@@ -267,6 +269,9 @@ const cardTops = experimentColumns.map((column) => {
         <div class="lp-source" id="lp-motion" role="status">leaves swaying</div>
         {showPanel && (
           <label class="lp-row"><span>demo boost</span><input type="range" id="lp-demo" min="1" max="4" step="0.05" /><output></output></label>
+        )}
+        {showPanel && (
+          <label class="lp-row"><span>bright room</span><input type="range" id="lp-glare" min="0" max="0.2" step="0.002" /><output></output></label>
         )}
         <div class="lp-arrival" id="lp-arrival">
           <div class="lp-source"><span>arrival</span><span>how the light comes up</span></div>
@@ -2162,6 +2167,7 @@ const cardTops = experimentColumns.map((column) => {
       }
       .lp-shapes button:hover { color: #e6e6e6; }
       .lp-shapes button[aria-pressed="true"] { background: #e6e6e6; color: #141414; }
+      .glare { position: fixed; inset: 0; pointer-events: none; z-index: 40; background: #fff; opacity: 0; }
       .lp-row { display: grid; grid-template-columns: 58px 1fr 30px; align-items: center; gap: 6px; }
       .lp-source { display: flex; justify-content: space-between; color: #aaa; font-size: 10px; padding-top: 4px; }
       .lp-hour { grid-template-columns: 30px 1fr 58px; }

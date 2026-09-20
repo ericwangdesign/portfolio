@@ -23,15 +23,15 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
   // the window, and the lamp follows the mouse. Day is a big soft ginkgo bough, and
   // its light rests where a lamp held at the bottom-left corner would throw it —
   // up and to the right, off the text — unless the mouse is asked to take over.
-  const shared = { shape: 'window', pane: 'four', leaf: 'ginkgo', t: null, strength: 1, soft: 8, scale: 1, breeze: 1, lamp: 1, density: 1, follow: false, rest: null };
+  const shared = { shape: 'window', pane: 'four', leaf: 'ginkgo', t: null, strength: 1, soft: 8, scale: 1, breeze: 1, lamp: 1, density: 1, floor: 0, follow: false, rest: null };
   const rooms = {
     // Night is locked: the hour is held at 7:34 PM, so the window never moves with the
     // clock — the only thing that changes it is the lamp following the mouse.
-    dark:  { ...shared, shape: 'window', pane: 'four', t: (19+34/60-7)/24, strength: 1, soft: 6, scale: 1, lamp: .8, follow: true },
+    dark:  { ...shared, shape: 'window', pane: 'four', t: (19+34/60-7)/24, strength: 1.5, soft: 6, scale: 1, lamp: .8, follow: true },
     light: { ...shared, shape: 'leaves', leaf: 'ginkgo', strength: .6, soft: 10, scale: 2.5, density: 1, breeze: 1, lamp: .25, rest: { x: 0, y: 1 } },
   };
   const panes = ['four','tall','grid','arch','round','blinds'];
-  const key = 'ew.atmosphere.v7'; // v6: Eric's locked numbers for both rooms become the defaults
+  const key = 'ew.atmosphere.v8'; // v8: night strength to 1.5, so it survives a bright room
   const leaves = ['willow','birch','ginkgo','maple','olive','eucalyptus','bamboo'];
   const scenes = ['window', 'leaves'];
   const P = { dark: { ...rooms.dark }, light: { ...rooms.light } };
@@ -47,7 +47,7 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
     if (!leaves.includes(q.leaf)) q.leaf='ginkgo';
     if (!panes.includes(q.pane)) q.pane='four';
     if (url.searchParams.has('sun')) q.t = Number(url.searchParams.get('sun'));
-    for (const [name, lo, hi] of [['t',0,1],['strength',0,1.5],['soft',0,40],['scale',0.5,3],['breeze',0,3],['lamp',0,1],['density',0.5,2.5]]) {
+    for (const [name, lo, hi] of [['t',0,1],['strength',0,1.5],['soft',0,40],['scale',0.5,3],['breeze',0,3],['lamp',0,1],['density',0.5,2.5],['floor',0,.6]]) {
       if (name === 't' && q.t === null) continue;
       q[name] = Number.isFinite(Number(q[name])) ? Math.min(hi, Math.max(lo, Number(q[name]))) : rooms[room][name];
     }
@@ -417,7 +417,7 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
     shadeCtx.globalCompositeOperation='source-in';shadeCtx.fillStyle='rgb(74,66,50)';
     shadeCtx.fillRect(0,0,width,height);shadeCtx.restore();
     reset(ctx);
-    ctx.globalAlpha=Math.min(1,sun.intensity*demo)*(1-day);
+    ctx.globalAlpha=Math.min(1,Math.max(p.floor,sun.intensity*demo))*(1-day);
     ctx.drawImage(mask,0,0,width,height);
     ctx.globalAlpha=(p.shape==='leaves'?.5:.2)*day;ctx.drawImage(shade,0,0,width,height);
     if(p.shape==='window'){ctx.globalAlpha=.42*day;ctx.drawImage(frame,0,0,width,height);}
@@ -521,6 +521,16 @@ import { localCycle, clockLabel, lightCycle } from "./atmosphere-cycle.js";
   const boost=document.getElementById('lp-demo');
   if(boost){boost.value=demo;boost.nextElementSibling.textContent=demo.toFixed(2);
     boost.addEventListener('input',()=>{demo=+boost.value;boost.nextElementSibling.textContent=demo.toFixed(2);try{localStorage.setItem('ew.demo',String(demo));}catch{}dirty=true;});}
+  // Dev only: a flat white wash over the page, to judge the light from a dark room.
+  // Ambient glare on a screen raises its black level and eats the delta — the same thing
+  // this does. It is never in the shipped markup, so it cannot reach the live site.
+  const glare=document.getElementById('glare'), glareSlider=document.getElementById('lp-glare');
+  if(glare&&glareSlider){
+    let g=0;try{const v=Number(localStorage.getItem('ew.glare'));if(v>=0&&v<=.2)g=v;}catch{}
+    const paint=()=>{glare.style.opacity=String(g);glareSlider.value=g;glareSlider.nextElementSibling.textContent=g.toFixed(3);};
+    glareSlider.addEventListener('input',()=>{g=+glareSlider.value;paint();try{localStorage.setItem('ew.glare',String(g));}catch{}});
+    paint();
+  }
   const head=document.getElementById('lp-head');
   head.addEventListener('click',()=>head.setAttribute('aria-expanded',String(!panel.classList.toggle('closed'))));
   refreshControls=sync;
