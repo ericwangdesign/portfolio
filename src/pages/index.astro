@@ -19,7 +19,7 @@ const canonical = "https://www.ericwangdesign.com/";
     <meta property="og:title" content="Eric Wang Design" />
     <meta property="og:description" content="Eric Wang is a Designer at Google Maps." />
     <meta property="og:url" content={canonical} />
-    <meta name="theme-color" content="#0f0f0f" />
+    <meta name="theme-color" content="#000000" />
     <link rel="icon" type="image/png" href="/favicon-darkbg.png" />
     <link rel="apple-touch-icon" href="/favicon-darkbg.png" />
     <link
@@ -30,19 +30,6 @@ const canonical = "https://www.ericwangdesign.com/";
       crossorigin
     />
     <Analytics piece="home" />
-    <script is:inline>
-      // Theme, before anything paints. Dark by default; the last pick (shared with the
-      // vault and studio through the .ericwangdesign.com cookie) still wins.
-      (() => {
-        let mode = "dark";
-        try {
-          let c = (document.cookie.match(/(?:^|; )theme=(light|dark)/) || [])[1];
-          if (!c) c = localStorage.getItem("theme");
-          if (c === "light") mode = "light";
-        } catch (e) {}
-        document.documentElement.dataset.mode = mode;
-      })();
-    </script>
     <style is:global>
       @font-face {
         font-family: "Geist";
@@ -55,13 +42,11 @@ const canonical = "https://www.ericwangdesign.com/";
           U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
       }
 
+      /* Dark only: black ground, white type. No light mode. */
       :root {
-        --bg: #0f0f0f;
+        --bg: #000000;
         --ink: #ffffff;
-      }
-      :root[data-mode="light"] {
-        --bg: #f2f2f2;
-        --ink: #0f0f0f;
+        color-scheme: dark;
       }
 
       html,
@@ -73,17 +58,23 @@ const canonical = "https://www.ericwangdesign.com/";
       }
 
       body {
-        display: grid;
-        place-items: center;
-        min-height: 100dvh;
-        padding: 0 16px;
-        box-sizing: border-box;
         font-family: "Geist", system-ui, -apple-system, sans-serif;
         font-size: 16px;
         line-height: 1.4;
         letter-spacing: -0.01em;
         text-align: center;
         -webkit-font-smoothing: antialiased;
+      }
+
+      /* Pinned to the window, not to the document's height, so it stays dead
+         center through any resize. */
+      main {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 16px;
       }
 
       p {
