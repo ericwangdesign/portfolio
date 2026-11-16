@@ -1,0 +1,33 @@
+{
+  "name": "Portfolio website",
+  "versions": [
+    {
+      "id": "one-line",
+      "at": 1794792815682,
+      "by": "Eric Wang",
+      "title": "One line",
+      "note": "The home page is one centered line on black. The work list and tiles are kept in git.",
+      "open": "https://www.ericwangdesign.com",
+      "run": "npm run dev, then localhost:4329",
+      "source": "https://github.com/ericwangdesign/portfolio.git",
+      "picture": "shots/one-line.png"
+    }
+  ],
+  "team": "Side Projects",
+  "context": "My site, moved off Framer onto code I own: Astro, deployed on Vercel. Dark only, Geist only, hierarchy from size and ink.",
+  "by": "Eric Wang",
+  "docs": [
+    {
+      "title": "Project note",
+      "url": "https://vault.ericwangdesign.com/n/portfolio-website"
+    },
+    {
+      "title": "Portfolio atlas",
+      "url": "https://vault.ericwangdesign.com/pages/portfolio-atlas.html"
+    },
+    {
+      "title": "Live site",
+      "url": "https://www.ericwangdesign.com"
+    }
+  ]
+}
