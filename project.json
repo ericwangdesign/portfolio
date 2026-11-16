@@ -13,7 +13,6 @@
       "picture": "shots/one-line.png"
     }
   ],
-  "team": "Side Projects",
   "context": "My site, moved off Framer onto code I own: Astro, deployed on Vercel. Dark only, Geist only, hierarchy from size and ink.",
   "by": "Eric Wang",
   "docs": [
@@ -29,5 +28,6 @@
       "title": "Live site",
       "url": "https://www.ericwangdesign.com"
     }
-  ]
+  ],
+  "folder": "Side Projects"
 }
